@@ -20,37 +20,39 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 -->
 <html>
-  <head>
-    <meta charset='utf-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
-    <meta name='mobile-web-app-capable' content='yes'>
-    <meta name='apple-mobile-web-app-capable' content='yes'>
-    <!--
+
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+  <meta name='mobile-web-app-capable' content='yes'>
+  <meta name='apple-mobile-web-app-capable' content='yes'>
+  <!--
     <link rel='icon' type='image/png' sizes='32x32' href='favicon-32x32.png'>
     <link rel='icon' type='image/png' sizes='96x96' href='favicon-96x96.png'>
     <link rel='stylesheet' href='css/common.css'>-->
 
-    <title>Barebones VR</title>
-  </head>
-  <body>
-    <header>
-      <details open>
-        <summary>Barebones VR</summary>
-        <p>
-          This sample demonstrates extremely simple use of an "immersive-vr"
-          session with no library dependencies. It doesn't render anything
-          exciting, just clears your headset's display to a slowly changing
-          color to prove it's working.
-          <a class="back" href="./">Back</a>
-        </p>
-        <button id="xr-button" class="barebones-button" disabled>XR not found</button>
-      </details>
-    </header>
-    <main style='text-align: center;'>
-      <p>Click 'Enter VR' to see content</p> 
-    </main>
-    <script>
-      (function () {
+  <title>Barebones VR</title>
+</head>
+
+<body>
+  <header>
+    <details open>
+      <summary>Barebones VR</summary>
+      <p>
+        This sample demonstrates extremely simple use of an "immersive-vr"
+        session with no library dependencies. It doesn't render anything
+        exciting, just clears your headset's display to a slowly changing
+        color to prove it's working.
+        <a class="back" href="./">Back</a>
+      </p>
+      <button id="xr-button" class="barebones-button" disabled>XR not found</button>
+    </details>
+  </header>
+  <main style='text-align: center;'>
+    <p>Click 'Enter VR' to see content</p>
+  </main>
+  <script>
+    (function () {
       'use strict';
 
       // XR globals.
@@ -103,7 +105,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         // Create a WebGL context to render with, initialized to be compatible
         // with the XRDisplay we're presenting to.
         let canvas = document.createElement('canvas');
-        gl = canvas.getContext('webgl', { xrCompatible: true });
+        gl = canvas.getContext('webgl', {
+          xrCompatible: true,
+          powerPreference: 'high-performance' // Ensure both APIs use the same GPU
+        });
+
+        // Log basic GPU identification to the console
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const vendor = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL);
+        const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+        console.log(`WebGL vendor: ${vendor}, renderer: ${renderer}`);
 
         // Use the new WebGL context to create a XRWebGLLayer and set it as the
         // sessions baseLayer. This allows any content rendered to the layer to
@@ -161,8 +172,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
           // Update the clear color so that we can observe the color in the
           // headset changing over time.
           gl.clearColor(Math.cos(time / 2000),
-                        Math.cos(time / 4000),
-                        Math.cos(time / 6000), 1.0);
+            Math.cos(time / 4000),
+            Math.cos(time / 6000), 1.0);
 
           // Clear the framebuffer
           gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -187,6 +198,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       initXR();
 
     })();
-    </script>
-  </body>
+  </script>
+</body>
+
 </html>
