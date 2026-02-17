@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WebGL2 Harness</title>
+  <style>
+html, body { height: 100%; margin: 0; background: #111; color: #ddd; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+header { position: fixed; top: 0; left: 0; right: 0; padding: 10px 12px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display:flex; gap:12px; align-items:center; z-index: 10; }
+#status { opacity: 0.9; font-size: 14px; }
+main { height: 100%; display:flex; }
+canvas { width: 100%; height: 100%; display:block; }
+button { padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: #fff; }
+button:disabled { opacity: 0.4; }
+a { color: #9ad; }
+</style>
+</head>
+<body>
+<header>
+  <button id="xr-button" disabled>Checking XR…</button>
+  <span id="status">Loading…</span>
+  <span style="margin-left:auto; opacity:0.8">WebGL2</span>
+</header>
+<main><canvas></canvas></main>
+<script type="module" src="./src/app-webgl.js"></script>
+</body>
+</html>

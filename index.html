@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WebXR Harness Starter</title>
+  <style>
+html, body { height: 100%; margin: 0; background: #111; color: #ddd; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+header { position: fixed; top: 0; left: 0; right: 0; padding: 10px 12px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display:flex; gap:12px; align-items:center; z-index: 10; }
+#status { opacity: 0.9; font-size: 14px; }
+main { height: 100%; display:flex; }
+canvas { width: 100%; height: 100%; display:block; }
+button { padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: #fff; }
+button:disabled { opacity: 0.4; }
+a { color: #9ad; }
+</style>
+</head>
+<body>
+<header>
+  <strong>WebXR Harness Starter</strong>
+  <span id="status">Pick a backend:</span>
+</header>
+<main style="padding-top:52px; display:block">
+  <p style="padding:12px; max-width:900px">
+    This starter runs the same GLB mesh through two backends:
+    <a href="./webgl.html">WebGL2</a> and <a href="./webgpu.html">WebGPU</a>.
+  </p>
+  <p style="padding:12px; max-width:900px">
+    URL params:
+    <code>?model=./assets/model.glb&instances=4&durationMs=10000</code>
+  </p>
+</main>
+</body>
+</html>
