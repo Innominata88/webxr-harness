@@ -2,8 +2,16 @@
 import { loadGLBMesh } from "./common/glb-loader.js";
 import { WebGLMeshRenderer, computeViewProj } from "./webgl/renderer-webgl.js";
 import { RunStats } from "./common/metrics.js";
+import { consumeRestHandoff, writeRestHandoff, scheduleCooldownRedirect, getRedirectDelayMs } from "./common/rest.js";
 
 const params = new URLSearchParams(location.search);
+
+// Optional: automatically redirect to an idle page after the *final* phase completes (canvas/xr).
+const cooldownPage = params.get("cooldownPage") || "";
+const betweenSuitesMs = parseInt(params.get("betweenSuitesMs") || "0", 10);
+const cooldownDelayMsParam = parseInt(params.get("cooldownDelayMs") || "0", 10);
+const cooldownAfter = (params.get("cooldownAfter") || "final").toLowerCase(); // final|canvas|xr
+const xrEntryTimeoutMs = parseInt(params.get("xrEntryTimeoutMs") || "45000", 10);
 
 const suiteId = params.get("suiteId") || `suite_${Date.now()}`;
 const modelUrl = params.get("model") || "./assets/model.glb";
@@ -13,7 +21,7 @@ const warmupMs = parseInt(params.get("warmupMs") || "500", 10);
 const cooldownMs = parseInt(params.get("cooldownMs") || "250", 10);
 const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 10);
 const outFile = params.get("out") || `results_webgl_${Date.now()}.jsonl`;
-const SCHEMA_VERSION = "1.0.0";
+const SCHEMA_VERSION = "1.1.0";
 
 const layout = (params.get("layout") || "line").toLowerCase(); // line|grid|spiral|random
 const seed = parseInt(params.get("seed") || "12345", 10) >>> 0;
@@ -122,6 +130,10 @@ const runMode = (() => {
   const v = (params.get("mode") || "both").toLowerCase();
   return (v === "canvas" || v === "xr" || v === "both") ? v : "both";
 })();
+
+
+// Rest/cooldown metadata (populated from previous suite via localStorage handoff).
+let restInfo = consumeRestHandoff(Date.now(), Number.isFinite(betweenSuitesMs) ? betweenSuitesMs : null);
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
 const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
@@ -217,6 +229,13 @@ let renderer=null;
 let xrSession=null;
 let xrRefSpace=null;
 
+let xrSupported=false; // set by initXR()
+let xrStarted=false; // true once an XR session has successfully started
+let xrRequesting=false; // true while requestSession is in flight
+let suiteFinalized=false; // prevent duplicate rest handoff/redirect
+let xrFinalizeTimer=null; // optional timeout: mode=both + cooldownAfter=final
+let xrFinalizeOutFile=null;
+
 let sceneInfo=null;
 let envInfo=null;
 let resultsCanvas=[];
@@ -268,6 +287,89 @@ function hudStopAuto() {
 }
 
 
+
+function isFinalPhase(phase) {
+  // phase is "canvas" or "xr"
+  if (cooldownAfter === "canvas") return phase === "canvas";
+  if (cooldownAfter === "xr") return phase === "xr";
+  // default: final
+  if (runMode === "canvas") return phase === "canvas";
+  if (runMode === "xr") return phase === "xr";
+  // runMode === "both"
+  if (!xrSupported) return phase === "canvas";
+  return phase === "xr";
+}
+
+function clearXrFinalizeTimer() {
+  if (!xrFinalizeTimer) return;
+  clearTimeout(xrFinalizeTimer);
+  xrFinalizeTimer = null;
+}
+
+function armXrFinalizeTimeout(canvasOutFilename) {
+  // In mode=both, "final" depends on manual XR entry. Add a deterministic fallback.
+  if (cooldownAfter !== "final") return false;
+  if (runMode !== "both" || !xrSupported) return false;
+  const waitMs = Number.isFinite(xrEntryTimeoutMs) ? Math.max(0, xrEntryTimeoutMs) : 0;
+  if (waitMs <= 0) return false;
+  const deadlineTs = Date.now() + waitMs;
+  const requestGraceMs = 120000;
+  xrFinalizeOutFile = canvasOutFilename || null;
+  clearXrFinalizeTimer();
+  log(`Canvas phase complete. Waiting up to ${waitMs}ms for XR entry before finalizing suite.`);
+
+  const checkTimeout = () => {
+    xrFinalizeTimer = null;
+    if (xrStarted || suiteFinalized) return;
+    if (xrRequesting && Date.now() < (deadlineTs + requestGraceMs)) {
+      xrFinalizeTimer = setTimeout(checkTimeout, 250);
+      return;
+    }
+    if (Date.now() < deadlineTs) {
+      xrFinalizeTimer = setTimeout(checkTimeout, Math.max(1, deadlineTs - Date.now()));
+      return;
+    }
+    log(`XR was not started within ${waitMs}ms. Saving XR skip record and finalizing suite.`);
+    if (envInfo) envInfo.xr_skipped_reason = "entry_timeout";
+    resultsXR.push(buildXRAbortRecord({
+      abortCode: "xr_entry_timeout",
+      abortReason: `XR was not started within ${waitMs}ms before timeout finalization.`,
+      observedViewCount: 0
+    }));
+    flushXRResults(xrOutFilename(), "XR not started in time - skip record saved");
+  };
+
+  xrFinalizeTimer = setTimeout(checkTimeout, waitMs);
+  return true;
+}
+
+function finalizeSuiteIfFinal(phase, outFilename, { force=false } = {}) {
+  if (suiteFinalized) return;
+  if (!force && !isFinalPhase(phase)) return;
+  suiteFinalized = true;
+  clearXrFinalizeTimer();
+  writeRestHandoff({
+    suiteId,
+    api: apiLabel,
+    runMode,
+    finalPhase: phase,
+    outFile: outFilename || null,
+    url: location.href,
+    nowEpochMs: Date.now()
+  });
+
+  if (cooldownPage) {
+    const delayMs = getRedirectDelayMs({ requestedMs: cooldownDelayMsParam, ua: navigator.userAgent });
+    scheduleCooldownRedirect({
+      cooldownPage,
+      delayMs,
+      betweenSuitesMs: (Number.isFinite(betweenSuitesMs) && betweenSuitesMs > 0) ? betweenSuitesMs : null,
+      fromSuiteId: suiteId,
+      fromApi: apiLabel
+    });
+  }
+}
+
 function downloadText(text, filename, mime="application/jsonl") {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -288,8 +390,10 @@ function xrOutFilename() {
 
 function flushXRResults(filename=xrOutFilename(), label="Done (XR)") {
   const jsonl = resultsXR.map(o=>JSON.stringify(o)).join("\n") + "\n";
+  resultsXR = [];
   downloadText(jsonl, filename);
   log(`${label}. Downloaded ${filename}`);
+  finalizeSuiteIfFinal("xr", filename);
 }
 
 
@@ -381,6 +485,8 @@ async function initGL() {
 
   sceneInfo = { asset_timing: scene.timing, asset_meta: scene.meta };
   envInfo = {
+    url: location.href,
+    rest: restInfo,
     api: "webgl2",
     powerPreferenceRequested: "high-performance",
     hudEnabled,
@@ -404,12 +510,12 @@ async function initGL() {
       mobile: navigator.userAgentData.mobile,
       platform: navigator.userAgentData.platform
     } : null),
-    platform: navigator.platform,
-    language: navigator.language,
-    languages: navigator.languages,
-    hardwareConcurrency: navigator.hardwareConcurrency,
-    deviceMemory: navigator.deviceMemory,
-    maxTouchPoints: navigator.maxTouchPoints,
+    platform: (navigator.platform ?? null),
+    language: (navigator.language ?? null),
+    languages: (navigator.languages ?? null),
+    hardwareConcurrency: (navigator.hardwareConcurrency ?? null),
+    deviceMemory: (navigator.deviceMemory ?? null),
+    maxTouchPoints: (navigator.maxTouchPoints ?? null),
     isSecureContext,
     crossOriginIsolated,
     visibilityState: document.visibilityState,
@@ -508,13 +614,16 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
     }
     
     function beginMeasured() {
-      let lastT = performance.now();
       stats.markStart();
+      let lastT = NaN;
 
       function frame(t) {
-      const dt = t - lastT; lastT = t;
-      dts.push(dt);
-      stats.addFrame(dt);
+      if (Number.isFinite(lastT)) {
+        const dt = t - lastT;
+        dts.push(dt);
+        stats.addFrame(dt);
+      }
+      lastT = t;
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0,0,canvas.width,canvas.height);
@@ -622,6 +731,10 @@ async function runCanvasSuite() {
     const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
     downloadText(jsonl, outFile);
     log(`Done (canvas). Downloaded ${outFile}`);
+    // In mode=both + cooldownAfter=final, wait briefly for XR entry before closing the suite.
+    if (!armXrFinalizeTimeout(outFile)) {
+      finalizeSuiteIfFinal("canvas", outFile);
+    }
     clearCanvasBlankOnce();
   } finally {
     canvasRunInProgress = false;
@@ -631,10 +744,19 @@ async function runCanvasSuite() {
 async function initXR() {
   if (!navigator.xr) { log("WebXR not supported (canvas-only)"); return; }
   const supported = await navigator.xr.isSessionSupported("immersive-vr").catch(()=>false);
+  xrSupported = !!supported;
   if (!supported) { log("Immersive VR not supported here (canvas-only)"); return; }
   btn.disabled = false;
   btn.textContent = "Enter VR";
   btn.addEventListener("click", async ()=> {
+    if (suiteFinalized) {
+      log("Suite already finalized. Reload to start a new suite.");
+      return;
+    }
+    if (xrRequesting) {
+      log("XR session request already in progress.");
+      return;
+    }
     if (!xrSession) {
       if (canvasRunInProgress || canvasRunScheduled) {
         log("Canvas suite is scheduled/running. Use mode=xr for XR-only benchmarking.");
@@ -643,11 +765,28 @@ async function initXR() {
       try {
         const opts = hudEnabled ? { optionalFeatures:["dom-overlay"], domOverlay:{ root: document.body } } : {};
         xrEnterClickedAt = performance.now();
+        xrRequesting = true;
         xrSession = await navigator.xr.requestSession("immersive-vr", opts);
+        xrRequesting = false;
+        if (suiteFinalized) {
+          try { await xrSession.end(); } catch (_) {}
+          xrSession = null;
+          log("Suite finalized while XR request was pending; discarded late XR session.");
+          return;
+        }
         await onSessionStarted(xrSession);
       } catch (e) {
+        xrRequesting = false;
+        const failedSession = xrSession;
         xrSession = null;
         xrEnterClickedAt = null;
+        xrStarted = false;
+        if (failedSession) {
+          try { await failedSession.end(); } catch (_) {}
+        }
+        if (runMode === "both" && cooldownAfter === "final" && !suiteFinalized) {
+          armXrFinalizeTimeout(xrFinalizeOutFile || outFile);
+        }
         console.error(e);
         log(`XR session failed: ${e?.message || e}`);
       }
@@ -683,24 +822,22 @@ function fmtMs(ms) {
   return `${(ms/1000).toFixed(1)}s`;
 }
 
-function abortXRForComparability(session, observedViews) {
-  if (xrAbortReason) return;
-  xrAbortReason = `XR aborted: observed ${observedViews} views; max allowed is ${MAX_COMPARABLE_XR_VIEWS} for cross-API comparability.`;
-  if (envInfo) {
-    envInfo.xr_abort_reason = xrAbortReason;
-    envInfo.xr_observed_view_count = observedViews;
-    envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
-  }
-  const cur = (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
+
+function currentXRPlanItem() {
+  return (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
+}
+
+function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0 } = {}) {
+  const cur = currentXRPlanItem();
   const elapsedMs = (xrStats && xrStats.startWall) ? Math.max(0, performance.now() - xrStats.startWall) : null;
-  const abortRecord = {
+  return {
     schema_version: SCHEMA_VERSION,
     api: "webgl2",
     mode: "xr",
     aborted: true,
-    abort_code: "xr_view_count_exceeded",
-    abort_reason: xrAbortReason,
-    observed_view_count: observedViews,
+    abort_code: abortCode || "xr_session_ended_early",
+    abort_reason: abortReason || "XR session ended before suite completion.",
+    observed_view_count: Number.isFinite(observedViewCount) ? observedViewCount : 0,
     expected_max_views: MAX_COMPARABLE_XR_VIEWS,
     suiteId,
     modelUrl,
@@ -738,11 +875,45 @@ function abortXRForComparability(session, observedViews) {
     xr_cadence_secondary: summarizeSeries(xrDtsNow),
     xr_viewports: xrViewports || []
   };
+}
+
+function abortXRForComparability(session, observedViews) {
+  if (xrAbortReason) return;
+  xrAbortReason = `XR aborted: observed ${observedViews} views; max allowed is ${MAX_COMPARABLE_XR_VIEWS} for cross-API comparability.`;
+  if (envInfo) {
+    envInfo.xr_abort_reason = xrAbortReason;
+    envInfo.xr_observed_view_count = observedViews;
+    envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+  }
+  const abortRecord = buildXRAbortRecord({
+    abortCode: "xr_view_count_exceeded",
+    abortReason: xrAbortReason,
+    observedViewCount: observedViews
+  });
   resultsXR.push(abortRecord);
   flushXRResults(xrOutFilename(), "Aborted (XR)");
   xrActive = false;
   log(xrAbortReason);
   Promise.resolve(session.end()).catch(()=>{});
+}
+
+function flushUnexpectedXREnd() {
+  if (suiteFinalized) return;
+  const incomplete = !xrPlan || xrIndex < xrPlan.length;
+  if (incomplete) {
+    const reason = xrAbortReason || "XR session ended before suite completion.";
+    if (envInfo && !envInfo.xr_abort_reason) envInfo.xr_abort_reason = reason;
+    const observed = Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0;
+    resultsXR.push(buildXRAbortRecord({
+      abortCode: "xr_session_ended_early",
+      abortReason: reason,
+      observedViewCount: observed
+    }));
+  }
+  if (resultsXR.length > 0) {
+    const label = incomplete ? "XR session ended early - partial results saved" : "XR session ended - results saved";
+    flushXRResults(xrOutFilename(), label);
+  }
 }
 
 function ensureComparableXRViews(session, pose) {
@@ -758,7 +929,6 @@ function ensureComparableXRViews(session, pose) {
 function xrHudText() {
   if (!xrPlan) return "XR: not started";
   const total = xrPlan.length;
-  const idx = Math.min(xrIndex + (xrActive ? 0 : 0), total);
   const cur = xrPlan[Math.min(xrIndex, total-1)];
   const inst = cur ? cur.instances : "-";
   const tr = cur ? cur.trial : "-";
@@ -772,6 +942,7 @@ function xrHudText() {
 
 
 function startNextXRTrial(session) {
+  if (!xrSession || session !== xrSession) return; // session already ended/replaced
   if (xrAbortReason) {
     xrActive=false;
     Promise.resolve(session.end()).catch(()=>{});
@@ -805,6 +976,8 @@ function startNextXRTrial(session) {
     durationMs,
     warmupMs,
     cooldownMs,
+    preIdleMs,
+    postIdleMs,
     betweenInstancesMs,
     layout,
     seed,
@@ -821,6 +994,7 @@ function startNextXRTrial(session) {
   };
 
 function beginMeasuredXR() {
+  if (!xrSession || session !== xrSession) return; // session ended/replaced during preIdleMs
   xrStats.markStart();
   xrTrialId = `trial_webgl2_xr_inst${item.instances}_t${item.trial}_idx${xrIndex+1}`;
   xrMemStart = collectPerf ? snapshotMemory() : null;
@@ -849,7 +1023,19 @@ if (preIdleMs > 0) {
 }
 
 async function onSessionStarted(session) {
+  xrStarted = true;
+  clearXrFinalizeTimer();
   xrAbortReason = null;
+  // Reset XR-specific envInfo fields so re-entry doesn't inherit stale values.
+  // Use delete (not null/undefined) so they don't serialize and trip the validator.
+  if (envInfo) {
+    delete envInfo.xr_enter_to_first_frame_ms;
+    delete envInfo.xr_dom_overlay_requested;
+    delete envInfo.xr_abort_reason;
+    delete envInfo.xr_observed_view_count;
+    delete envInfo.xr_skipped_reason;
+    envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+  }
   btn.textContent = "Exit VR";
   hudStartAuto(xrHudText);
   session.addEventListener("end", ()=> {
@@ -857,9 +1043,11 @@ async function onSessionStarted(session) {
     xrSession=null;
     btn.textContent="Enter VR";
     xrActive=false;
+    flushUnexpectedXREnd();
   });
 
   await gl.makeXRCompatible?.();
+  if (!xrSession) return; // session ended during makeXRCompatible
 
   let baseLayer = null;
   let appliedScale = null;
@@ -875,12 +1063,14 @@ async function onSessionStarted(session) {
     envInfo.xr_scale_factor_applied = appliedScale;
   }
   xrRefSpace = await session.requestReferenceSpace("local");
+  if (!xrSession) return; // session ended during requestReferenceSpace
 
   resultsXR = [];
   xrPlan = buildPlan();
   xrIndex = 0;
 
   await sleep(warmupMs);
+  if (!xrSession) return; // session ended during initial warmup
   startNextXRTrial(session);
   session.requestAnimationFrame(onXRFrame);
 }
@@ -1022,8 +1212,8 @@ resultsXR.push(out);
     // pause between different instance counts
     const next = xrPlan[xrIndex];
     const prev = xrPlan[xrIndex-1];
-    const pause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : warmupMs;
-    const totalPause = pause + Math.max(0, postIdleMs|0);
+    const betweenPause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : 0;
+    const totalPause = betweenPause + warmupMs + cooldownMs + Math.max(0, postIdleMs|0);
     xrBlankClearOnce = true;
     setTimeout(()=>startNextXRTrial(session), totalPause);
   }

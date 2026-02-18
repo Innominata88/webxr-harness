@@ -43,7 +43,7 @@ Exit code behavior:
   - Contains `summary`, `extras`, `perf`, `xr_viewports`
 - XR abort record:
   - `mode: "xr"`, `aborted: true`
-  - Written when XR view count exceeds comparability guard (`> 2` views)
+  - Written when XR cannot produce a valid complete suite (for example view-count comparability guard, entry timeout, or early session termination)
   - Contains abort metadata and partial progress, not `summary/extras/perf`
 
 ## Top-level fields
@@ -52,7 +52,7 @@ Exit code behavior:
 
 | Field | Type | Applies to | Notes |
 |---|---|---|---|
-| `schema_version` | string | all | Record schema version; current value `"1.0.0"` |
+| `schema_version` | string | all | Record schema version; current value `"1.1.0"` (validator also accepts legacy `"1.0.0"`) |
 | `api` | string | all | `"webgl2"` or `"webgpu"` |
 | `mode` | string | all | `"canvas"` or `"xr"` |
 | `modelUrl` | string | all | Model URL used by loader |
@@ -89,7 +89,7 @@ Exit code behavior:
 | `xr_effective_pixels` | object | xr | Requested/applied scale factor and first-frame pixel counts |
 | `xr_viewports` | object[] | xr | Per-view viewport samples (`x`,`y`,`w`,`h`) collected each frame |
 | `aborted` | boolean | abort | Always `true` for abort records |
-| `abort_code` | string | abort | Currently `"xr_view_count_exceeded"` |
+| `abort_code` | string | abort | Typical values: `"xr_view_count_exceeded"`, `"xr_entry_timeout"`, `"xr_session_ended_early"` |
 | `abort_reason` | string | abort | Human-readable reason |
 | `observed_view_count` | number | abort | View count observed at abort |
 | `expected_max_views` | number | abort | Comparability guard, currently `2` |
@@ -220,12 +220,12 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_expected_max_views` | number |
 | `ua` | string |
 | `uaData` | object or null |
-| `platform` | string |
-| `language` | string |
-| `languages` | string[] |
-| `hardwareConcurrency` | number |
-| `deviceMemory` | number or undefined |
-| `maxTouchPoints` | number |
+| `platform` | string or null |
+| `language` | string or null |
+| `languages` | string[] or null |
+| `hardwareConcurrency` | number or null |
+| `deviceMemory` | number or null |
+| `maxTouchPoints` | number or null |
 | `isSecureContext` | boolean |
 | `crossOriginIsolated` | boolean |
 | `visibilityState` | string |
@@ -235,12 +235,18 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_enter_to_first_frame_ms` | number optional |
 | `xr_dom_overlay_requested` | boolean optional |
 | `xr_abort_reason` | string optional |
+| `xr_skipped_reason` | string optional | For example `"entry_timeout"` when `mode=both` timed out before XR start |
 | `xr_observed_view_count` | number optional |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
 | `runMode` | string |
 | `gpu_identity` | string |
 | `order_control` | object |
+| `url` | string (1.1.0+) |
+| `rest` | object or null (optional) |
+
+Legacy note:
+- For legacy `schema_version: "1.0.0"` files, newer env fields (for example `runMode`, `order_control`, `url`, and XR scale-factor metadata) may be absent.
 
 ### WebGL-only fields
 
@@ -298,3 +304,40 @@ Can be `null` if no matching resource timing entry is found.
 - `perf.longtask.entries` is only present when `perfDetail=1`.
 - Use `schema_version` to gate parsers when fields evolve.
 - For paper reproducibility, also pin analyses to a git commit hash.
+
+
+### env.rest
+
+`env.rest` records the measured idle/cooldown interval **between the previous suite finishing** and **this suite page loading**.
+
+This uses a small `localStorage` handoff written at the end of the previous suite and consumed on the next suite load.
+
+Fields:
+
+- `restStartTs` (number|null): epoch ms when the previous suite finished (handoff written)
+- `restEndTs` (number|null): epoch ms when this suite loaded
+- `restElapsedMs` (number|null): `restEndTs - restStartTs`
+- `recommendedRestMs` (number|null): from URL param `betweenSuitesMs` (if provided)
+- `previousSuiteId` (string|null)
+- `previousApi` (string|null)
+- `previousRunMode` (string|null): `"canvas" | "xr" | "both"`
+- `previousFinalPhase` (string|null): `"canvas" | "xr"`
+- `previousOutFile` (string|null)
+- `previousUrl` (string|null)
+
+Notes:
+- `env.rest` may be absent in legacy `schema_version: "1.0.0"` records generated before rest handoff support.
+- `env.rest` may also be explicitly `null` in transitional outputs.
+- On the **first** suite in a sequence, the `previous*` fields and timestamps are null.
+- `restElapsedMs` intentionally excludes model parsing, GPU initialization, and auto-run delays; it measures “time spent idle between pages”.
+
+### cooldown redirect (optional)
+
+If you set `cooldownPage`, the harness will auto-navigate to that page after the **final** phase completes.
+
+URL params:
+- `cooldownPage=./idle.html` (or any same-origin page)
+- `betweenSuitesMs=300000` (5 minutes; also passed into `idle.html`)
+- `cooldownDelayMs=8000` (optional; redirect delay after download trigger)
+- `cooldownAfter=final|canvas|xr` (default `final`)
+- `xrEntryTimeoutMs=45000` (only when `mode=both` + `cooldownAfter=final`; if XR is not entered in time, harness emits an XR abort/skip record and finalizes)

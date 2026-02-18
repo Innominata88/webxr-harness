@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import process from "node:process";
 
-const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0.0"]);
+const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0.0", "1.1.0"]);
 const VALID_APIS = new Set(["webgl2", "webgpu"]);
 const VALID_MODES = new Set(["canvas", "xr"]);
 const MAX_PRINTED_ERRORS = 200;
@@ -65,6 +65,23 @@ function pushTypeError(errors, loc, key, expected, actual) {
   errors.push(`${loc}: \`${key}\` expected ${expected}, got ${actual}`);
 }
 
+function pushMissingError(errors, loc, key) {
+  errors.push(`${loc}: missing required field \`${key}\``);
+}
+
+function checkObject(obj, key, loc, errors) {
+  if (!checkFieldPresence(obj, key, loc, errors)) return;
+  const value = obj[key];
+  if (!isObject(value)) {
+    pushTypeError(errors, loc, key, "object", typeName(value));
+  }
+}
+
+function checkIfPresent(obj, key, checker, loc, errors) {
+  if (!hasOwn(obj, key)) return;
+  checker(obj, key, loc, errors);
+}
+
 function checkFieldPresence(obj, key, loc, errors) {
   if (!hasOwn(obj, key)) {
     errors.push(`${loc}: missing required field \`${key}\``);
@@ -97,6 +114,38 @@ function checkEnum(obj, key, allowed, loc, errors) {
       `${loc}: \`${key}\` expected one of [${Array.from(allowed).join(", ")}], got ${JSON.stringify(value)}`
     );
   }
+}
+
+
+function checkStringOrNull(obj, key, loc, errors) {
+  if (!(key in obj)) { pushMissingError(errors, loc, key); return; }
+  const v = obj[key];
+  if (v === null) return;
+  if (typeof v !== "string") pushTypeError(errors, loc, key, "string|null", typeName(v));
+}
+function checkNumberOrNull(obj, key, loc, errors) {
+  if (!(key in obj)) { pushMissingError(errors, loc, key); return; }
+  const v = obj[key];
+  if (v === null) return;
+  if (typeof v !== "number" || !Number.isFinite(v)) pushTypeError(errors, loc, key, "number|null", typeName(v));
+}
+function checkBooleanOrNull(obj, key, loc, errors) {
+  if (!(key in obj)) { pushMissingError(errors, loc, key); return; }
+  const v = obj[key];
+  if (v === null) return;
+  if (typeof v !== "boolean") pushTypeError(errors, loc, key, "boolean|null", typeName(v));
+}
+function checkObjectOrNull(obj, key, loc, errors) {
+  if (!(key in obj)) { pushMissingError(errors, loc, key); return; }
+  const v = obj[key];
+  if (v === null) return;
+  if (!isObject(v)) pushTypeError(errors, loc, key, "object|null", typeName(v));
+}
+function checkArrayOrNull(obj, key, loc, errors) {
+  if (!(key in obj)) { pushMissingError(errors, loc, key); return; }
+  const v = obj[key];
+  if (v === null) return;
+  if (!Array.isArray(v)) pushTypeError(errors, loc, key, "array|null", typeName(v));
 }
 
 function checkNumber(obj, key, loc, errors, allowNull = false) {
@@ -157,13 +206,118 @@ function validateEnv(record, loc, errors) {
     pushTypeError(errors, loc, key, "object", typeName(value));
     return;
   }
+  const strictV11 = record.schema_version === "1.1.0";
+
+  // Core fields common to all supported schema versions.
   checkString(value, "api", `${loc}.${key}`, errors);
   checkString(value, "powerPreferenceRequested", `${loc}.${key}`, errors);
   checkBoolean(value, "hudEnabled", `${loc}.${key}`, errors);
   checkNumber(value, "hudHz", `${loc}.${key}`, errors);
   checkNumber(value, "xr_expected_max_views", `${loc}.${key}`, errors);
   checkString(value, "ua", `${loc}.${key}`, errors);
+
+  // Expanded env fields are required in 1.1.0 and optional in 1.0.0.
+  if (strictV11) {
+    checkNumber(value, "xr_scale_factor_requested", `${loc}.${key}`, errors);
+    checkNumberOrNull(value, "xr_scale_factor_applied", `${loc}.${key}`, errors);
+    checkString(value, "runMode", `${loc}.${key}`, errors);
+    checkObjectOrNull(value, "order_control", `${loc}.${key}`, errors);
+    checkObjectOrNull(value, "uaData", `${loc}.${key}`, errors);
+    checkStringOrNull(value, "platform", `${loc}.${key}`, errors);
+    checkStringOrNull(value, "language", `${loc}.${key}`, errors);
+    checkArrayOrNull(value, "languages", `${loc}.${key}`, errors);
+    checkNumberOrNull(value, "hardwareConcurrency", `${loc}.${key}`, errors);
+    checkNumberOrNull(value, "deviceMemory", `${loc}.${key}`, errors);
+    checkNumberOrNull(value, "maxTouchPoints", `${loc}.${key}`, errors);
+    checkBoolean(value, "isSecureContext", `${loc}.${key}`, errors);
+    checkBoolean(value, "crossOriginIsolated", `${loc}.${key}`, errors);
+    checkString(value, "visibilityState", `${loc}.${key}`, errors);
+    checkNumber(value, "dpr", `${loc}.${key}`, errors);
+    checkObject(value, "canvas_css", `${loc}.${key}`, errors);
+    checkObject(value, "canvas_px", `${loc}.${key}`, errors);
+    checkString(value, "url", `${loc}.${key}`, errors);
+  } else {
+    checkIfPresent(value, "xr_scale_factor_requested", checkNumber, `${loc}.${key}`, errors);
+    checkIfPresent(value, "xr_scale_factor_applied", checkNumberOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "runMode", checkString, `${loc}.${key}`, errors);
+    checkIfPresent(value, "order_control", checkObjectOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "uaData", checkObjectOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "platform", checkStringOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "language", checkStringOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "languages", checkArrayOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "hardwareConcurrency", checkNumberOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "deviceMemory", checkNumberOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "maxTouchPoints", checkNumberOrNull, `${loc}.${key}`, errors);
+    checkIfPresent(value, "isSecureContext", checkBoolean, `${loc}.${key}`, errors);
+    checkIfPresent(value, "crossOriginIsolated", checkBoolean, `${loc}.${key}`, errors);
+    checkIfPresent(value, "visibilityState", checkString, `${loc}.${key}`, errors);
+    checkIfPresent(value, "dpr", checkNumber, `${loc}.${key}`, errors);
+    checkIfPresent(value, "canvas_css", checkObject, `${loc}.${key}`, errors);
+    checkIfPresent(value, "canvas_px", checkObject, `${loc}.${key}`, errors);
+    checkIfPresent(value, "url", checkString, `${loc}.${key}`, errors);
+  }
+
+  // Optional XR/session context fields.
+  checkIfPresent(value, "xr_enter_to_first_frame_ms", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_dom_overlay_requested", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_abort_reason", checkString, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_skipped_reason", checkString, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_observed_view_count", checkNumber, `${loc}.${key}`, errors);
+
+  // Optional rest metadata: newer runs include it; legacy 1.0.0 files may omit it.
+  if ("rest" in value) {
+    const rest = value.rest;
+    if (rest === null) {
+      // transitional/legacy writers may set null
+    } else if (!isObject(rest)) {
+      pushTypeError(errors, `${loc}.${key}`, "rest", "object or null", typeName(rest));
+    } else {
+      checkNumberOrNull(rest, "restStartTs", `${loc}.${key}.rest`, errors);
+      checkNumberOrNull(rest, "restEndTs", `${loc}.${key}.rest`, errors);
+      checkNumberOrNull(rest, "restElapsedMs", `${loc}.${key}.rest`, errors);
+      checkNumberOrNull(rest, "recommendedRestMs", `${loc}.${key}.rest`, errors);
+      checkStringOrNull(rest, "previousSuiteId", `${loc}.${key}.rest`, errors);
+      checkStringOrNull(rest, "previousApi", `${loc}.${key}.rest`, errors);
+      checkStringOrNull(rest, "previousRunMode", `${loc}.${key}.rest`, errors);
+      checkStringOrNull(rest, "previousFinalPhase", `${loc}.${key}.rest`, errors);
+      checkStringOrNull(rest, "previousOutFile", `${loc}.${key}.rest`, errors);
+      checkStringOrNull(rest, "previousUrl", `${loc}.${key}.rest`, errors);
+    }
+  }
+
+  // API-specific extras
+  if (value.api === "webgl2") {
+    if (strictV11) {
+      checkObjectOrNull(value, "contextAttributes", `${loc}.${key}`, errors);
+      checkObjectOrNull(value, "gpu", `${loc}.${key}`, errors);
+    } else {
+      checkIfPresent(value, "contextAttributes", checkObjectOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "gpu", checkObjectOrNull, `${loc}.${key}`, errors);
+    }
+  }
+  if (value.api === "webgpu") {
+    if (strictV11) {
+      checkObjectOrNull(value, "adapterRequest", `${loc}.${key}`, errors);
+      checkBooleanOrNull(value, "xrCompatibleRequested", `${loc}.${key}`, errors);
+      checkObjectOrNull(value, "adapter", `${loc}.${key}`, errors);
+      checkArrayOrNull(value, "adapter_features", `${loc}.${key}`, errors);
+      checkObjectOrNull(value, "adapter_limits", `${loc}.${key}`, errors);
+      checkArrayOrNull(value, "device_features", `${loc}.${key}`, errors);
+      checkObjectOrNull(value, "device_limits", `${loc}.${key}`, errors);
+      checkStringOrNull(value, "colorFormat", `${loc}.${key}`, errors);
+    } else {
+      checkIfPresent(value, "adapterRequest", checkObjectOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "xrCompatibleRequested", checkBooleanOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "adapter", checkObjectOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "adapter_features", checkArrayOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "adapter_limits", checkObjectOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "device_features", checkArrayOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "device_limits", checkObjectOrNull, `${loc}.${key}`, errors);
+      checkIfPresent(value, "colorFormat", checkStringOrNull, `${loc}.${key}`, errors);
+    }
+  }
 }
+
 
 function validateSummary(record, loc, errors) {
   if (!checkFieldPresence(record, "summary", loc, errors)) return;
