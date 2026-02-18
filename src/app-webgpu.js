@@ -13,6 +13,7 @@ const warmupMs = parseInt(params.get("warmupMs") || "500", 10);
 const cooldownMs = parseInt(params.get("cooldownMs") || "250", 10);
 const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 10);
 const outFile = params.get("out") || `results_webgpu_${Date.now()}.jsonl`;
+const SCHEMA_VERSION = "1.0.0";
 
 const layout = (params.get("layout") || "line").toLowerCase();
 const seed = parseInt(params.get("seed") || "12345", 10) >>> 0;
@@ -114,6 +115,80 @@ function parseIntList(value, fallback=[4]) {
   return nums.length ? nums : fallback;
 }
 const instancesList = parseIntList(params.get("instances"), [4]);
+const MAX_COMPARABLE_XR_VIEWS = 2;
+const apiLabel = "webgpu";
+
+const runMode = (() => {
+  const v = (params.get("mode") || "both").toLowerCase();
+  return (v === "canvas" || v === "xr" || v === "both") ? v : "both";
+})();
+const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
+const xrScaleFactor = (() => {
+  const v = parseFloat(params.get("xrScaleFactor") || "1");
+  return (Number.isFinite(v) && v > 0) ? Math.min(2.0, Math.max(0.25, v)) : 1.0;
+})();
+
+// Session-order control for ABBA/BAAB/randomized protocols
+const enforceOrder = (params.get("enforceOrder") || "0") === "1";
+const orderMode = (params.get("orderMode") || "none").toLowerCase(); // none|abba|baab|randomized
+const orderIndex = parseInt(params.get("orderIndex") || "0", 10);
+const assignedApi = (params.get("assignedApi") || "").toLowerCase();
+const orderSeed = params.get("orderSeed") || null;
+const pinGpu = (params.get("pinGpu") || "0") === "1";
+const sessionGroup = params.get("sessionGroup") || "default";
+
+function expectedApiForOrder(mode, index) {
+  if (!Number.isFinite(index) || index < 1) return null;
+  if (mode === "abba") {
+    const seq = ["webgl2", "webgpu", "webgpu", "webgl2"];
+    return seq[index - 1] || null;
+  }
+  if (mode === "baab") {
+    const seq = ["webgpu", "webgl2", "webgl2", "webgpu"];
+    return seq[index - 1] || null;
+  }
+  return null;
+}
+
+function enforceOrderControls(apiName) {
+  if (!enforceOrder) return;
+  if (orderMode === "abba" || orderMode === "baab") {
+    const expected = expectedApiForOrder(orderMode, orderIndex);
+    if (!expected) {
+      throw new Error(`Invalid order controls: orderMode=${orderMode}, orderIndex=${orderIndex}`);
+    }
+    if (expected !== apiName) {
+      throw new Error(`Order control violation: expected ${expected} at index ${orderIndex}, got ${apiName}`);
+    }
+    return;
+  }
+  if (orderMode === "randomized") {
+    if (!assignedApi) throw new Error("Order control violation: randomized mode requires assignedApi");
+    if (assignedApi !== apiName) {
+      throw new Error(`Order control violation: assignedApi=${assignedApi}, got ${apiName}`);
+    }
+    return;
+  }
+  throw new Error(`Order control violation: unsupported orderMode=${orderMode}`);
+}
+
+function enforcePinnedGpuIdentity(identity) {
+  if (!pinGpu) return;
+  const key = `webxr_harness_gpu_pin_${sessionGroup}`;
+  let previous = null;
+  try {
+    previous = localStorage.getItem(key);
+    if (!previous) {
+      localStorage.setItem(key, identity);
+      return;
+    }
+  } catch (e) {
+    throw new Error(`pinGpu enabled but localStorage unavailable: ${e?.message || e}`);
+  }
+  if (previous !== identity) {
+    throw new Error(`Pinned GPU mismatch for sessionGroup=${sessionGroup}: expected "${previous}", got "${identity}"`);
+  }
+}
 
 function mulberry32(seed_) {
   let a = seed_ >>> 0;
@@ -141,9 +216,12 @@ let xrSession=null, xrRefSpace=null, xrGpuBinding=null, projectionLayer=null;
 let renderer=null;
 
 let sceneInfo=null;
+let sceneMesh=null;
 let envInfo=null;
 let resultsCanvas=[];
 let resultsXR=[];
+let canvasRunInProgress=false;
+let canvasRunScheduled=false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
 
@@ -202,6 +280,16 @@ function downloadText(text, filename, mime="application/jsonl") {
 }
 
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+function xrOutFilename() {
+  return params.get("outxr") || `results_webgpu_xr_${Date.now()}.jsonl`;
+}
+
+function flushXRResults(filename=xrOutFilename(), label="Done (XR)") {
+  const jsonl = resultsXR.map(o=>JSON.stringify(o)).join("\n") + "\n";
+  downloadText(jsonl, filename);
+  log(`${label}. Downloaded ${filename}`);
+}
 
 
 function clearCanvasBlankOnce() {
@@ -262,6 +350,21 @@ function deriveExtras(summary, dts) {
     missed_1p5x_pct: (dts.length ? (miss_1p5 / dts.length) : 0),
     max_frame_ms: max_ms,
     jank_p99_over_p50: summary.p99_ms / summary.p50_ms
+  };
+}
+
+function summarizeSeries(samples) {
+  if (!samples || !samples.length) return null;
+  const a = [...samples].sort((x, y) => x - y);
+  const n = a.length;
+  const q = (p) => a[Math.min(n - 1, Math.floor(p * (n - 1)))];
+  const mean = samples.reduce((s, v) => s + v, 0) / n;
+  return {
+    frames: n,
+    mean_ms: mean,
+    p50_ms: q(0.50),
+    p95_ms: q(0.95),
+    p99_ms: q(0.99),
   };
 }
 
@@ -347,10 +450,11 @@ const device_limits = copyLimits(device.limits || {});
   renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus");
 
   const scene = await loadGLBMesh(modelUrl);
-  renderer.setMesh(scene);
+  sceneMesh = { positions: scene.positions, indices: scene.indices };
+  renderer.setMesh(sceneMesh);
 
   // Set default camera for canvas mode
-  const proj = perspectiveZO(Math.PI/3, canvas.clientWidth/canvas.clientHeight, 0.1);
+  const proj = perspectiveZO(Math.PI/3, canvas.clientWidth/canvas.clientHeight, 0.1, 100.0);
   const view = identityView(-2.0);
   renderer.setCamera(proj, view);
 
@@ -364,6 +468,19 @@ const device_limits = copyLimits(device.limits || {});
     xrCompatibleRequested: true,
     hudEnabled,
     hudHz,
+    xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
+    xr_scale_factor_requested: xrScaleFactor,
+    xr_scale_factor_applied: null,
+    runMode,
+    order_control: {
+      enforceOrder,
+      orderMode,
+      orderIndex,
+      assignedApi: assignedApi || null,
+      orderSeed,
+      pinGpu,
+      sessionGroup
+    },
     ua: navigator.userAgent,
     uaData: (navigator.userAgentData ? {
       brands: navigator.userAgentData.brands,
@@ -389,6 +506,13 @@ const device_limits = copyLimits(device.limits || {});
     device_limits,
     colorFormat
   };
+
+  const adapterVendor = adapterInfo?.vendor || "unknown";
+  const adapterDevice = adapterInfo?.device || "unknown";
+  const adapterArch = adapterInfo?.architecture || "unknown";
+  const gpuIdentity = `webgpu:${adapterVendor}|${adapterDevice}|${adapterArch}`;
+  envInfo.gpu_identity = gpuIdentity;
+  enforcePinnedGpuIdentity(gpuIdentity);
 }
 
 function runCanvasTrial(item, planIdx, planLen) {
@@ -398,6 +522,7 @@ function runCanvasTrial(item, planIdx, planLen) {
   return new Promise((resolve) => {
     const stats = new RunStats();
     stats.meta = {
+      schema_version: SCHEMA_VERSION,
       api:"webgpu",
       mode:"canvas",
       modelUrl,
@@ -418,7 +543,6 @@ function runCanvasTrial(item, planIdx, planLen) {
       perfDetail,
       condition_index: planIdx + 1,
       condition_count: planLen,
-      suiteId,
       suiteId,
       startedAt: new Date().toISOString(),
       ...sceneInfo,
@@ -528,30 +652,42 @@ if (preIdleMs > 0) {
 }
 
 async function runCanvasSuite() {
-  resultsCanvas = [];
-  const plan = buildPlan();
+  if (runMode === "xr") {
+    log("Skipping canvas suite (mode=xr).");
+    return;
+  }
+  if (canvasRunInProgress) return;
 
-  for (let i=0;i<plan.length;i++) {
-    const item = plan[i];
+  canvasRunScheduled = false;
+  canvasRunInProgress = true;
+  try {
+    resultsCanvas = [];
+    const plan = buildPlan();
 
-    if (i>0 && plan[i-1].instances !== item.instances) {
-      log(`Between-instances cooldown (${betweenInstancesMs}ms)`);
-      await sleep(betweenInstancesMs);
+    for (let i=0;i<plan.length;i++) {
+      const item = plan[i];
+
+      if (i>0 && plan[i-1].instances !== item.instances) {
+        log(`Between-instances cooldown (${betweenInstancesMs}ms)`);
+        await sleep(betweenInstancesMs);
+      }
+
+      log(`Canvas run ${i+1}/${plan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (warmup ${warmupMs}ms)`);
+      await sleep(warmupMs);
+
+      const out = await runCanvasTrial(item, i, plan.length);
+      resultsCanvas.push(out);
+
+      await sleep(cooldownMs);
     }
 
-    log(`Canvas run ${i+1}/${plan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (warmup ${warmupMs}ms)`);
-    await sleep(warmupMs);
-
-    const out = await runCanvasTrial(item, i, plan.length);
-    resultsCanvas.push(out);
-
-    await sleep(cooldownMs);
+    const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
+    downloadText(jsonl, outFile);
+    log(`Done (canvas). Downloaded ${outFile}`);
+    clearCanvasBlankOnce();
+  } finally {
+    canvasRunInProgress = false;
   }
-
-  const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
-  downloadText(jsonl, outFile);
-  log(`Done (canvas). Downloaded ${outFile}`);
-  clearCanvasBlankOnce();
 }
 
 async function initXR() {
@@ -564,13 +700,24 @@ async function initXR() {
   btn.textContent="Enter VR";
   btn.addEventListener("click", async ()=>{
     if (!xrSession) {
-      const opts = {
-  requiredFeatures: ["webgpu"],
-  ...(hudEnabled ? { optionalFeatures:["dom-overlay"], domOverlay:{ root: document.body } } : {})
-};
-xrEnterClickedAt = performance.now();
-xrSession = await navigator.xr.requestSession("immersive-vr", opts);
-await onSessionStarted(xrSession);
+      if (canvasRunInProgress || canvasRunScheduled) {
+        log("Canvas suite is scheduled/running. Use mode=xr for XR-only benchmarking.");
+        return;
+      }
+      try {
+        const opts = {
+          requiredFeatures: ["webgpu"],
+          ...(hudEnabled ? { optionalFeatures:["dom-overlay"], domOverlay:{ root: document.body } } : {})
+        };
+        xrEnterClickedAt = performance.now();
+        xrSession = await navigator.xr.requestSession("immersive-vr", opts);
+        await onSessionStarted(xrSession);
+      } catch (e) {
+        xrSession = null;
+        xrEnterClickedAt = null;
+        console.error(e);
+        log(`XR session failed: ${e?.message || e}`);
+      }
     } else {
       await xrSession.end();
     }
@@ -585,17 +732,94 @@ let xrPlan=null;
 let xrIndex=0;
 let xrActive=false;
 let xrStats=null;
-let xrLastT=0;
+let xrLastT=NaN;
+let xrLastNow=NaN;
 let xrDts=null;
+let xrDtsNow=null;
 let xrViewports=null;
 let xrTrialId=null;
 let xrMemStart=null;
+let xrAbortReason=null;
+let xrFirstFramePixels=null;
+let xrFirstFrameViewPixels=null;
 
 
 function fmtMs(ms) {
   if (ms == null || !Number.isFinite(ms)) return "n/a";
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
   return `${(ms/1000).toFixed(1)}s`;
+}
+
+function abortXRForComparability(session, observedViews) {
+  if (xrAbortReason) return;
+  xrAbortReason = `XR aborted: observed ${observedViews} views; max allowed is ${MAX_COMPARABLE_XR_VIEWS} for cross-API comparability.`;
+  if (envInfo) {
+    envInfo.xr_abort_reason = xrAbortReason;
+    envInfo.xr_observed_view_count = observedViews;
+    envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+  }
+  const cur = (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
+  const elapsedMs = (xrStats && xrStats.startWall) ? Math.max(0, performance.now() - xrStats.startWall) : null;
+  const abortRecord = {
+    schema_version: SCHEMA_VERSION,
+    api: "webgpu",
+    mode: "xr",
+    aborted: true,
+    abort_code: "xr_view_count_exceeded",
+    abort_reason: xrAbortReason,
+    observed_view_count: observedViews,
+    expected_max_views: MAX_COMPARABLE_XR_VIEWS,
+    suiteId,
+    modelUrl,
+    instances: cur ? cur.instances : null,
+    trial: cur ? cur.trial : null,
+    trials,
+    durationMs,
+    warmupMs,
+    cooldownMs,
+    preIdleMs,
+    postIdleMs,
+    betweenInstancesMs,
+    layout,
+    seed,
+    shuffle,
+    spacing,
+    collectPerf,
+    perfDetail,
+    condition_index: cur ? (xrIndex + 1) : null,
+    condition_count: xrPlan ? xrPlan.length : null,
+    startedAt: new Date().toISOString(),
+    partial_trial: {
+      elapsed_ms: elapsedMs,
+      frames_collected_t: xrDts ? xrDts.length : 0,
+      frames_collected_now: xrDtsNow ? xrDtsNow.length : 0
+    },
+    ...sceneInfo,
+    env: envInfo,
+    xr_effective_pixels: {
+      requested_scale_factor: xrScaleFactor,
+      applied_scale_factor: envInfo?.xr_scale_factor_applied ?? null,
+      first_frame_total_px: xrFirstFramePixels,
+      first_frame_per_view_px: xrFirstFrameViewPixels || []
+    },
+    xr_cadence_secondary: summarizeSeries(xrDtsNow),
+    xr_viewports: xrViewports || []
+  };
+  resultsXR.push(abortRecord);
+  flushXRResults(xrOutFilename(), "Aborted (XR)");
+  xrActive = false;
+  log(xrAbortReason);
+  Promise.resolve(session.end()).catch(()=>{});
+}
+
+function ensureComparableXRViews(session, pose) {
+  if (xrAbortReason) return false;
+  const viewCount = pose?.views?.length || 0;
+  if (viewCount > MAX_COMPARABLE_XR_VIEWS) {
+    abortXRForComparability(session, viewCount);
+    return false;
+  }
+  return true;
 }
 
 function xrHudText() {
@@ -615,11 +839,13 @@ function xrHudText() {
 
 
 function startNextXRTrial(session) {
+  if (xrAbortReason) {
+    xrActive=false;
+    Promise.resolve(session.end()).catch(()=>{});
+    return;
+  }
   if (!xrPlan || xrIndex >= xrPlan.length) {
-    const jsonl = resultsXR.map(o=>JSON.stringify(o)).join("\n") + "\n";
-    const filename = (params.get("outxr") || `results_webgpu_xr_${Date.now()}.jsonl`);
-    downloadText(jsonl, filename);
-    log(`Done (XR). Downloaded ${filename}`);
+    flushXRResults();
     xrActive=false;
     session.end();
     return;
@@ -629,10 +855,14 @@ function startNextXRTrial(session) {
   renderer.setInstances(item.instances, spacing, { layout, seed });
 
   xrDts = [];
+  xrDtsNow = [];
   xrViewports = [];
+  xrFirstFramePixels = null;
+  xrFirstFrameViewPixels = null;
 
   xrStats = new RunStats();
   xrStats.meta = {
+    schema_version: SCHEMA_VERSION,
     api:"webgpu",
     mode:"xr",
     modelUrl,
@@ -651,6 +881,7 @@ function startNextXRTrial(session) {
     perfDetail,
     condition_index: xrIndex + 1,
     condition_count: xrPlan.length,
+    suiteId,
     startedAt: new Date().toISOString(),
     ...sceneInfo,
     env: envInfo
@@ -666,7 +897,8 @@ function beginMeasuredXR() {
       console.timeStamp?.(`${xrTrialId}_start`);
     } catch (_) {}
   }
-  xrLastT = performance.now();
+  xrLastT = NaN;
+  xrLastNow = NaN;
   xrActive = true;
   xrBlankClearOnce = false;
   log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms)`);
@@ -684,7 +916,9 @@ if (preIdleMs > 0) {
 }
 
 async function onSessionStarted(session) {
+  xrAbortReason = null;
   btn.textContent="Exit VR";
+  hudStartAuto(xrHudText);
   session.addEventListener("end", ()=> {
     hudStopAuto();
     xrSession=null;
@@ -700,14 +934,34 @@ async function onSessionStarted(session) {
     envInfo.colorFormat = colorFormat;
     context.configure({ device, format: colorFormat, alphaMode:"opaque" });
     renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus");
-    const scene = await loadGLBMesh(modelUrl);
-    renderer.setMesh(scene);
+    if (!sceneMesh) throw new Error("Scene mesh not loaded");
+    renderer.setMesh(sceneMesh);
+    // Keep canvas path valid if a canvas trial is active/queued while entering XR.
+    const proj = perspectiveZO(Math.PI/3, canvas.clientWidth/canvas.clientHeight, 0.1, 100.0);
+    const view = identityView(-2.0);
+    renderer.setCamera(proj, view);
   }
 
-  projectionLayer = xrGpuBinding.createProjectionLayer({
-    colorFormat,
-    depthStencilFormat: "depth24plus"
-  });
+  try {
+    projectionLayer = xrGpuBinding.createProjectionLayer({
+      colorFormat,
+      depthStencilFormat: "depth24plus",
+      scaleFactor: xrScaleFactor
+    });
+    if (envInfo) {
+      envInfo.xr_scale_factor_requested = xrScaleFactor;
+      envInfo.xr_scale_factor_applied = xrScaleFactor;
+    }
+  } catch (_) {
+    projectionLayer = xrGpuBinding.createProjectionLayer({
+      colorFormat,
+      depthStencilFormat: "depth24plus"
+    });
+    if (envInfo) {
+      envInfo.xr_scale_factor_requested = xrScaleFactor;
+      envInfo.xr_scale_factor_applied = null;
+    }
+  }
 
   session.updateRenderState({ layers:[projectionLayer] });
   xrRefSpace = await session.requestReferenceSpace("local");
@@ -731,12 +985,16 @@ if (!xrActive || !xrStats) {
     try {
       const pose = frame.getViewerPose(xrRefSpace);
       if (pose && projectionLayer && xrGpuBinding) {
+        if (!ensureComparableXRViews(session, pose)) {
+          xrBlankClearOnce = false;
+          return;
+        }
         const encoder = device.createCommandEncoder();
         for (const view of pose.views) {
-          const colorTex = xrGpuBinding.getSubImage(projectionLayer, view).colorTexture;
+          const subImage = xrGpuBinding.getViewSubImage(projectionLayer, view);
           const pass = encoder.beginRenderPass({
             colorAttachments: [{
-              view: colorTex.createView(),
+              view: subImage.colorTexture.createView(subImage.getViewDescriptor()),
               loadOp: "clear",
               storeOp: "store",
               clearValue: [0,0,0,1]
@@ -759,21 +1017,35 @@ if (!xrActive || !xrStats) {
 
 
   const now = performance.now();
-  const dt = now - xrLastT; xrLastT = now;
-  xrDts.push(dt);
-  xrStats.addFrame(dt);
+  const havePrev = Number.isFinite(xrLastT) && Number.isFinite(xrLastNow);
+  const dtT = havePrev ? (t - xrLastT) : null;
+  const dtNow = havePrev ? (now - xrLastNow) : null;
+  xrLastT = t;
+  xrLastNow = now;
+  if (havePrev) {
+    xrDts.push(dtT);
+    xrDtsNow.push(dtNow);
+    xrStats.addFrame(dtT);
+  }
 
   const pose = frame.getViewerPose(xrRefSpace);
   if (!pose) return;
+  if (!ensureComparableXRViews(session, pose)) return;
 
   const encoder = device.createCommandEncoder();
 
-  for (const view of pose.views) {
+  let framePixelTotal = 0;
+  const frameViewPixels = [];
+  for (let viewIndex = 0; viewIndex < pose.views.length; viewIndex++) {
+    const view = pose.views[viewIndex];
     const subImage = xrGpuBinding.getViewSubImage(projectionLayer, view);
-    renderer.setCamera(view.projectionMatrix, view.transform.inverse.matrix);
+    renderer.setCamera(view.projectionMatrix, view.transform.inverse.matrix, viewIndex);
 
     const vp = subImage.viewport;
     xrViewports.push({ x: vp.x, y: vp.y, w: vp.width, h: vp.height });
+    const px = vp.width * vp.height;
+    framePixelTotal += px;
+    frameViewPixels.push(px);
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
@@ -791,8 +1063,12 @@ if (!xrActive || !xrStats) {
     });
 
     pass.setViewport(vp.x, vp.y, vp.width, vp.height, 0, 1);
-    renderer.draw(pass);
+    renderer.draw(pass, viewIndex);
     pass.end();
+  }
+  if (xrFirstFramePixels == null) {
+    xrFirstFramePixels = framePixelTotal;
+    xrFirstFrameViewPixels = frameViewPixels;
   }
 
   device.queue.submit([encoder.finish()]);
@@ -802,7 +1078,7 @@ if (!xrActive || !xrStats) {
     envInfo.xr_dom_overlay_requested = hudEnabled;
   }
 
-  if (performance.now() - xrStats.startWall > durationMs) {
+  if (now - xrStats.startWall > durationMs) {
     xrStats.markEnd();
     const summary = xrStats.summarize();
     const extras = deriveExtras(summary, xrDts);
@@ -842,8 +1118,26 @@ if (collectPerf) {
   }
 }
 
-const out = { ...xrStats.meta, summary, extras, perf, xr_viewports: xrViewports };
-if (storeFrames) out.frames_ms = xrDts;
+const out = {
+  ...xrStats.meta,
+  summary,
+  extras,
+  perf,
+  timing_primary_source: "xr_callback_t",
+  timing_secondary_source: "performance.now",
+  xr_cadence_secondary: summarizeSeries(xrDtsNow),
+  xr_effective_pixels: {
+    requested_scale_factor: xrScaleFactor,
+    applied_scale_factor: envInfo?.xr_scale_factor_applied ?? null,
+    first_frame_total_px: xrFirstFramePixels,
+    first_frame_per_view_px: xrFirstFrameViewPixels || []
+  },
+  xr_viewports: xrViewports
+};
+if (storeFrames) {
+  out.frames_ms = xrDts;
+  out.frames_ms_now = xrDtsNow;
+}
 
 resultsXR.push(out);
     xrIndex++;
@@ -861,11 +1155,31 @@ resultsXR.push(out);
 async function main() {
   canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
   canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
+
+  enforceOrderControls(apiLabel);
+
   log("Loading model...");
   await initWebGPU();
-  await initXR();
-  log(`Ready. Auto-running canvas suite in 1s: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, layout=${layout}, seed=${seed}.`);
-  setTimeout(runCanvasSuite, 1000);
+  if (runMode !== "canvas") {
+    await initXR();
+  } else {
+    btn.disabled = true;
+    btn.textContent = "XR disabled (mode=canvas)";
+  }
+
+  if (runMode === "xr") {
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}.`);
+    return;
+  }
+
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, layout=${layout}, seed=${seed}, mode=${runMode}.`);
+  canvasRunScheduled = true;
+  setTimeout(() => {
+    runCanvasSuite().catch((e) => {
+      console.error(e);
+      log(String(e));
+    });
+  }, canvasAutoDelayMs);
 }
 
 main().catch(e=>{ console.error(e); log(String(e)); });

@@ -118,6 +118,25 @@ export class WebGLMeshRenderer {
     this.indexCount=0;
     this.vertexCount=0;
     this.instanceCount=1;
+    this.instanceCapacity=0;
+    this.instanceStrideBytes=4*3;
+  }
+
+  _ensureInstanceCapacity(instanceCount) {
+    const gl=this.gl;
+    const required = Math.max(1, instanceCount | 0);
+    if (required <= this.instanceCapacity) return;
+
+    let next = Math.max(4096, this.instanceCapacity || 0);
+    while (next < required) next *= 2;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, next * this.instanceStrideBytes, gl.DYNAMIC_DRAW);
+    const err = gl.getError();
+    if (err !== gl.NO_ERROR) {
+      throw new Error(`Failed to allocate instance buffer for ${next} instances (gl error ${err})`);
+    }
+    this.instanceCapacity = next;
   }
 
   setMesh({positions, indices}) {
@@ -134,10 +153,10 @@ export class WebGLMeshRenderer {
     // Instance offsets buffer (filled in setInstances / setInstanceOffsets)
     this.instanceVBO=gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceVBO);
-    gl.bufferData(gl.ARRAY_BUFFER, 4 * 3 * 4096, gl.DYNAMIC_DRAW); // up to 4096 instances
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(1, 1);
+    this._ensureInstanceCapacity(4096);
 
     // Indices optional
     if (indices) {
@@ -158,6 +177,7 @@ export class WebGLMeshRenderer {
   setInstanceOffsets(offsets /* Float32Array n*3 */) {
     const gl=this.gl;
     this.instanceCount = Math.floor(offsets.length/3);
+    this._ensureInstanceCapacity(this.instanceCount);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceVBO);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, offsets);
   }

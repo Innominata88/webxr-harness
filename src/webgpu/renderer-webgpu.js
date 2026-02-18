@@ -1,12 +1,22 @@
 // src/webgpu/renderer-webgpu.js
+import { mat4Mul } from "../common/mat4.js";
 export class WebGPUMeshRenderer {
   constructor(device, colorFormat, depthFormat='depth24plus') {
+    const CAMERA_SLOT_STRIDE = 256; // WebGPU dynamic offset alignment requirement
+    const CAMERA_SLOT_COUNT = 2;    // immersive-vr without secondary views => up to 2 eyes
+    const INITIAL_INSTANCE_CAPACITY = 4096;
+    const INSTANCE_STRIDE_BYTES = 4 * 3;
+
     this.device=device;
     this.colorFormat=colorFormat;
     this.depthFormat=depthFormat;
+    this.cameraSlotStride = CAMERA_SLOT_STRIDE;
+    this.cameraSlotCount = CAMERA_SLOT_COUNT;
+    this.instanceStrideBytes = INSTANCE_STRIDE_BYTES;
+    this.instanceCapacity = 0;
 
     this.uniformBuffer = device.createBuffer({
-      size: 4*4*4*2, // 2 mat4 = 32 floats
+      size: this.cameraSlotStride * this.cameraSlotCount,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
 
@@ -19,8 +29,7 @@ export class WebGPUMeshRenderer {
     const shaderModule = device.createShaderModule({
       code: `
 struct Camera {
-  projection : mat4x4<f32>,
-  view : mat4x4<f32>,
+  viewProj : mat4x4<f32>,
 }
 @group(0) @binding(0) var<uniform> camera : Camera;
 
@@ -36,7 +45,7 @@ struct VSOut {
 fn vsMain(input: VSIn) -> VSOut {
   var out : VSOut;
   let p = input.position + input.instanceOffset;
-  out.pos = camera.projection * camera.view * vec4<f32>(p, 1.0);
+  out.pos = camera.viewProj * vec4<f32>(p, 1.0);
   out.dbg = abs(p);
   return out;
 }
@@ -58,14 +67,24 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
         ]
       },
       fragment: { module: shaderModule, entryPoint: "fsMain", targets: [{ format: colorFormat }] },
-      primitive: { topology:"triangle-list", cullMode:"back" },
+      primitive: { topology:"triangle-list", cullMode:"none" },
       depthStencil: { depthWriteEnabled: true, depthCompare:"less", format: depthFormat },
     });
 
-    this.bindGroup = device.createBindGroup({
-      layout: this.bindGroupLayout,
-      entries: [{ binding:0, resource: { buffer: this.uniformBuffer } }]
-    });
+    this.bindGroups = [];
+    for (let i = 0; i < this.cameraSlotCount; i++) {
+      this.bindGroups.push(device.createBindGroup({
+        layout: this.bindGroupLayout,
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.uniformBuffer,
+            offset: i * this.cameraSlotStride,
+            size: 4 * 4 * 4,
+          }
+        }]
+      }));
+    }
 
     this.vertexBuffer=null;
     this.indexBuffer=null;
@@ -73,11 +92,33 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
     this.indexCount=0;
     this.vertexCount=0;
 
-    this.instanceBuffer = device.createBuffer({
-      size: 4 * 3 * 4096,
+    this.instanceBuffer = null;
+    this._ensureInstanceCapacity(INITIAL_INSTANCE_CAPACITY);
+    this.instanceCount=1;
+    this.viewProjScratch = Array.from({ length: this.cameraSlotCount }, () => new Float32Array(16));
+  }
+
+  _ensureInstanceCapacity(instanceCount) {
+    const required = Math.max(1, instanceCount | 0);
+    if (required <= this.instanceCapacity) return;
+
+    let next = Math.max(4096, this.instanceCapacity || 0);
+    while (next < required) next *= 2;
+
+    const maxBufferSize = Number(this.device.limits?.maxBufferSize || Number.MAX_SAFE_INTEGER);
+    const maxInstances = Math.floor(maxBufferSize / this.instanceStrideBytes);
+    if (required > maxInstances) {
+      throw new Error(`Instance count ${required} exceeds device limit ${maxInstances}`);
+    }
+    if (next > maxInstances) next = maxInstances;
+
+    const newBuffer = this.device.createBuffer({
+      size: next * this.instanceStrideBytes,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
     });
-    this.instanceCount=1;
+
+    this.instanceBuffer = newBuffer;
+    this.instanceCapacity = next;
   }
 
   setMesh({positions, indices}) {
@@ -164,6 +205,7 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
 
   setInstanceOffsets(offsets /* Float32Array */) {
     this.instanceCount = Math.floor(offsets.length/3);
+    this._ensureInstanceCapacity(this.instanceCount);
     this.device.queue.writeBuffer(this.instanceBuffer, 0, offsets);
   }
 
@@ -174,16 +216,18 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
     this.setInstanceOffsets(offsets);
   }
 
-  setCamera(projectionMat, viewMat) {
-    const data=new Float32Array(32);
-    data.set(projectionMat, 0);
-    data.set(viewMat, 16);
-    this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
+  setCamera(projectionMat, viewMat, cameraSlot=0) {
+    if (cameraSlot < 0 || cameraSlot >= this.cameraSlotCount) {
+      throw new Error(`Camera slot ${cameraSlot} out of range`);
+    }
+    const viewProj = this.viewProjScratch[cameraSlot];
+    mat4Mul(viewProj, projectionMat, viewMat);
+    this.device.queue.writeBuffer(this.uniformBuffer, cameraSlot * this.cameraSlotStride, viewProj);
   }
 
-  draw(renderPass) {
+  draw(renderPass, cameraSlot=0) {
     renderPass.setPipeline(this.pipeline);
-    renderPass.setBindGroup(0, this.bindGroup);
+    renderPass.setBindGroup(0, this.bindGroups[cameraSlot] || this.bindGroups[0]);
     renderPass.setVertexBuffer(0, this.vertexBuffer);
     renderPass.setVertexBuffer(1, this.instanceBuffer);
 
