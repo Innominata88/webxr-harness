@@ -21,6 +21,12 @@ a { color: #9ad; }
   <span style="margin-left:auto; opacity:0.8">WebGPU</span>
 </header>
 <main><canvas></canvas></main>
-<script type="module" src="./src/app-webgpu.js"></script>
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const rev = params.get("appRev");
+  const src = new URL("./src/app-webgpu.js", location.href);
+  if (rev) src.searchParams.set("v", rev);
+  import(src.href);
+</script>
 </body>
 </html>

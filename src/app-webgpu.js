@@ -52,8 +52,8 @@ function detectApplePlatform() {
 }
 const isApplePlatform = detectApplePlatform();
 const manualDownload = (() => {
-  if (!isApplePlatform) return (params.get("manualDownload") || "0") === "1";
-  // Apple default ON unless explicitly disabled
+  // Default: manual download ON for all platforms unless explicitly disabled.
+  // Rationale: Safari/visionOS often blocks programmatic downloads; keeping behavior uniform across devices is safest.
   return (params.get("manualDownload") || "1") !== "0";
 })();
 
@@ -415,8 +415,8 @@ function renderResultsPanel() {
   }
 
   footer.textContent = manualDownload
-    ? "On Apple devices, downloads must be initiated by a tap. Use the buttons above."
-    : "Downloads were triggered automatically. If you don’t see the file, use Copy or re-run with manualDownload=1.";
+    ? "Manual download is enabled. Use the buttons above to Download or Copy results."
+    : "Automatic downloads are enabled. If you don’t see the file, re-run with manualDownload=1 to force manual downloads.";
 
   panel.style.display = "block";
 }
@@ -735,6 +735,9 @@ const device_limits = copyLimits(device.limits || {});
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
     runMode,
+    manualDownload,
+    isApplePlatform,
+    renderProbeRequested: renderProbe,
     order_control: {
       enforceOrder,
       orderMode,
@@ -1009,7 +1012,8 @@ async function initXR() {
             resultsXR.push(buildXRAbortRecord({
               abortCode: "xr_session_start_failed",
               abortReason: reason,
-              observedViewCount: 0
+              observedViewCount: 0,
+              planItem: null
             }));
           }
           flushXRResults(xrOutFilename(), "XR session failed");
@@ -1053,8 +1057,8 @@ function currentXRPlanItem() {
   return (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
 }
 
-function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0 } = {}) {
-  const cur = currentXRPlanItem();
+function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planItem=undefined } = {}) {
+  const cur = (planItem === undefined) ? currentXRPlanItem() : planItem;
   const elapsedMs = (xrStats && xrStats.startWall) ? Math.max(0, performance.now() - xrStats.startWall) : null;
   return {
     schema_version: SCHEMA_VERSION,
@@ -1522,11 +1526,11 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, layout=${layout}, seed=${seed}, mode=${runMode}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, layout=${layout}, seed=${seed}, mode=${runMode}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => {
     runCanvasSuite().catch((e) => {
