@@ -2,16 +2,8 @@
 import { loadGLBMesh } from "./common/glb-loader.js";
 import { WebGLMeshRenderer, computeViewProj } from "./webgl/renderer-webgl.js";
 import { RunStats } from "./common/metrics.js";
-import { consumeRestHandoff, writeRestHandoff, scheduleCooldownRedirect, getRedirectDelayMs } from "./common/rest.js";
 
 const params = new URLSearchParams(location.search);
-
-// Optional: automatically redirect to an idle page after the *final* phase completes (canvas/xr).
-const cooldownPage = params.get("cooldownPage") || "";
-const betweenSuitesMs = parseInt(params.get("betweenSuitesMs") || "0", 10);
-const cooldownDelayMsParam = parseInt(params.get("cooldownDelayMs") || "0", 10);
-const cooldownAfter = (params.get("cooldownAfter") || "final").toLowerCase(); // final|canvas|xr
-const xrEntryTimeoutMs = parseInt(params.get("xrEntryTimeoutMs") || "45000", 10);
 
 const suiteId = params.get("suiteId") || `suite_${Date.now()}`;
 const modelUrl = params.get("model") || "./assets/model.glb";
@@ -33,6 +25,36 @@ const storeFrames = (params.get("storeFrames") || "0") === "1";
 const spacing = (() => {
   const v = parseFloat(params.get("spacing") || "0.35");
   return (Number.isFinite(v) && v > 0) ? v : 0.35;
+})();
+
+// XR placement so the user can look straight ahead (especially on Vision Pro)
+const xrFrontMinZ = (() => {
+  const v = parseFloat(params.get("xrFrontMinZ") || "-2.0");
+  return Number.isFinite(v) ? v : -2.0;
+})();
+const xrYOffset = (() => {
+  const v = parseFloat(params.get("xrYOffset") || "1.4");
+  return Number.isFinite(v) ? v : 1.4;
+})();
+
+// Render probe: run a single unmeasured frame and sample a few pixels to detect "nothing rendered" cases.
+// Runs before timed trials so it should not affect your metrics.
+const renderProbe = (params.get("renderProbe") || "1") === "1";
+
+// On iOS/iPadOS/visionOS, automatic downloads triggered by script are unreliable.
+// Default: force manual download on Apple devices.
+function detectApplePlatform() {
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isIPadDesktopMode = (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isVision = /visionOS/i.test(ua) || /Vision Pro/i.test(ua) || /Apple Vision/i.test(ua);
+  return isIOS || isIPadDesktopMode || isVision;
+}
+const isApplePlatform = detectApplePlatform();
+const manualDownload = (() => {
+  if (!isApplePlatform) return (params.get("manualDownload") || "0") === "1";
+  // Apple default ON unless explicitly disabled
+  return (params.get("manualDownload") || "1") !== "0";
 })();
 
 // Lightweight Chrome/PerformancePanel-friendly instrumentation
@@ -127,13 +149,11 @@ const MAX_COMPARABLE_XR_VIEWS = 2;
 const apiLabel = "webgl2";
 
 const runMode = (() => {
-  const v = (params.get("mode") || "both").toLowerCase();
+  // Accept either ?mode= or ?runMode= (some runs used runMode=canvas).
+  const raw = (params.get("runMode") || params.get("mode") || "both");
+  const v = String(raw).toLowerCase();
   return (v === "canvas" || v === "xr" || v === "both") ? v : "both";
 })();
-
-
-// Rest/cooldown metadata (populated from previous suite via localStorage handoff).
-let restInfo = consumeRestHandoff(Date.now(), Number.isFinite(betweenSuitesMs) ? betweenSuitesMs : null);
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
 const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
@@ -228,13 +248,8 @@ let gl=null;
 let renderer=null;
 let xrSession=null;
 let xrRefSpace=null;
-
-let xrSupported=false; // set by initXR()
-let xrStarted=false; // true once an XR session has successfully started
-let xrRequesting=false; // true while requestSession is in flight
-let suiteFinalized=false; // prevent duplicate rest handoff/redirect
-let xrFinalizeTimer=null; // optional timeout: mode=both + cooldownAfter=final
-let xrFinalizeOutFile=null;
+let xrRequesting=false;
+let xrResultFlushedForSession=false;
 
 let sceneInfo=null;
 let envInfo=null;
@@ -287,90 +302,7 @@ function hudStopAuto() {
 }
 
 
-
-function isFinalPhase(phase) {
-  // phase is "canvas" or "xr"
-  if (cooldownAfter === "canvas") return phase === "canvas";
-  if (cooldownAfter === "xr") return phase === "xr";
-  // default: final
-  if (runMode === "canvas") return phase === "canvas";
-  if (runMode === "xr") return phase === "xr";
-  // runMode === "both"
-  if (!xrSupported) return phase === "canvas";
-  return phase === "xr";
-}
-
-function clearXrFinalizeTimer() {
-  if (!xrFinalizeTimer) return;
-  clearTimeout(xrFinalizeTimer);
-  xrFinalizeTimer = null;
-}
-
-function armXrFinalizeTimeout(canvasOutFilename) {
-  // In mode=both, "final" depends on manual XR entry. Add a deterministic fallback.
-  if (cooldownAfter !== "final") return false;
-  if (runMode !== "both" || !xrSupported) return false;
-  const waitMs = Number.isFinite(xrEntryTimeoutMs) ? Math.max(0, xrEntryTimeoutMs) : 0;
-  if (waitMs <= 0) return false;
-  const deadlineTs = Date.now() + waitMs;
-  const requestGraceMs = 120000;
-  xrFinalizeOutFile = canvasOutFilename || null;
-  clearXrFinalizeTimer();
-  log(`Canvas phase complete. Waiting up to ${waitMs}ms for XR entry before finalizing suite.`);
-
-  const checkTimeout = () => {
-    xrFinalizeTimer = null;
-    if (xrStarted || suiteFinalized) return;
-    if (xrRequesting && Date.now() < (deadlineTs + requestGraceMs)) {
-      xrFinalizeTimer = setTimeout(checkTimeout, 250);
-      return;
-    }
-    if (Date.now() < deadlineTs) {
-      xrFinalizeTimer = setTimeout(checkTimeout, Math.max(1, deadlineTs - Date.now()));
-      return;
-    }
-    log(`XR was not started within ${waitMs}ms. Saving XR skip record and finalizing suite.`);
-    if (envInfo) envInfo.xr_skipped_reason = "entry_timeout";
-    resultsXR.push(buildXRAbortRecord({
-      abortCode: "xr_entry_timeout",
-      abortReason: `XR was not started within ${waitMs}ms before timeout finalization.`,
-      observedViewCount: 0
-    }));
-    flushXRResults(xrOutFilename(), "XR not started in time - skip record saved");
-  };
-
-  xrFinalizeTimer = setTimeout(checkTimeout, waitMs);
-  return true;
-}
-
-function finalizeSuiteIfFinal(phase, outFilename, { force=false } = {}) {
-  if (suiteFinalized) return;
-  if (!force && !isFinalPhase(phase)) return;
-  suiteFinalized = true;
-  clearXrFinalizeTimer();
-  writeRestHandoff({
-    suiteId,
-    api: apiLabel,
-    runMode,
-    finalPhase: phase,
-    outFile: outFilename || null,
-    url: location.href,
-    nowEpochMs: Date.now()
-  });
-
-  if (cooldownPage) {
-    const delayMs = getRedirectDelayMs({ requestedMs: cooldownDelayMsParam, ua: navigator.userAgent });
-    scheduleCooldownRedirect({
-      cooldownPage,
-      delayMs,
-      betweenSuitesMs: (Number.isFinite(betweenSuitesMs) && betweenSuitesMs > 0) ? betweenSuitesMs : null,
-      fromSuiteId: suiteId,
-      fromApi: apiLabel
-    });
-  }
-}
-
-function downloadText(text, filename, mime="application/jsonl") {
+function downloadTextAuto(text, filename, mime="application/jsonl") {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -382,6 +314,129 @@ function downloadText(text, filename, mime="application/jsonl") {
   setTimeout(()=>URL.revokeObjectURL(url), 2500);
 }
 
+const _pendingDownloads = []; // {label, filename, text, mime}
+let _resultsPanelEl = null;
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    // Fallback: select in a hidden textarea
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return !!ok;
+    } catch (_) {}
+  }
+  return false;
+}
+
+function ensureResultsPanel() {
+  if (_resultsPanelEl) return _resultsPanelEl;
+
+  const panel = document.createElement("div");
+  panel.id = "resultsPanel";
+  panel.style.position = "fixed";
+  panel.style.left = "12px";
+  panel.style.right = "12px";
+  panel.style.bottom = "12px";
+  panel.style.zIndex = "9999";
+  panel.style.padding = "12px";
+  panel.style.border = "1px solid rgba(255,255,255,0.18)";
+  panel.style.borderRadius = "12px";
+  panel.style.background = "rgba(0,0,0,0.75)";
+  panel.style.backdropFilter = "blur(10px)";
+  panel.style.color = "#fff";
+  panel.style.fontSize = "13px";
+  panel.style.display = "none";
+
+  panel.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;">
+      <div style="font-weight:600;">Results ready</div>
+      <button id="rpClose" style="padding:6px 8px; border-radius:10px;">Close</button>
+    </div>
+    <div id="rpBody" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <div id="rpFooter" style="margin-top:10px; opacity:0.85;"></div>
+  `;
+  document.body.appendChild(panel);
+
+  panel.querySelector("#rpClose").addEventListener("click", () => {
+    panel.style.display = "none";
+  });
+
+  _resultsPanelEl = panel;
+  return panel;
+}
+
+function renderResultsPanel() {
+  const panel = ensureResultsPanel();
+  const body = panel.querySelector("#rpBody");
+  const footer = panel.querySelector("#rpFooter");
+  body.innerHTML = "";
+
+  for (const item of _pendingDownloads) {
+    const row = document.createElement("div");
+    row.style.display = "grid";
+    row.style.gridTemplateColumns = "1fr auto auto";
+    row.style.gap = "8px";
+    row.style.alignItems = "center";
+
+    const label = document.createElement("div");
+    label.textContent = `${item.label} — ${item.filename}`;
+    label.style.opacity = "0.95";
+
+    const btnDl = document.createElement("button");
+    btnDl.textContent = "Download";
+    btnDl.style.padding = "6px 10px";
+    btnDl.style.borderRadius = "10px";
+    btnDl.addEventListener("click", () => {
+      // User gesture => Safari will actually save it
+      downloadTextAuto(item.text, item.filename, item.mime);
+    });
+
+    const btnCopy = document.createElement("button");
+    btnCopy.textContent = "Copy";
+    btnCopy.style.padding = "6px 10px";
+    btnCopy.style.borderRadius = "10px";
+    btnCopy.addEventListener("click", async () => {
+      const ok = await copyToClipboard(item.text);
+      btnCopy.textContent = ok ? "Copied" : "Copy failed";
+      setTimeout(()=>btnCopy.textContent="Copy", 1200);
+    });
+
+    row.appendChild(label);
+    row.appendChild(btnDl);
+    row.appendChild(btnCopy);
+    body.appendChild(row);
+  }
+
+  footer.textContent = manualDownload
+    ? "On Apple devices, downloads must be initiated by a tap. Use the buttons above."
+    : "Downloads were triggered automatically. If you don’t see the file, use Copy or re-run with manualDownload=1.";
+
+  panel.style.display = "block";
+}
+
+function queueDownload(text, filename, label="Results", mime="application/jsonl") {
+  _pendingDownloads.push({ label, filename, text, mime });
+  renderResultsPanel();
+}
+
+function downloadText(text, filename, label="Results") {
+  if (manualDownload) {
+    queueDownload(text, filename, label);
+  } else {
+    downloadTextAuto(text, filename);
+  }
+}
+
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
 function xrOutFilename() {
@@ -390,10 +445,14 @@ function xrOutFilename() {
 
 function flushXRResults(filename=xrOutFilename(), label="Done (XR)") {
   const jsonl = resultsXR.map(o=>JSON.stringify(o)).join("\n") + "\n";
+  xrResultFlushedForSession = true;
   resultsXR = [];
-  downloadText(jsonl, filename);
-  log(`${label}. Downloaded ${filename}`);
-  finalizeSuiteIfFinal("xr", filename);
+  downloadText(jsonl, filename, "XR results");
+  if (!manualDownload) {
+    // Backup path in case automatic download is blocked by the browser.
+    queueDownload(jsonl, filename, "XR results");
+  }
+  log(`${label}. ${manualDownload ? "Queued" : "Downloaded"} ${filename}`);
 }
 
 
@@ -406,6 +465,67 @@ function clearCanvasBlankOnce() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.flush?.();
   } catch (_) {}
+}
+
+let _renderProbeDoneCanvas = false;
+
+function rgba8FromClear(c) {
+  return [
+    Math.round(Math.max(0, Math.min(1, c[0])) * 255),
+    Math.round(Math.max(0, Math.min(1, c[1])) * 255),
+    Math.round(Math.max(0, Math.min(1, c[2])) * 255),
+    Math.round(Math.max(0, Math.min(1, c[3])) * 255),
+  ];
+}
+
+// Sample a 3x3 block around center; if any pixel differs from clear, assume something rendered.
+// This is intentionally outside measured trials (called before the suite starts).
+function ensureCanvasRenderProbe(vp) {
+  if (!renderProbe || _renderProbeDoneCanvas || !gl || !renderer) return;
+  _renderProbeDoneCanvas = true;
+
+  try {
+    // Use a small-ish instance count to ensure something hits the center in most layouts.
+    const n = Math.max(1, Math.min(4, instancesList[0] || 1));
+    renderer.setInstances(n, spacing, { layout, seed });
+
+    const clear = [1.0, 0.0, 1.0, 1.0]; // magenta
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(clear[0], clear[1], clear[2], clear[3]);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    renderer.drawForView(vp);
+
+    const x = Math.max(0, Math.min(canvas.width - 3, Math.floor(canvas.width / 2) - 1));
+    const y = Math.max(0, Math.min(canvas.height - 3, Math.floor(canvas.height / 2) - 1));
+    const buf = new Uint8Array(3 * 3 * 4);
+    gl.readPixels(x, y, 3, 3, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+
+    const clear8 = rgba8FromClear(clear);
+    let diff = 0;
+    for (let i=0;i<buf.length;i+=4) {
+      const dr = Math.abs(buf[i+0] - clear8[0]);
+      const dg = Math.abs(buf[i+1] - clear8[1]);
+      const db = Math.abs(buf[i+2] - clear8[2]);
+      if (dr + dg + db > 6) { diff++; }
+    }
+    const rendered_anything = diff > 0;
+
+    envInfo.render_probe_canvas = {
+      performed: true,
+      rendered_anything,
+      sample_px: { x: x+1, y: y+1, w: 3, h: 3 },
+      diff_pixels: diff,
+      clear_rgba8: clear8,
+      first_rgba8: [buf[0], buf[1], buf[2], buf[3]],
+    };
+    log(`Render probe (canvas): rendered_anything=${rendered_anything} (diff_pixels=${diff})`);
+  } catch (e) {
+    envInfo.render_probe_canvas = { performed: true, error: String(e) };
+    log(`Render probe (canvas) failed: ${e?.message || e}`);
+  } finally {
+    clearCanvasBlankOnce();
+  }
 }
 
 
@@ -485,8 +605,6 @@ async function initGL() {
 
   sceneInfo = { asset_timing: scene.timing, asset_meta: scene.meta };
   envInfo = {
-    url: location.href,
-    rest: restInfo,
     api: "webgl2",
     powerPreferenceRequested: "high-performance",
     hudEnabled,
@@ -510,12 +628,12 @@ async function initGL() {
       mobile: navigator.userAgentData.mobile,
       platform: navigator.userAgentData.platform
     } : null),
-    platform: (navigator.platform ?? null),
-    language: (navigator.language ?? null),
-    languages: (navigator.languages ?? null),
-    hardwareConcurrency: (navigator.hardwareConcurrency ?? null),
-    deviceMemory: (navigator.deviceMemory ?? null),
-    maxTouchPoints: (navigator.maxTouchPoints ?? null),
+    platform: navigator.platform || null,
+    language: navigator.language || null,
+    languages: Array.isArray(navigator.languages) ? navigator.languages : null,
+    hardwareConcurrency: Number.isFinite(navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : null,
+    deviceMemory: Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null,
+    maxTouchPoints: Number.isFinite(navigator.maxTouchPoints) ? navigator.maxTouchPoints : null,
     isSecureContext,
     crossOriginIsolated,
     visibilityState: document.visibilityState,
@@ -523,7 +641,8 @@ async function initGL() {
     canvas_css: { w: canvas.clientWidth, h: canvas.clientHeight },
     canvas_px: { w: canvas.width, h: canvas.height },
     contextAttributes: gl.getContextAttributes ? gl.getContextAttributes() : null,
-    gpu
+    gpu,
+    url: location.href
   };
 
   const gpuIdentity = `webgl2:${gpu.vendor || "unknown"}|${gpu.renderer || "unknown"}`;
@@ -707,6 +826,7 @@ async function runCanvasSuite() {
   canvasRunInProgress = true;
   try {
     const vp = getDefaultViewProj();
+    ensureCanvasRenderProbe(vp);
     resultsCanvas = [];
 
     const plan = buildPlan();
@@ -729,12 +849,8 @@ async function runCanvasSuite() {
     }
 
     const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
-    downloadText(jsonl, outFile);
-    log(`Done (canvas). Downloaded ${outFile}`);
-    // In mode=both + cooldownAfter=final, wait briefly for XR entry before closing the suite.
-    if (!armXrFinalizeTimeout(outFile)) {
-      finalizeSuiteIfFinal("canvas", outFile);
-    }
+    downloadText(jsonl, outFile, "Canvas results");
+    log(`Done (canvas). ${manualDownload ? "Queued" : "Downloaded"} ${outFile}`);
     clearCanvasBlankOnce();
   } finally {
     canvasRunInProgress = false;
@@ -744,15 +860,10 @@ async function runCanvasSuite() {
 async function initXR() {
   if (!navigator.xr) { log("WebXR not supported (canvas-only)"); return; }
   const supported = await navigator.xr.isSessionSupported("immersive-vr").catch(()=>false);
-  xrSupported = !!supported;
   if (!supported) { log("Immersive VR not supported here (canvas-only)"); return; }
   btn.disabled = false;
   btn.textContent = "Enter VR";
   btn.addEventListener("click", async ()=> {
-    if (suiteFinalized) {
-      log("Suite already finalized. Reload to start a new suite.");
-      return;
-    }
     if (xrRequesting) {
       log("XR session request already in progress.");
       return;
@@ -764,28 +875,38 @@ async function initXR() {
       }
       try {
         const opts = hudEnabled ? { optionalFeatures:["dom-overlay"], domOverlay:{ root: document.body } } : {};
+        xrResultFlushedForSession = false;
+        xrAbortReason = null;
         xrEnterClickedAt = performance.now();
         xrRequesting = true;
-        xrSession = await navigator.xr.requestSession("immersive-vr", opts);
+        const session = await navigator.xr.requestSession("immersive-vr", opts);
         xrRequesting = false;
-        if (suiteFinalized) {
-          try { await xrSession.end(); } catch (_) {}
-          xrSession = null;
-          log("Suite finalized while XR request was pending; discarded late XR session.");
-          return;
-        }
-        await onSessionStarted(xrSession);
+        xrSession = session;
+        await onSessionStarted(session);
       } catch (e) {
         xrRequesting = false;
         const failedSession = xrSession;
         xrSession = null;
         xrEnterClickedAt = null;
-        xrStarted = false;
         if (failedSession) {
           try { await failedSession.end(); } catch (_) {}
         }
-        if (runMode === "both" && cooldownAfter === "final" && !suiteFinalized) {
-          armXrFinalizeTimeout(xrFinalizeOutFile || outFile);
+        const reason = `XR session failed before suite completion: ${e?.message || e}`;
+        if (envInfo) {
+          envInfo.xr_abort_reason = reason;
+          envInfo.xr_observed_view_count = 0;
+          envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+        }
+        if (!xrResultFlushedForSession) {
+          const last = resultsXR[resultsXR.length - 1];
+          if (!last || last.aborted !== true) {
+            resultsXR.push(buildXRAbortRecord({
+              abortCode: "xr_session_start_failed",
+              abortReason: reason,
+              observedViewCount: 0
+            }));
+          }
+          flushXRResults(xrOutFilename(), "XR session failed");
         }
         console.error(e);
         log(`XR session failed: ${e?.message || e}`);
@@ -821,7 +942,6 @@ function fmtMs(ms) {
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
   return `${(ms/1000).toFixed(1)}s`;
 }
-
 
 function currentXRPlanItem() {
   return (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
@@ -885,35 +1005,15 @@ function abortXRForComparability(session, observedViews) {
     envInfo.xr_observed_view_count = observedViews;
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
   }
-  const abortRecord = buildXRAbortRecord({
+  resultsXR.push(buildXRAbortRecord({
     abortCode: "xr_view_count_exceeded",
     abortReason: xrAbortReason,
     observedViewCount: observedViews
-  });
-  resultsXR.push(abortRecord);
+  }));
   flushXRResults(xrOutFilename(), "Aborted (XR)");
   xrActive = false;
   log(xrAbortReason);
   Promise.resolve(session.end()).catch(()=>{});
-}
-
-function flushUnexpectedXREnd() {
-  if (suiteFinalized) return;
-  const incomplete = !xrPlan || xrIndex < xrPlan.length;
-  if (incomplete) {
-    const reason = xrAbortReason || "XR session ended before suite completion.";
-    if (envInfo && !envInfo.xr_abort_reason) envInfo.xr_abort_reason = reason;
-    const observed = Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0;
-    resultsXR.push(buildXRAbortRecord({
-      abortCode: "xr_session_ended_early",
-      abortReason: reason,
-      observedViewCount: observed
-    }));
-  }
-  if (resultsXR.length > 0) {
-    const label = incomplete ? "XR session ended early - partial results saved" : "XR session ended - results saved";
-    flushXRResults(xrOutFilename(), label);
-  }
 }
 
 function ensureComparableXRViews(session, pose) {
@@ -929,6 +1029,7 @@ function ensureComparableXRViews(session, pose) {
 function xrHudText() {
   if (!xrPlan) return "XR: not started";
   const total = xrPlan.length;
+  const idx = Math.min(xrIndex + (xrActive ? 0 : 0), total);
   const cur = xrPlan[Math.min(xrIndex, total-1)];
   const inst = cur ? cur.instances : "-";
   const tr = cur ? cur.trial : "-";
@@ -942,7 +1043,7 @@ function xrHudText() {
 
 
 function startNextXRTrial(session) {
-  if (!xrSession || session !== xrSession) return; // session already ended/replaced
+  if (!xrSession || session !== xrSession) return;
   if (xrAbortReason) {
     xrActive=false;
     Promise.resolve(session.end()).catch(()=>{});
@@ -956,7 +1057,7 @@ function startNextXRTrial(session) {
   }
 
   const item = xrPlan[xrIndex];
-  renderer.setInstances(item.instances, spacing, { layout, seed });
+  renderer.setInstances(item.instances, spacing, { layout, seed, isXR: true, xrFrontMinZ, xrYOffset });
 
   xrDts = [];
   xrDtsNow = [];
@@ -994,7 +1095,7 @@ function startNextXRTrial(session) {
   };
 
 function beginMeasuredXR() {
-  if (!xrSession || session !== xrSession) return; // session ended/replaced during preIdleMs
+  if (!xrSession || session !== xrSession) return;
   xrStats.markStart();
   xrTrialId = `trial_webgl2_xr_inst${item.instances}_t${item.trial}_idx${xrIndex+1}`;
   xrMemStart = collectPerf ? snapshotMemory() : null;
@@ -1022,12 +1123,36 @@ if (preIdleMs > 0) {
 
 }
 
+function flushUnexpectedXREnd() {
+  if (xrResultFlushedForSession) return;
+  const incomplete = !xrPlan || xrIndex < xrPlan.length;
+  if (incomplete) {
+    const reason = xrAbortReason || "XR session ended before suite completion.";
+    if (envInfo) {
+      envInfo.xr_abort_reason = envInfo.xr_abort_reason || reason;
+      if (!Number.isFinite(envInfo.xr_observed_view_count)) envInfo.xr_observed_view_count = 0;
+      envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+    }
+    const last = resultsXR[resultsXR.length - 1];
+    if (!last || last.aborted !== true) {
+      resultsXR.push(buildXRAbortRecord({
+        abortCode: "xr_session_ended_early",
+        abortReason: reason,
+        observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
+      }));
+    }
+  }
+  if (resultsXR.length > 0) {
+    const label = incomplete ? "XR session ended (partial)" : "XR session ended";
+    flushXRResults(xrOutFilename(), label);
+  }
+}
+
 async function onSessionStarted(session) {
-  xrStarted = true;
-  clearXrFinalizeTimer();
+  xrRequesting = false;
   xrAbortReason = null;
+  xrResultFlushedForSession = false;
   // Reset XR-specific envInfo fields so re-entry doesn't inherit stale values.
-  // Use delete (not null/undefined) so they don't serialize and trip the validator.
   if (envInfo) {
     delete envInfo.xr_enter_to_first_frame_ms;
     delete envInfo.xr_dom_overlay_requested;
@@ -1040,6 +1165,7 @@ async function onSessionStarted(session) {
   hudStartAuto(xrHudText);
   session.addEventListener("end", ()=> {
     hudStopAuto();
+    xrRequesting = false;
     xrSession=null;
     btn.textContent="Enter VR";
     xrActive=false;
@@ -1047,7 +1173,7 @@ async function onSessionStarted(session) {
   });
 
   await gl.makeXRCompatible?.();
-  if (!xrSession) return; // session ended during makeXRCompatible
+  if (!xrSession) return;
 
   let baseLayer = null;
   let appliedScale = null;
@@ -1063,14 +1189,14 @@ async function onSessionStarted(session) {
     envInfo.xr_scale_factor_applied = appliedScale;
   }
   xrRefSpace = await session.requestReferenceSpace("local");
-  if (!xrSession) return; // session ended during requestReferenceSpace
+  if (!xrSession) return;
 
   resultsXR = [];
   xrPlan = buildPlan();
   xrIndex = 0;
 
   await sleep(warmupMs);
-  if (!xrSession) return; // session ended during initial warmup
+  if (!xrSession) return;
   startNextXRTrial(session);
   session.requestAnimationFrame(onXRFrame);
 }
@@ -1212,8 +1338,8 @@ resultsXR.push(out);
     // pause between different instance counts
     const next = xrPlan[xrIndex];
     const prev = xrPlan[xrIndex-1];
-    const betweenPause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : 0;
-    const totalPause = betweenPause + warmupMs + cooldownMs + Math.max(0, postIdleMs|0);
+    const pause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : warmupMs;
+    const totalPause = pause + Math.max(0, postIdleMs|0);
     xrBlankClearOnce = true;
     setTimeout(()=>startNextXRTrial(session), totalPause);
   }

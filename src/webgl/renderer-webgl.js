@@ -186,6 +186,20 @@ export class WebGLMeshRenderer {
     const layout = (opts.layout || "line");
     const seed = (opts.seed ?? 12345) >>> 0;
     const offsets = genOffsets(n, spacing, layout, seed);
+    // In XR, shift the whole instance cloud in front of the viewer and up to eye height
+    // so the user looks straight ahead (prevents half the grid spawning behind).
+    if (opts.isXR) {
+      const frontMinZ = (Number.isFinite(opts.xrFrontMinZ) ? opts.xrFrontMinZ : -2.0);
+      const yOffset = (Number.isFinite(opts.xrYOffset) ? opts.xrYOffset : 1.4);
+      // Find current max Z and shift so maxZ becomes frontMinZ (negative)
+      let maxZ = -Infinity;
+      for (let i=0;i<n;i++) maxZ = Math.max(maxZ, offsets[i*3+2]);
+      const shiftZ = frontMinZ - maxZ;
+      for (let i=0;i<n;i++) {
+        offsets[i*3+1] += yOffset;
+        offsets[i*3+2] += shiftZ;
+      }
+    }
     this.setInstanceOffsets(offsets);
   }
 

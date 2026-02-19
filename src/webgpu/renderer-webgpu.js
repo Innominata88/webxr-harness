@@ -213,6 +213,20 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
     const layout = (opts.layout || "line");
     const seed = (opts.seed ?? 12345) >>> 0;
     const offsets = this._genOffsets(n, spacing, layout, seed);
+
+    // XR placement: keep everything in front of the user and at eye height.
+    if (opts.isXR) {
+      const frontMinZ = (Number.isFinite(opts.xrFrontMinZ) ? opts.xrFrontMinZ : -2.0);
+      const yOffset = (Number.isFinite(opts.xrYOffset) ? opts.xrYOffset : 1.4);
+      let maxZ = -Infinity;
+      for (let i=0;i<n;i++) maxZ = Math.max(maxZ, offsets[i*3+2]);
+      const shiftZ = frontMinZ - maxZ;
+      for (let i=0;i<n;i++) {
+        offsets[i*3+1] += yOffset;
+        offsets[i*3+2] += shiftZ;
+      }
+    }
+
     this.setInstanceOffsets(offsets);
   }
 
