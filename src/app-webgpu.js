@@ -179,7 +179,8 @@ const MAX_COMPARABLE_XR_VIEWS = 2;
 const apiLabel = "webgpu";
 
 const runMode = (() => {
-  // Accept either ?mode= or ?runMode= (some runs used runMode=canvas).
+  // Canonical parameter is ?runMode=. Keep ?mode= as backward-compatible alias.
+  // If both are present, runMode takes precedence.
   const raw = (params.get("runMode") || params.get("mode") || "both");
   const v = String(raw).toLowerCase();
   return (v === "canvas" || v === "xr" || v === "both") ? v : "both";

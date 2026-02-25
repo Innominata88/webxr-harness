@@ -23,7 +23,7 @@ a { color: #9ad; }
 <main><canvas></canvas></main>
 <script type="module">
   const params = new URLSearchParams(location.search);
-  const rev = params.get("appRev");
+  const rev = params.get("appRev") || params.get("harnessCommit");
   const src = new URL("./src/app-webgl.js", location.href);
   if (rev) src.searchParams.set("v", rev);
   import(src.href);
