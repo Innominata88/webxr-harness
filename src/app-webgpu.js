@@ -268,6 +268,18 @@ let canvasRunScheduled=false;
 let deviceLostInfo = null;
 let canvasAbortReason = null;
 let activeCanvasTrialReject = null;
+const uncapturedErrors = [];
+let uncapturedErrorListenerInstalled = false;
+const globalJsErrors = [];
+const globalJsUnhandledRejections = [];
+const GLOBAL_JS_ERROR_RING = 20;
+const WEBGPU_UNCAPTURED_ERROR_RING = 20;
+const ERROR_RING_CAPACITY = {
+  js_errors: GLOBAL_JS_ERROR_RING,
+  js_unhandled_rejections: GLOBAL_JS_ERROR_RING,
+  webgpu_uncaptured_errors: WEBGPU_UNCAPTURED_ERROR_RING
+};
+let globalErrorListenersInstalled = false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
 
@@ -298,6 +310,51 @@ function rejectActiveCanvasTrial(err) {
   if (!rejectFn) return;
   activeCanvasTrialReject = null;
   try { rejectFn(err instanceof Error ? err : new Error(String(err))); } catch (_) {}
+}
+
+function pushRingSample(arr, sample, maxSize) {
+  arr.push(sample);
+  if (arr.length > maxSize) arr.shift();
+}
+
+function updateGlobalErrorEnvDiagnostics() {
+  if (!envInfo) return;
+  envInfo.js_errors = globalJsErrors;
+  envInfo.js_unhandled_rejections = globalJsUnhandledRejections;
+}
+
+function installGlobalErrorListeners() {
+  if (globalErrorListenersInstalled) return;
+  window.addEventListener("error", (e) => {
+    const err = e?.error;
+    const sample = {
+      t_ms: performance.now(),
+      at_iso: new Date().toISOString(),
+      name: (typeof err?.name === "string") ? err.name : null,
+      message: (typeof err?.message === "string")
+        ? err.message
+        : (typeof e?.message === "string" ? e.message : String(err ?? "unknown")),
+      source: (typeof e?.filename === "string") ? e.filename : null,
+      lineno: (typeof e?.lineno === "number" && Number.isFinite(e.lineno)) ? e.lineno : null,
+      colno: (typeof e?.colno === "number" && Number.isFinite(e.colno)) ? e.colno : null
+    };
+    pushRingSample(globalJsErrors, sample, GLOBAL_JS_ERROR_RING);
+    updateGlobalErrorEnvDiagnostics();
+    try { console.warn("Global JS error:", err || e); } catch (_) {}
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e?.reason;
+    const sample = {
+      t_ms: performance.now(),
+      at_iso: new Date().toISOString(),
+      name: (typeof reason?.name === "string") ? reason.name : null,
+      message: (typeof reason?.message === "string") ? reason.message : String(reason ?? "unknown")
+    };
+    pushRingSample(globalJsUnhandledRejections, sample, GLOBAL_JS_ERROR_RING);
+    updateGlobalErrorEnvDiagnostics();
+    try { console.warn("Unhandled promise rejection:", reason); } catch (_) {}
+  });
+  globalErrorListenersInstalled = true;
 }
 
 
@@ -718,6 +775,43 @@ function buildPlan() {
   return plan;
 }
 
+function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=null, planLen=null, partialTrial=null } = {}) {
+  return {
+    schema_version: SCHEMA_VERSION,
+    api: "webgpu",
+    mode: "canvas",
+    aborted: true,
+    abort_code: abortCode || "canvas_trial_failed",
+    abort_reason: abortReason || "Canvas trial failed before completion.",
+    suiteId,
+    modelUrl,
+    instances: item ? item.instances : null,
+    trial: item ? item.trial : null,
+    trials,
+    durationMs,
+    warmupMs,
+    cooldownMs,
+    preIdleMs,
+    postIdleMs,
+    betweenInstancesMs,
+    layout,
+    seed,
+    shuffle,
+    spacing,
+    collectPerf,
+    perfDetail,
+    condition_index: Number.isFinite(planIdx) ? (planIdx + 1) : null,
+    condition_count: Number.isFinite(planLen) ? planLen : null,
+    startedAt: new Date().toISOString(),
+    partial_trial: (partialTrial && typeof partialTrial === "object") ? partialTrial : {
+      elapsed_ms: null,
+      frames_collected: 0
+    },
+    ...sceneInfo,
+    env: snapshotEnvInfo()
+  };
+}
+
 async function initWebGPU() {
   if (!navigator.gpu) throw new Error("WebGPU not supported");
   const adapter = await navigator.gpu.requestAdapter({ powerPreference:"high-performance", xrCompatible:true });
@@ -740,7 +834,10 @@ async function initWebGPU() {
     const canvasReason = deviceLostReasonString() || "GPU device lost.";
     if (!canvasAbortReason) canvasAbortReason = canvasReason;
     if (envInfo) envInfo.canvas_abort_reason = canvasAbortReason;
-    rejectActiveCanvasTrial(new Error(canvasAbortReason));
+    const err = new Error(canvasAbortReason);
+    err.abortCode = "webgpu_device_lost";
+    err.partial_trial = { elapsed_ms: null, frames_collected: 0 };
+    rejectActiveCanvasTrial(err);
 
     if (xrSession && !xrAbortReason) {
       const reason = deviceLostReasonString() || "GPU device lost.";
@@ -761,6 +858,20 @@ async function initWebGPU() {
       Promise.resolve(xrSession.end()).catch(()=>{});
     }
   }).catch(() => {});
+  if (!uncapturedErrorListenerInstalled && typeof device?.addEventListener === "function") {
+    device.addEventListener("uncapturederror", (e) => {
+      const err = e?.error;
+      pushRingSample(uncapturedErrors, {
+        t_ms: performance.now(),
+        name: (typeof err?.name === "string") ? err.name : null,
+        message: (typeof err?.message === "string") ? err.message : String(err ?? "unknown")
+      }, WEBGPU_UNCAPTURED_ERROR_RING);
+      if (envInfo) envInfo.webgpu_uncaptured_errors = uncapturedErrors;
+      updateGlobalErrorEnvDiagnostics();
+      try { console.warn("WebGPU uncaptured error:", err); } catch (_) {}
+    });
+    uncapturedErrorListenerInstalled = true;
+  }
   adapterInfo = await adapter.requestAdapterInfo?.().catch(()=>null);
 // Capture reproducibility info (works even when adapterInfo is unavailable)
 const adapter_features = Array.from(adapter.features || []).map(String);
@@ -827,6 +938,10 @@ const device_limits = copyLimits(device.limits || {});
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
     device_lost: deviceLostInfo,
+    webgpu_uncaptured_errors: uncapturedErrors,
+    error_ring_capacity: { ...ERROR_RING_CAPACITY },
+    js_errors: globalJsErrors,
+    js_unhandled_rejections: globalJsUnhandledRejections,
     xrFrontMinZ,
     xrYOffset,
     runMode,
@@ -928,6 +1043,17 @@ function runCanvasTrial(item, planIdx, planLen) {
       env: snapshotEnvInfo()
     };
 
+    function makeCanvasTrialError(message, abortCode="canvas_trial_failed") {
+      const err = new Error(message);
+      err.abortCode = abortCode;
+      const elapsedMs = stats.startWall ? Math.max(0, performance.now() - stats.startWall) : null;
+      err.partial_trial = {
+        elapsed_ms: elapsedMs,
+        frames_collected: dts.length
+      };
+      return err;
+    }
+
     const trialId = `trial_webgpu_canvas_inst${item.instances}_t${item.trial}_idx${planIdx+1}`;
     const memStart = collectPerf ? snapshotMemory() : null;
     if (collectPerf) {
@@ -944,7 +1070,8 @@ function runCanvasTrial(item, planIdx, planLen) {
       function frame(t) {
       if (canvasAbortReason) {
         stats.markEnd();
-        finishReject(new Error(canvasAbortReason));
+        const abortCode = (deviceLostInfo && typeof deviceLostInfo === "object") ? "webgpu_device_lost" : "canvas_trial_failed";
+        finishReject(makeCanvasTrialError(canvasAbortReason, abortCode));
         return;
       }
       if (Number.isFinite(lastT)) {
@@ -976,7 +1103,7 @@ function runCanvasTrial(item, planIdx, planLen) {
         device.queue.submit([encoder.finish()]);
       } catch (e) {
         stats.markEnd();
-        finishReject(new Error(`Canvas render failed: ${e?.message || e}`));
+        finishReject(makeCanvasTrialError(`Canvas render failed: ${e?.message || e}`, "canvas_trial_failed"));
         return;
       }
 
@@ -1076,12 +1203,33 @@ async function runCanvasSuite() {
         const reason = `Canvas trial failed at ${i+1}/${plan.length}: ${e?.message || e}`;
         if (!canvasAbortReason) canvasAbortReason = reason;
         if (envInfo) envInfo.canvas_abort_reason = canvasAbortReason;
+        resultsCanvas.push(buildCanvasAbortRecord({
+          abortCode: (typeof e?.abortCode === "string" && e.abortCode) ? e.abortCode : "canvas_trial_failed",
+          abortReason: canvasAbortReason,
+          item,
+          planIdx: i,
+          planLen: plan.length,
+          partialTrial: (e?.partial_trial && typeof e.partial_trial === "object") ? e.partial_trial : {
+            elapsed_ms: null,
+            frames_collected: 0
+          }
+        }));
         log(canvasAbortReason);
         break;
       }
       resultsCanvas.push(out);
 
-      if (canvasAbortReason) break;
+      if (canvasAbortReason) {
+        resultsCanvas.push(buildCanvasAbortRecord({
+          abortCode: (deviceLostInfo && typeof deviceLostInfo === "object") ? "webgpu_device_lost" : "canvas_trial_failed",
+          abortReason: canvasAbortReason,
+          item,
+          planIdx: i,
+          planLen: plan.length,
+          partialTrial: { elapsed_ms: null, frames_collected: 0 }
+        }));
+        break;
+      }
       await sleep(cooldownMs);
     }
 
@@ -1869,6 +2017,8 @@ if (!xrActive || !xrStats) {
 }
 
 async function main() {
+  installGlobalErrorListeners();
+
   canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
   canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
 

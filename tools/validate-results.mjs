@@ -280,6 +280,112 @@ function validateEnv(record, loc, errors) {
       checkNumberOrNull(lost, "at_perf_ms", `${loc}.${key}.device_lost`, errors);
     }
   }
+  if (hasOwn(value, "webgpu_uncaptured_errors")) {
+    const uncaptured = value.webgpu_uncaptured_errors;
+    if (uncaptured === null) {
+      // optional null for legacy/transitional outputs
+    } else if (!Array.isArray(uncaptured)) {
+      pushTypeError(errors, `${loc}.${key}`, "webgpu_uncaptured_errors", "array or null", typeName(uncaptured));
+    } else {
+      for (let i = 0; i < uncaptured.length; i++) {
+        const item = uncaptured[i];
+        if (!isObject(item)) {
+          errors.push(`${loc}.${key}.webgpu_uncaptured_errors[${i}]: expected object, got ${typeName(item)}`);
+          continue;
+        }
+        checkNumber(item, "t_ms", `${loc}.${key}.webgpu_uncaptured_errors[${i}]`, errors);
+        checkStringOrNull(item, "name", `${loc}.${key}.webgpu_uncaptured_errors[${i}]`, errors);
+        checkString(item, "message", `${loc}.${key}.webgpu_uncaptured_errors[${i}]`, errors);
+      }
+    }
+  }
+  if (hasOwn(value, "js_errors")) {
+    const jsErrors = value.js_errors;
+    if (jsErrors === null) {
+      // optional null for legacy/transitional outputs
+    } else if (!Array.isArray(jsErrors)) {
+      pushTypeError(errors, `${loc}.${key}`, "js_errors", "array or null", typeName(jsErrors));
+    } else {
+      for (let i = 0; i < jsErrors.length; i++) {
+        const item = jsErrors[i];
+        if (!isObject(item)) {
+          errors.push(`${loc}.${key}.js_errors[${i}]: expected object, got ${typeName(item)}`);
+          continue;
+        }
+        checkNumber(item, "t_ms", `${loc}.${key}.js_errors[${i}]`, errors);
+        checkString(item, "at_iso", `${loc}.${key}.js_errors[${i}]`, errors);
+        checkStringOrNull(item, "name", `${loc}.${key}.js_errors[${i}]`, errors);
+        checkString(item, "message", `${loc}.${key}.js_errors[${i}]`, errors);
+        checkIfPresent(item, "source", checkStringOrNull, `${loc}.${key}.js_errors[${i}]`, errors);
+        checkIfPresent(item, "lineno", checkNumberOrNull, `${loc}.${key}.js_errors[${i}]`, errors);
+        checkIfPresent(item, "colno", checkNumberOrNull, `${loc}.${key}.js_errors[${i}]`, errors);
+      }
+    }
+  }
+  if (hasOwn(value, "js_unhandled_rejections")) {
+    const rejections = value.js_unhandled_rejections;
+    if (rejections === null) {
+      // optional null for legacy/transitional outputs
+    } else if (!Array.isArray(rejections)) {
+      pushTypeError(errors, `${loc}.${key}`, "js_unhandled_rejections", "array or null", typeName(rejections));
+    } else {
+      for (let i = 0; i < rejections.length; i++) {
+        const item = rejections[i];
+        if (!isObject(item)) {
+          errors.push(`${loc}.${key}.js_unhandled_rejections[${i}]: expected object, got ${typeName(item)}`);
+          continue;
+        }
+        checkNumber(item, "t_ms", `${loc}.${key}.js_unhandled_rejections[${i}]`, errors);
+        checkString(item, "at_iso", `${loc}.${key}.js_unhandled_rejections[${i}]`, errors);
+        checkStringOrNull(item, "name", `${loc}.${key}.js_unhandled_rejections[${i}]`, errors);
+        checkString(item, "message", `${loc}.${key}.js_unhandled_rejections[${i}]`, errors);
+      }
+    }
+  }
+  if (hasOwn(value, "error_ring_capacity")) {
+    const capacity = value.error_ring_capacity;
+    if (capacity === null) {
+      // optional null for legacy/transitional outputs
+    } else if (!isObject(capacity)) {
+      pushTypeError(errors, `${loc}.${key}`, "error_ring_capacity", "object or null", typeName(capacity));
+    } else {
+      checkIfPresent(capacity, "js_errors", checkNumber, `${loc}.${key}.error_ring_capacity`, errors);
+      checkIfPresent(capacity, "js_unhandled_rejections", checkNumber, `${loc}.${key}.error_ring_capacity`, errors);
+      checkIfPresent(capacity, "webgl_context_lost_events", checkNumber, `${loc}.${key}.error_ring_capacity`, errors);
+      checkIfPresent(capacity, "webgpu_uncaptured_errors", checkNumber, `${loc}.${key}.error_ring_capacity`, errors);
+    }
+  }
+  if (hasOwn(value, "webgl")) {
+    const webglInfo = value.webgl;
+    if (webglInfo === null) {
+      // optional null for legacy/transitional outputs
+    } else if (!isObject(webglInfo)) {
+      pushTypeError(errors, `${loc}.${key}`, "webgl", "object or null", typeName(webglInfo));
+    } else {
+      checkNumber(webglInfo, "context_lost_count", `${loc}.${key}.webgl`, errors);
+      checkNumber(webglInfo, "context_restored_count", `${loc}.${key}.webgl`, errors);
+      checkNumberOrNull(webglInfo, "context_lost_first_at_ms", `${loc}.${key}.webgl`, errors);
+      checkNumberOrNull(webglInfo, "context_lost_last_at_ms", `${loc}.${key}.webgl`, errors);
+      checkBoolean(webglInfo, "context_is_lost", `${loc}.${key}.webgl`, errors);
+      if (!checkFieldPresence(webglInfo, "context_lost_events", `${loc}.${key}.webgl`, errors)) {
+        // missing required field
+      } else if (!Array.isArray(webglInfo.context_lost_events)) {
+        pushTypeError(errors, `${loc}.${key}.webgl`, "context_lost_events", "array", typeName(webglInfo.context_lost_events));
+      } else {
+        for (let i = 0; i < webglInfo.context_lost_events.length; i++) {
+          const item = webglInfo.context_lost_events[i];
+          if (!isObject(item)) {
+            errors.push(`${loc}.${key}.webgl.context_lost_events[${i}]: expected object, got ${typeName(item)}`);
+            continue;
+          }
+          checkNumber(item, "t_ms", `${loc}.${key}.webgl.context_lost_events[${i}]`, errors);
+          checkString(item, "at_iso", `${loc}.${key}.webgl.context_lost_events[${i}]`, errors);
+          checkStringOrNull(item, "statusMessage", `${loc}.${key}.webgl.context_lost_events[${i}]`, errors);
+          checkIfPresent(item, "phase", checkStringOrNull, `${loc}.${key}.webgl.context_lost_events[${i}]`, errors);
+        }
+      }
+    }
+  }
 
   // Optional rest metadata: newer runs include it; legacy 1.0.0 files may omit it.
   if ("rest" in value) {
@@ -495,18 +601,21 @@ function validateBase(record, loc, errors) {
 
 function validateAbortRecord(record, loc, errors) {
   checkBoolean(record, "aborted", loc, errors);
-  if (record.mode !== "xr") {
-    errors.push(`${loc}: abort record must have mode="xr"`);
-  }
   checkString(record, "abort_code", loc, errors);
   checkString(record, "abort_reason", loc, errors);
-  checkNumber(record, "observed_view_count", loc, errors);
-  checkNumber(record, "expected_max_views", loc, errors);
   checkNumber(record, "preIdleMs", loc, errors);
   checkNumber(record, "postIdleMs", loc, errors);
   validatePartialTrial(record, loc, errors);
-  validateXRViewports(record, loc, errors);
-  validateXRRenderProbe(record, loc, errors);
+  if (record.mode === "xr") {
+    checkNumber(record, "observed_view_count", loc, errors);
+    checkNumber(record, "expected_max_views", loc, errors);
+    validateXRViewports(record, loc, errors);
+    validateXRRenderProbe(record, loc, errors);
+    return;
+  }
+  if (record.mode !== "canvas") {
+    errors.push(`${loc}: abort record must have mode="canvas" or mode="xr"`);
+  }
 }
 
 function validateTrialRecord(record, loc, errors) {
@@ -582,6 +691,10 @@ async function validateFile(filePath) {
       continue;
     }
     fileErrors.push(...validateRecord(parsed, filePath, lineNo));
+  }
+
+  if (records === 0) {
+    fileErrors.push(`${filePath}: no JSON records found`);
   }
 
   return { filePath, records, errors: fileErrors };

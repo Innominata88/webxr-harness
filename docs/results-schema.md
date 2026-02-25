@@ -101,10 +101,10 @@ node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_qualit
 | `render_probe_xr` | object | xr | XR render-probe diagnostics (`performed`, `rendered_anything`, `first_frame_px`, optional sampled pixel diff) |
 | `xr_viewports` | object[] | xr | Per-view viewport samples (`x`,`y`,`w`,`h`) collected each frame |
 | `aborted` | boolean | abort | Always `true` for abort records |
-| `abort_code` | string | abort | Typical values: `"xr_view_count_exceeded"`, `"xr_entry_timeout"`, `"xr_session_ended_early"` |
+| `abort_code` | string | abort | Typical values: `"xr_view_count_exceeded"`, `"xr_pose_unavailable_timeout"`, `"webgl_context_lost"`, `"webgpu_device_lost"`, `"xr_session_ended_early"` |
 | `abort_reason` | string | abort | Human-readable reason |
-| `observed_view_count` | number | abort | View count observed at abort |
-| `expected_max_views` | number | abort | Comparability guard, currently `2` |
+| `observed_view_count` | number | xr abort | View count observed at XR abort |
+| `expected_max_views` | number | xr abort | Comparability guard, currently `2` |
 | `partial_trial` | object | abort | Partial progress; see `partial_trial` section |
 
 ## `summary` object (trial records)
@@ -257,6 +257,9 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
 | `xr_projection_layer_fallback` | string optional | WebGPU XR layer fallback mode used at startup |
 | `xr_first_frame_seen` | boolean optional | `false` when XR session ended before first frame was rendered |
+| `js_errors` | object[] or null optional | Ring buffer of global JS runtime `error` events captured by `window.onerror` listener |
+| `js_unhandled_rejections` | object[] or null optional | Ring buffer of global Promise rejection events captured by `window.unhandledrejection` listener |
+| `error_ring_capacity` | object or null optional | Declared ring-buffer capacities used for error diagnostics (for reproducibility/reporting) |
 | `xrFrontMinZ` | number | Requested XR forward placement anchor used by XR placement transform |
 | `xrYOffset` | number | Requested XR vertical placement offset used by XR placement transform |
 | `runMode` | string |
@@ -274,6 +277,7 @@ Legacy note:
 |---|---|
 | `contextAttributes` | object or null |
 | `gpu` | object with optional `vendor`, `renderer` |
+| `webgl` | object or null optional |
 
 ### WebGPU-only fields
 
@@ -288,12 +292,14 @@ Legacy note:
 | `device_limits` | object |
 | `colorFormat` | string |
 | `device_lost` | object or null optional |
+| `webgpu_uncaptured_errors` | object[] or null optional |
 
 ## `partial_trial` object (abort records)
 
 | Field | Type | Meaning |
 |---|---|---|
 | `elapsed_ms` | number or null | Time elapsed in current trial before abort |
+| `frames_collected` | number | Canvas abort: number of collected frame deltas before abort |
 | `frames_collected_t` | number | Number of primary cadence deltas (`t`) before abort |
 | `frames_collected_now` | number | Number of secondary cadence deltas (`performance.now`) before abort |
 
@@ -341,6 +347,74 @@ Present when the harness receives a `device.lost` signal.
 | `phase` | string or null | Harness phase at loss (`canvas`, `xr`, `idle`) |
 | `at_iso` | string or null | ISO timestamp when loss was observed |
 | `at_perf_ms` | number or null | `performance.now()` when loss was observed |
+
+## `env.webgl` object (WebGL env, optional)
+
+WebGL context-loss diagnostics for run integrity checks.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `context_lost_count` | number | Count of observed `webglcontextlost` events during the suite page lifetime |
+| `context_restored_count` | number | Count of observed `webglcontextrestored` events |
+| `context_lost_first_at_ms` | number or null | `performance.now()` timestamp of the first observed loss |
+| `context_lost_last_at_ms` | number or null | `performance.now()` timestamp of the most recent observed loss |
+| `context_lost_events` | object[] | Ring buffer (last few) of context-loss event samples |
+| `context_is_lost` | boolean | Whether context is currently in the lost state |
+
+`context_lost_events[]` fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `t_ms` | number | `performance.now()` when event was observed |
+| `at_iso` | string | ISO wall-clock timestamp |
+| `statusMessage` | string or null | Browser/runtime message when available (`null` in most browsers) |
+| `phase` | string or null | Harness phase at event (`canvas`, `xr`, `idle`) |
+
+## `env.webgpu_uncaptured_errors[]` object (WebGPU env, optional)
+
+Present when the harness receives WebGPU uncaptured runtime/validation errors.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `t_ms` | number | `performance.now()` timestamp when the error was observed |
+| `name` | string or null | Error class/name when available |
+| `message` | string | Runtime-provided error message |
+
+## `env.js_errors[]` object (shared env, optional)
+
+Global JS runtime error samples (ring buffer).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `t_ms` | number | `performance.now()` timestamp when the error was observed |
+| `at_iso` | string | ISO wall-clock timestamp |
+| `name` | string or null | Error class/name when available |
+| `message` | string | Error message |
+| `source` | string or null | Script URL when available |
+| `lineno` | number or null | Source line when available |
+| `colno` | number or null | Source column when available |
+
+## `env.js_unhandled_rejections[]` object (shared env, optional)
+
+Global unhandled Promise rejection samples (ring buffer).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `t_ms` | number | `performance.now()` timestamp when rejection was observed |
+| `at_iso` | string | ISO wall-clock timestamp |
+| `name` | string or null | Rejection error class/name when available |
+| `message` | string | Rejection message/stringified reason |
+
+## `env.error_ring_capacity` object (shared env, optional)
+
+Declared ring sizes for diagnostic arrays. Keys vary by backend/runtime.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `js_errors` | number optional | Max retained entries in `env.js_errors` |
+| `js_unhandled_rejections` | number optional | Max retained entries in `env.js_unhandled_rejections` |
+| `webgl_context_lost_events` | number optional | Max retained entries in `env.webgl.context_lost_events` |
+| `webgpu_uncaptured_errors` | number optional | Max retained entries in `env.webgpu_uncaptured_errors` |
 
 ## Notes for analysis and reporting
 

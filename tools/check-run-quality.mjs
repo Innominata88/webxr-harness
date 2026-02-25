@@ -131,8 +131,9 @@ function buildPairKey(record, pairBy) {
   const instances = normalizeNullish(record.instances);
   const trial = normalizeNullish(record.trial);
   const conditionIndex = normalizeNullish(record.condition_index);
-  const aborted = record.aborted === true ? 1 : 0;
-  const base = `mode=${mode}|model=${model}|instances=${instances}|trial=${trial}|cond=${conditionIndex}|aborted=${aborted}`;
+  // Do not include aborted status in the key; we want aborted/non-aborted counterparts
+  // from the same condition to pair together for exclusion diagnostics.
+  const base = `mode=${mode}|model=${model}|instances=${instances}|trial=${trial}|cond=${conditionIndex}`;
   if (pairBy === "suiteId") {
     const suiteId = normalizeNullish(record.suiteId);
     return `suite=${suiteId}|${base}`;
@@ -214,15 +215,38 @@ function assessRecord(entry) {
     }
   }
 
+  if (Array.isArray(env.js_errors) && env.js_errors.length > 0) {
+    warnings.push("js_error_events_present");
+  }
+  if (Array.isArray(env.js_unhandled_rejections) && env.js_unhandled_rejections.length > 0) {
+    warnings.push("js_unhandled_rejection_events_present");
+  }
+
   if (entry.api === "webgpu") {
     if (isObject(env.device_lost)) {
       exclude.push("webgpu_device_lost");
+    }
+    if (Array.isArray(env.webgpu_uncaptured_errors) && env.webgpu_uncaptured_errors.length > 0) {
+      warnings.push("webgpu_uncaptured_errors_present");
     }
     if (env.xr_scale_factor_fallback_used === true) {
       warnings.push("webgpu_xr_scale_factor_fallback_used");
     }
     if (typeof env.xr_projection_layer_fallback === "string" && env.xr_projection_layer_fallback) {
       warnings.push("webgpu_projection_layer_fallback_used");
+    }
+  }
+  if (entry.api === "webgl2") {
+    if (isObject(env.context_lost)) {
+      exclude.push("webgl_context_lost");
+    }
+    const webglMeta = isObject(env.webgl) ? env.webgl : null;
+    const contextLostCount = asFiniteNumber(webglMeta?.context_lost_count);
+    if (contextLostCount !== null && contextLostCount > 0) {
+      exclude.push("webgl_context_lost");
+    }
+    if (webglMeta?.context_is_lost === true) {
+      exclude.push("webgl_context_currently_lost");
     }
   }
 
@@ -470,6 +494,7 @@ async function parseJsonlFiles(files, pairBy) {
   const parseErrors = [];
 
   for (const filePath of files) {
+    let parsedRecordsForFile = 0;
     let content;
     try {
       content = await fs.readFile(filePath, "utf8");
@@ -495,6 +520,11 @@ async function parseJsonlFiles(files, pairBy) {
         continue;
       }
       entries.push(makeEntry(filePath, lineNo, parsed, pairBy));
+      parsedRecordsForFile++;
+    }
+
+    if (parsedRecordsForFile === 0) {
+      parseErrors.push(`${filePath}: no JSON object records found`);
     }
   }
 

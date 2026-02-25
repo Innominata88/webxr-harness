@@ -267,8 +267,24 @@ let resultsXR=[];
 let canvasRunInProgress=false;
 let canvasRunScheduled=false;
 let webglContextLostInfo = null;
+let webglContextLostCount = 0;
+let webglContextRestoredCount = 0;
+let webglContextLostFirstAtMs = null;
+let webglContextLostLastAtMs = null;
+let webglContextLostEvents = [];
+const WEBGL_CONTEXT_LOST_RING = 5;
+let webglContextIsLost = false;
 let canvasAbortReason = null;
 let activeCanvasTrialReject = null;
+const globalJsErrors = [];
+const globalJsUnhandledRejections = [];
+const GLOBAL_JS_ERROR_RING = 20;
+const ERROR_RING_CAPACITY = {
+  js_errors: GLOBAL_JS_ERROR_RING,
+  js_unhandled_rejections: GLOBAL_JS_ERROR_RING,
+  webgl_context_lost_events: WEBGL_CONTEXT_LOST_RING
+};
+let globalErrorListenersInstalled = false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
 
@@ -288,9 +304,9 @@ function currentBenchPhase() {
 }
 
 function webglContextLostReasonString() {
+  if (webglContextLostCount > 0) return `WebGL context lost (count=${webglContextLostCount})`;
   if (!webglContextLostInfo) return null;
-  const msg = webglContextLostInfo.message ? `: ${webglContextLostInfo.message}` : "";
-  return `WebGL context lost${msg}`;
+  return "WebGL context lost";
 }
 
 function rejectActiveCanvasTrial(err) {
@@ -298,6 +314,65 @@ function rejectActiveCanvasTrial(err) {
   if (!rejectFn) return;
   activeCanvasTrialReject = null;
   try { rejectFn(err instanceof Error ? err : new Error(String(err))); } catch (_) {}
+}
+
+function pushRingSample(arr, sample, maxSize) {
+  arr.push(sample);
+  if (arr.length > maxSize) arr.shift();
+}
+
+function updateGlobalErrorEnvDiagnostics() {
+  if (!envInfo) return;
+  envInfo.js_errors = globalJsErrors;
+  envInfo.js_unhandled_rejections = globalJsUnhandledRejections;
+}
+
+function installGlobalErrorListeners() {
+  if (globalErrorListenersInstalled) return;
+  window.addEventListener("error", (e) => {
+    const err = e?.error;
+    const sample = {
+      t_ms: performance.now(),
+      at_iso: new Date().toISOString(),
+      name: (typeof err?.name === "string") ? err.name : null,
+      message: (typeof err?.message === "string")
+        ? err.message
+        : (typeof e?.message === "string" ? e.message : String(err ?? "unknown")),
+      source: (typeof e?.filename === "string") ? e.filename : null,
+      lineno: (typeof e?.lineno === "number" && Number.isFinite(e.lineno)) ? e.lineno : null,
+      colno: (typeof e?.colno === "number" && Number.isFinite(e.colno)) ? e.colno : null
+    };
+    pushRingSample(globalJsErrors, sample, GLOBAL_JS_ERROR_RING);
+    updateGlobalErrorEnvDiagnostics();
+    try { console.warn("Global JS error:", err || e); } catch (_) {}
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e?.reason;
+    const sample = {
+      t_ms: performance.now(),
+      at_iso: new Date().toISOString(),
+      name: (typeof reason?.name === "string") ? reason.name : null,
+      message: (typeof reason?.message === "string") ? reason.message : String(reason ?? "unknown")
+    };
+    pushRingSample(globalJsUnhandledRejections, sample, GLOBAL_JS_ERROR_RING);
+    updateGlobalErrorEnvDiagnostics();
+    try { console.warn("Unhandled promise rejection:", reason); } catch (_) {}
+  });
+  globalErrorListenersInstalled = true;
+}
+
+function updateWebGLEnvDiagnostics() {
+  if (!envInfo) return;
+  envInfo.webgl = envInfo.webgl || {};
+  envInfo.webgl.context_lost_count = webglContextLostCount;
+  envInfo.webgl.context_restored_count = webglContextRestoredCount;
+  envInfo.webgl.context_lost_first_at_ms = webglContextLostFirstAtMs;
+  envInfo.webgl.context_lost_last_at_ms = webglContextLostLastAtMs;
+  envInfo.webgl.context_lost_events = webglContextLostEvents;
+  envInfo.webgl.context_is_lost = webglContextIsLost;
+  // Backward-compatible top-level field retained for older tooling.
+  envInfo.context_lost = webglContextLostInfo;
+  updateGlobalErrorEnvDiagnostics();
 }
 
 
@@ -642,26 +717,78 @@ async function initGL() {
   gl.enable(gl.DEPTH_TEST);
 
   canvas.addEventListener("webglcontextlost", (event) => {
+    // Prevent default so the browser can attempt restore.
     event.preventDefault();
-    const info = {
-      message: "webglcontextlost",
-      phase: currentBenchPhase(),
+
+    webglContextIsLost = true;
+    webglContextLostCount++;
+    const t = performance.now();
+    if (webglContextLostFirstAtMs == null) webglContextLostFirstAtMs = t;
+    webglContextLostLastAtMs = t;
+
+    const phase = currentBenchPhase();
+    const eventInfo = {
+      t_ms: t,
       at_iso: new Date().toISOString(),
-      at_perf_ms: performance.now()
+      statusMessage: null,
+      phase
     };
-    webglContextLostInfo = info;
+    webglContextLostEvents.push(eventInfo);
+    if (webglContextLostEvents.length > WEBGL_CONTEXT_LOST_RING) {
+      webglContextLostEvents.shift();
+    }
+
+    webglContextLostInfo = {
+      message: "webglcontextlost",
+      phase,
+      at_iso: eventInfo.at_iso,
+      at_perf_ms: t,
+      count: webglContextLostCount
+    };
+    updateWebGLEnvDiagnostics();
+
+    try { console.warn("WebGL CONTEXT LOST", { webglContextLostCount }); } catch (_) {}
+
     const reason = webglContextLostReasonString() || "WebGL context lost.";
     if (!canvasAbortReason) canvasAbortReason = reason;
-    if (envInfo) {
-      envInfo.context_lost = info;
-      envInfo.canvas_abort_reason = canvasAbortReason;
+    if (envInfo) envInfo.canvas_abort_reason = canvasAbortReason;
+
+    if (xrSession && !xrAbortReason) {
+      xrAbortReason = reason;
+      if (envInfo) {
+        envInfo.xr_abort_reason = reason;
+        if (!Number.isFinite(envInfo.xr_observed_view_count)) envInfo.xr_observed_view_count = 0;
+        envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+        updateWebGLEnvDiagnostics();
+      }
+      const last = resultsXR[resultsXR.length - 1];
+      if (!last || last.aborted !== true) {
+        resultsXR.push(buildXRAbortRecord({
+          abortCode: "webgl_context_lost",
+          abortReason: reason,
+          observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
+        }));
+      }
+      if (!xrResultFlushedForSession) {
+        flushXRResults(xrOutFilename(), "XR aborted (WebGL context lost)");
+      }
+      xrActive = false;
+      Promise.resolve(xrSession.end()).catch(()=>{});
     }
+
     log(`${reason}.`);
-    rejectActiveCanvasTrial(new Error(canvasAbortReason));
-  });
+    const err = new Error(canvasAbortReason);
+    err.abortCode = "webgl_context_lost";
+    err.partial_trial = { elapsed_ms: null, frames_collected: 0 };
+    rejectActiveCanvasTrial(err);
+  }, false);
   canvas.addEventListener("webglcontextrestored", () => {
+    webglContextIsLost = false;
+    webglContextRestoredCount++;
+    updateWebGLEnvDiagnostics();
+    try { console.warn("WebGL CONTEXT RESTORED", { webglContextRestoredCount }); } catch (_) {}
     try { log("WebGL context restored."); } catch (_) {}
-  });
+  }, false);
 
   renderer = new WebGLMeshRenderer(gl);
 
@@ -688,6 +815,17 @@ async function initGL() {
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
     context_lost: webglContextLostInfo,
+    webgl: {
+      context_lost_count: webglContextLostCount,
+      context_restored_count: webglContextRestoredCount,
+      context_lost_first_at_ms: webglContextLostFirstAtMs,
+      context_lost_last_at_ms: webglContextLostLastAtMs,
+      context_lost_events: webglContextLostEvents,
+      context_is_lost: webglContextIsLost
+    },
+    error_ring_capacity: { ...ERROR_RING_CAPACITY },
+    js_errors: globalJsErrors,
+    js_unhandled_rejections: globalJsUnhandledRejections,
     xrFrontMinZ,
     xrYOffset,
     runMode,
@@ -728,6 +866,7 @@ async function initGL() {
 
   const gpuIdentity = `webgl2:${gpu.vendor || "unknown"}|${gpu.renderer || "unknown"}`;
   envInfo.gpu_identity = gpuIdentity;
+  updateWebGLEnvDiagnostics();
   enforcePinnedGpuIdentity(gpuIdentity);
 
   renderer.setInstances(instancesList[0], spacing, { layout, seed });
@@ -767,6 +906,43 @@ function buildPlan() {
   }
   if (shuffle) shuffleInPlace(plan, seed);
   return plan;
+}
+
+function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=null, planLen=null, partialTrial=null } = {}) {
+  return {
+    schema_version: SCHEMA_VERSION,
+    api: "webgl2",
+    mode: "canvas",
+    aborted: true,
+    abort_code: abortCode || "canvas_trial_failed",
+    abort_reason: abortReason || "Canvas trial failed before completion.",
+    suiteId,
+    modelUrl,
+    instances: item ? item.instances : null,
+    trial: item ? item.trial : null,
+    trials,
+    durationMs,
+    warmupMs,
+    cooldownMs,
+    preIdleMs,
+    postIdleMs,
+    betweenInstancesMs,
+    layout,
+    seed,
+    shuffle,
+    spacing,
+    collectPerf,
+    perfDetail,
+    condition_index: Number.isFinite(planIdx) ? (planIdx + 1) : null,
+    condition_count: Number.isFinite(planLen) ? planLen : null,
+    startedAt: new Date().toISOString(),
+    partial_trial: (partialTrial && typeof partialTrial === "object") ? partialTrial : {
+      elapsed_ms: null,
+      frames_collected: 0
+    },
+    ...sceneInfo,
+    env: snapshotEnvInfo()
+  };
 }
 
 function runCanvasTrial(item, planIdx, planLen, vp) {
@@ -820,6 +996,17 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       env: snapshotEnvInfo()
     };
 
+    function makeCanvasTrialError(message, abortCode="canvas_trial_failed") {
+      const err = new Error(message);
+      err.abortCode = abortCode;
+      const elapsedMs = stats.startWall ? Math.max(0, performance.now() - stats.startWall) : null;
+      err.partial_trial = {
+        elapsed_ms: elapsedMs,
+        frames_collected: dts.length
+      };
+      return err;
+    }
+
 
     const trialId = `trial_webgl2_canvas_inst${item.instances}_t${item.trial}_idx${planIdx+1}`;
     const memStart = collectPerf ? snapshotMemory() : null;
@@ -837,14 +1024,17 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       function frame(t) {
       if (canvasAbortReason) {
         stats.markEnd();
-        finishReject(new Error(canvasAbortReason));
+        const abortCode = (webglContextIsLost || webglContextLostCount > 0 || gl.isContextLost?.())
+          ? "webgl_context_lost"
+          : "canvas_trial_failed";
+        finishReject(makeCanvasTrialError(canvasAbortReason, abortCode));
         return;
       }
       if (gl.isContextLost?.()) {
         const reason = webglContextLostReasonString() || "WebGL context lost.";
         if (!canvasAbortReason) canvasAbortReason = reason;
         stats.markEnd();
-        finishReject(new Error(canvasAbortReason));
+        finishReject(makeCanvasTrialError(canvasAbortReason, "webgl_context_lost"));
         return;
       }
       if (Number.isFinite(lastT)) {
@@ -862,7 +1052,7 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
         renderer.drawForView(vp);
       } catch (e) {
         stats.markEnd();
-        finishReject(new Error(`Canvas render failed: ${e?.message || e}`));
+        finishReject(makeCanvasTrialError(`Canvas render failed: ${e?.message || e}`, "canvas_trial_failed"));
         return;
       }
 
@@ -965,12 +1155,33 @@ async function runCanvasSuite() {
         const reason = `Canvas trial failed at ${i+1}/${plan.length}: ${e?.message || e}`;
         if (!canvasAbortReason) canvasAbortReason = reason;
         if (envInfo) envInfo.canvas_abort_reason = canvasAbortReason;
+        resultsCanvas.push(buildCanvasAbortRecord({
+          abortCode: (typeof e?.abortCode === "string" && e.abortCode) ? e.abortCode : "canvas_trial_failed",
+          abortReason: canvasAbortReason,
+          item,
+          planIdx: i,
+          planLen: plan.length,
+          partialTrial: (e?.partial_trial && typeof e.partial_trial === "object") ? e.partial_trial : {
+            elapsed_ms: null,
+            frames_collected: 0
+          }
+        }));
         log(canvasAbortReason);
         break;
       }
       resultsCanvas.push(out);
 
-      if (canvasAbortReason) break;
+      if (canvasAbortReason) {
+        resultsCanvas.push(buildCanvasAbortRecord({
+          abortCode: (webglContextIsLost || webglContextLostCount > 0) ? "webgl_context_lost" : "canvas_trial_failed",
+          abortReason: canvasAbortReason,
+          item,
+          planIdx: i,
+          planLen: plan.length,
+          partialTrial: { elapsed_ms: null, frames_collected: 0 }
+        }));
+        break;
+      }
       await sleep(cooldownMs);
     }
 
@@ -1624,6 +1835,8 @@ if (!xrActive || !xrStats) {
 }
 
 async function main() {
+  installGlobalErrorListeners();
+
   canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
   canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
 
