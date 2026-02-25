@@ -266,6 +266,7 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_min_frames", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_no_pose_grace_ms", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xrScaleFactor", checkNumber, `${loc}.${key}`, errors);
   if (hasOwn(value, "device_lost")) {
     const lost = value.device_lost;
     if (lost === null) {
@@ -278,6 +279,21 @@ function validateEnv(record, loc, errors) {
       checkStringOrNull(lost, "phase", `${loc}.${key}.device_lost`, errors);
       checkStringOrNull(lost, "at_iso", `${loc}.${key}.device_lost`, errors);
       checkNumberOrNull(lost, "at_perf_ms", `${loc}.${key}.device_lost`, errors);
+    }
+  }
+  checkIfPresent(value, "device_lost_count", checkNumber, `${loc}.${key}`, errors);
+  if (hasOwn(value, "device_lost_info")) {
+    const lostInfo = value.device_lost_info;
+    if (lostInfo === null) {
+      // No device-loss event observed.
+    } else if (!isObject(lostInfo)) {
+      pushTypeError(errors, `${loc}.${key}`, "device_lost_info", "object or null", typeName(lostInfo));
+    } else {
+      checkStringOrNull(lostInfo, "reason", `${loc}.${key}.device_lost_info`, errors);
+      checkStringOrNull(lostInfo, "message", `${loc}.${key}.device_lost_info`, errors);
+      checkStringOrNull(lostInfo, "phase", `${loc}.${key}.device_lost_info`, errors);
+      checkStringOrNull(lostInfo, "at_iso", `${loc}.${key}.device_lost_info`, errors);
+      checkNumberOrNull(lostInfo, "at_perf_ms", `${loc}.${key}.device_lost_info`, errors);
     }
   }
   if (hasOwn(value, "webgpu_uncaptured_errors")) {

@@ -226,6 +226,13 @@ function assessRecord(entry) {
     if (isObject(env.device_lost)) {
       exclude.push("webgpu_device_lost");
     }
+    if (isObject(env.device_lost_info)) {
+      exclude.push("webgpu_device_lost");
+    }
+    const deviceLostCount = asFiniteNumber(env.device_lost_count);
+    if (deviceLostCount !== null && deviceLostCount > 0) {
+      exclude.push("webgpu_device_lost");
+    }
     if (Array.isArray(env.webgpu_uncaptured_errors) && env.webgpu_uncaptured_errors.length > 0) {
       warnings.push("webgpu_uncaptured_errors_present");
     }

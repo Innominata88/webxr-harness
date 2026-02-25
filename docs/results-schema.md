@@ -80,6 +80,9 @@ node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_qualit
 | `seed` | number | all | Seed used for deterministic layout/shuffle |
 | `shuffle` | boolean | all | Whether condition order was shuffled |
 | `spacing` | number | all | Inter-instance spacing parameter |
+| `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
+| `xrFrontMinZ` | number | all | Requested XR forward placement anchor captured at record level |
+| `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
 | `collectPerf` | boolean | all | Whether perf block was collected |
 | `perfDetail` | boolean | all | Whether detailed longtask entries were retained |
 | `condition_index` | number or null | all | 1-based index in condition plan |
@@ -252,6 +255,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_min_frames` | number optional | XR `minFrames` value captured in environment metadata |
 | `xr_no_pose_grace_ms` | number optional | Extra XR grace window before aborting if `getViewerPose()` stays unavailable |
 | `xr_probe_readback_requested` | boolean optional | Whether XR pixel readback probe was requested (`xrProbeReadback`) |
+| `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
 | `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
@@ -292,6 +296,8 @@ Legacy note:
 | `device_limits` | object |
 | `colorFormat` | string |
 | `device_lost` | object or null optional |
+| `device_lost_info` | object or null optional | Alias of `device_lost` for parser compatibility |
+| `device_lost_count` | number optional | Number of observed `device.lost` events since page load |
 | `webgpu_uncaptured_errors` | object[] or null optional |
 
 ## `partial_trial` object (abort records)
@@ -339,6 +345,10 @@ Note: XR probe readback is disabled by default for fairness/stability. Enable wi
 ## `env.device_lost` object (WebGPU env, optional)
 
 Present when the harness receives a `device.lost` signal.
+
+Companion fields:
+- `env.device_lost_info` mirrors the same object for parser compatibility.
+- `env.device_lost_count` tracks how many loss events were observed.
 
 | Field | Type | Meaning |
 |---|---|---|

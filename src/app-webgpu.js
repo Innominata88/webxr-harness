@@ -266,6 +266,7 @@ let resultsXR=[];
 let canvasRunInProgress=false;
 let canvasRunScheduled=false;
 let deviceLostInfo = null;
+let deviceLostCount = 0;
 let canvasAbortReason = null;
 let activeCanvasTrialReject = null;
 const uncapturedErrors = [];
@@ -321,6 +322,13 @@ function updateGlobalErrorEnvDiagnostics() {
   if (!envInfo) return;
   envInfo.js_errors = globalJsErrors;
   envInfo.js_unhandled_rejections = globalJsUnhandledRejections;
+}
+
+function updateDeviceLostEnvDiagnostics() {
+  if (!envInfo) return;
+  envInfo.device_lost = deviceLostInfo;
+  envInfo.device_lost_info = deviceLostInfo;
+  envInfo.device_lost_count = deviceLostCount;
 }
 
 function installGlobalErrorListeners() {
@@ -798,6 +806,9 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     seed,
     shuffle,
     spacing,
+    xrScaleFactor,
+    xrFrontMinZ,
+    xrYOffset,
     collectPerf,
     perfDetail,
     condition_index: Number.isFinite(planIdx) ? (planIdx + 1) : null,
@@ -825,8 +836,9 @@ async function initWebGPU() {
       at_iso: new Date().toISOString(),
       at_perf_ms: performance.now()
     };
+    deviceLostCount++;
     deviceLostInfo = lost;
-    if (envInfo) envInfo.device_lost = lost;
+    updateDeviceLostEnvDiagnostics();
 
     try { console.warn("DEVICE LOST", info); } catch (_) {}
     log(`${deviceLostReasonString() || "GPU device lost"}.`);
@@ -932,12 +944,15 @@ const device_limits = copyLimits(device.limits || {});
     hudEnabled,
     hudHz,
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
+    xrScaleFactor,
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
     xr_probe_readback_requested: xrProbeReadback,
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
     device_lost: deviceLostInfo,
+    device_lost_info: deviceLostInfo,
+    device_lost_count: deviceLostCount,
     webgpu_uncaptured_errors: uncapturedErrors,
     error_ring_capacity: { ...ERROR_RING_CAPACITY },
     js_errors: globalJsErrors,
@@ -989,6 +1004,7 @@ const device_limits = copyLimits(device.limits || {});
   const adapterArch = adapterInfo?.architecture || "unknown";
   const gpuIdentity = `webgpu:${adapterVendor}|${adapterDevice}|${adapterArch}`;
   envInfo.gpu_identity = gpuIdentity;
+  updateDeviceLostEnvDiagnostics();
   enforcePinnedGpuIdentity(gpuIdentity);
 }
 
@@ -1033,6 +1049,9 @@ function runCanvasTrial(item, planIdx, planLen) {
       seed,
       shuffle,
       spacing,
+      xrScaleFactor,
+      xrFrontMinZ,
+      xrYOffset,
       collectPerf,
       perfDetail,
       condition_index: planIdx + 1,
@@ -1542,6 +1561,9 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     seed,
     shuffle,
     spacing,
+    xrScaleFactor,
+    xrFrontMinZ,
+    xrYOffset,
     collectPerf,
     perfDetail,
     condition_index: cur ? (xrIndex + 1) : null,
@@ -1679,6 +1701,9 @@ function startNextXRTrial(session) {
     seed,
     shuffle,
     spacing,
+    xrScaleFactor,
+    xrFrontMinZ,
+    xrYOffset,
     collectPerf,
     perfDetail,
     condition_index: xrIndex + 1,
