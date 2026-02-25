@@ -263,6 +263,7 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_abort_reason", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_skipped_reason", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_observed_view_count", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_min_frames", checkNumber, `${loc}.${key}`, errors);
 
   // Optional rest metadata: newer runs include it; legacy 1.0.0 files may omit it.
   if ("rest" in value) {
@@ -402,6 +403,22 @@ function validateXRViewports(record, loc, errors) {
   }
 }
 
+function validateXRRenderProbe(record, loc, errors) {
+  if (!hasOwn(record, "render_probe_xr")) return;
+  const probe = record.render_probe_xr;
+  if (!isObject(probe)) {
+    pushTypeError(errors, loc, "render_probe_xr", "object", typeName(probe));
+    return;
+  }
+  checkBoolean(probe, "performed", `${loc}.render_probe_xr`, errors);
+  checkOneOfTypes(probe, "rendered_anything", ["boolean", "null"], `${loc}.render_probe_xr`, errors);
+  checkOneOfTypes(probe, "first_frame_px", ["number", "null"], `${loc}.render_probe_xr`, errors);
+  checkOneOfTypes(probe, "readback_allowed", ["boolean", "null"], `${loc}.render_probe_xr`, errors);
+  checkOneOfTypes(probe, "sampled_pixel_diff", ["number", "null"], `${loc}.render_probe_xr`, errors);
+  if (hasOwn(probe, "sample_count")) checkNumber(probe, "sample_count", `${loc}.render_probe_xr`, errors);
+  if (hasOwn(probe, "readback_error")) checkString(probe, "readback_error", `${loc}.render_probe_xr`, errors);
+}
+
 function validatePartialTrial(record, loc, errors) {
   if (!checkFieldPresence(record, "partial_trial", loc, errors)) return;
   const partial = record.partial_trial;
@@ -437,6 +454,7 @@ function validateBase(record, loc, errors) {
   checkOneOfTypes(record, "trial", ["number", "null"], loc, errors);
   checkNumber(record, "trials", loc, errors);
   checkNumber(record, "durationMs", loc, errors);
+  if (hasOwn(record, "minFrames")) checkNumber(record, "minFrames", loc, errors);
   checkNumber(record, "warmupMs", loc, errors);
   checkNumber(record, "cooldownMs", loc, errors);
   checkNumber(record, "betweenInstancesMs", loc, errors);
@@ -472,6 +490,7 @@ function validateAbortRecord(record, loc, errors) {
   checkNumber(record, "postIdleMs", loc, errors);
   validatePartialTrial(record, loc, errors);
   validateXRViewports(record, loc, errors);
+  validateXRRenderProbe(record, loc, errors);
 }
 
 function validateTrialRecord(record, loc, errors) {
@@ -485,6 +504,7 @@ function validateTrialRecord(record, loc, errors) {
 
   if (record.mode === "xr") {
     validateXRViewports(record, loc, errors);
+    validateXRRenderProbe(record, loc, errors);
   }
 
   if (hasOwn(record, "frames_ms")) {

@@ -60,6 +60,7 @@ Exit code behavior:
 | `trial` | number or null | all | Trial index within instance condition; may be `null` in early abort edge cases |
 | `trials` | number | all | Requested trials per instance count |
 | `durationMs` | number | all | Requested measured window per trial (ms) |
+| `minFrames` | number | xr | XR-only floor on collected frame deltas before a trial can finish |
 | `warmupMs` | number | all | Warmup delay before measured window |
 | `cooldownMs` | number | all | Delay after each trial |
 | `preIdleMs` | number | canvas, abort | Optional pre-idle window used by canvas and carried into abort metadata |
@@ -87,6 +88,7 @@ Exit code behavior:
 | `timing_secondary_source` | string | xr trial | Secondary cadence source; currently `"performance.now"` |
 | `xr_cadence_secondary` | object or null | xr | Secondary cadence summary from `performance.now` deltas |
 | `xr_effective_pixels` | object | xr | Requested/applied scale factor and first-frame pixel counts |
+| `render_probe_xr` | object | xr | XR render-probe diagnostics (`performed`, `rendered_anything`, `first_frame_px`, optional sampled pixel diff) |
 | `xr_viewports` | object[] | xr | Per-view viewport samples (`x`,`y`,`w`,`h`) collected each frame |
 | `aborted` | boolean | abort | Always `true` for abort records |
 | `abort_code` | string | abort | Typical values: `"xr_view_count_exceeded"`, `"xr_entry_timeout"`, `"xr_session_ended_early"` |
@@ -237,6 +239,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_abort_reason` | string optional |
 | `xr_skipped_reason` | string optional | For example `"entry_timeout"` when `mode=both` timed out before XR start |
 | `xr_observed_view_count` | number optional |
+| `xr_min_frames` | number optional | XR `minFrames` value captured in environment metadata |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
 | `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
@@ -299,6 +302,18 @@ Legacy note:
 | `applied_scale_factor` | number or null | Applied layer scale factor (`null` if runtime fallback/unknown) |
 | `first_frame_total_px` | number or null | Sum of per-view pixels on first measured XR frame |
 | `first_frame_per_view_px` | number[] | Per-view pixel counts on first measured XR frame |
+
+## `render_probe_xr` object (XR records)
+
+XR render probe metadata for “did anything render” diagnostics.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `performed` | boolean | Whether XR probe was enabled (`renderProbe=1`) |
+| `rendered_anything` | boolean or null | Probe verdict; `null` when not determined |
+| `first_frame_px` | number or null | First measured XR frame pixel area (sum over views) |
+| `readback_allowed` | boolean or null | Whether tiny pixel readback was possible |
+| `sampled_pixel_diff` | number or null | Sum/count proxy from sampled pixels against clear color |
 
 ## Notes for analysis and reporting
 

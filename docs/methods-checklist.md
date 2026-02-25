@@ -17,6 +17,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `instances`
   - `trials`
   - `durationMs`
+  - `minFrames` (XR)
   - `warmupMs`
   - `cooldownMs`
   - `betweenInstancesMs`
@@ -30,6 +31,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `perfDetail`
   - `hud`
   - `hudHz`
+  - `renderProbe`
 - [ ] If using both phases in one page run, `mode=both` is intentional and documented.
 - [ ] XR comparability guard is active (`xr_expected_max_views = 2` in outputs).
 - [ ] XR scale policy is fixed and reported (`xrScaleFactor` requested/applied).

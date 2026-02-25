@@ -159,6 +159,10 @@ const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
   return (Number.isFinite(v) && v > 0) ? Math.min(2.0, Math.max(0.25, v)) : 1.0;
 })();
+const minFrames = (() => {
+  const v = parseInt(params.get("minFrames") || "30", 10);
+  return (Number.isFinite(v) && v >= 0) ? v : 30;
+})();
 
 // Session-order control for ABBA/BAAB/randomized protocols
 const enforceOrder = (params.get("enforceOrder") || "0") === "1";
@@ -581,6 +585,16 @@ function summarizeSeries(samples) {
   };
 }
 
+function createXRRenderProbeState() {
+  return {
+    performed: !!renderProbe,
+    rendered_anything: null,
+    first_frame_px: null,
+    readback_allowed: null,
+    sampled_pixel_diff: null,
+  };
+}
+
 async function initGL() {
   gl = canvas.getContext("webgl2", {
     antialias: false,
@@ -612,6 +626,7 @@ async function initGL() {
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
+    xr_min_frames: minFrames,
     xrFrontMinZ,
     xrYOffset,
     runMode,
@@ -941,6 +956,9 @@ let xrMemStart=null;
 let xrAbortReason=null;
 let xrFirstFramePixels=null;
 let xrFirstFrameViewPixels=null;
+let xrRenderProbe = createXRRenderProbeState();
+let xrFinalizing = false;
+let xrMinFramesWaitLogged = false;
 
 
 function fmtMs(ms) {
@@ -951,6 +969,141 @@ function fmtMs(ms) {
 
 function currentXRPlanItem() {
   return (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
+}
+
+function ensureXRRenderProbeState() {
+  if (!xrRenderProbe) xrRenderProbe = createXRRenderProbeState();
+  return xrRenderProbe;
+}
+
+function markXRRenderProbeFirstFrame(framePixelTotal) {
+  const probe = ensureXRRenderProbeState();
+  if (!probe.performed) return;
+  if (probe.first_frame_px == null) {
+    probe.first_frame_px = Number.isFinite(framePixelTotal) ? framePixelTotal : null;
+    if (probe.rendered_anything == null) probe.rendered_anything = framePixelTotal > 0;
+  }
+}
+
+function sampleXRPixelDiffWebGL(viewports, clearRGBA8) {
+  const probe = ensureXRRenderProbeState();
+  if (!probe.performed || probe.readback_allowed !== null) return;
+  try {
+    const px = new Uint8Array(4);
+    let diff = 0;
+    let sampleCount = 0;
+    let firstSample = null;
+    for (const vp of viewports) {
+      const points = [
+        [Math.floor(vp.x + vp.w * 0.25), Math.floor(vp.y + vp.h * 0.5)],
+        [Math.floor(vp.x + vp.w * 0.50), Math.floor(vp.y + vp.h * 0.5)],
+        [Math.floor(vp.x + vp.w * 0.75), Math.floor(vp.y + vp.h * 0.5)],
+      ];
+      for (const [sxRaw, syRaw] of points) {
+        const sx = Math.max(0, sxRaw);
+        const sy = Math.max(0, syRaw);
+        gl.readPixels(sx, sy, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        const d = Math.abs(px[0] - clearRGBA8[0]) + Math.abs(px[1] - clearRGBA8[1]) + Math.abs(px[2] - clearRGBA8[2]);
+        if (d > 6) diff++;
+        sampleCount++;
+        if (!firstSample) firstSample = [px[0], px[1], px[2], px[3]];
+      }
+    }
+    probe.readback_allowed = true;
+    probe.sampled_pixel_diff = diff;
+    probe.sample_count = sampleCount;
+    probe.clear_rgba8 = clearRGBA8;
+    probe.sample_rgba8 = firstSample;
+    if (probe.rendered_anything == null) probe.rendered_anything = diff > 0;
+    else probe.rendered_anything = probe.rendered_anything || diff > 0;
+  } catch (e) {
+    probe.readback_allowed = false;
+    probe.readback_error = String(e?.message || e);
+  }
+}
+
+function finalizeXRTrial(session) {
+  if (!xrSession || session !== xrSession) {
+    xrFinalizing = false;
+    return;
+  }
+  xrStats.markEnd();
+  const summary = xrStats.summarize();
+  const extras = deriveExtras(summary, xrDts);
+
+  let perf = null;
+  if (collectPerf) {
+    try {
+      performance.mark(`${xrTrialId}_end`);
+      performance.measure(xrTrialId, `${xrTrialId}_start`, `${xrTrialId}_end`);
+    } catch (_) {}
+
+    let trial_measure_ms = null;
+    try {
+      const ms = performance.getEntriesByName(xrTrialId, "measure");
+      trial_measure_ms = ms.length ? ms[ms.length - 1].duration : null;
+    } catch (_) {}
+
+    const longtask = summarizeLongTasks(xrStats.startWall, xrStats.endWall);
+    const memEnd = snapshotMemory();
+    const model_resource = findResourceEntry(modelUrl);
+
+    perf = {
+      trial_measure_ms,
+      memory_start: xrMemStart,
+      memory_end: memEnd,
+      longtask,
+      model_resource,
+      timeOrigin: performance.timeOrigin
+    };
+
+    if (!perfDetail) {
+      try {
+        performance.clearMarks(`${xrTrialId}_start`);
+        performance.clearMarks(`${xrTrialId}_end`);
+        performance.clearMeasures(xrTrialId);
+      } catch (_) {}
+    }
+  }
+
+  const out = {
+    ...xrStats.meta,
+    summary,
+    extras,
+    perf,
+    timing_primary_source: "xr_callback_t",
+    timing_secondary_source: "performance.now",
+    xr_cadence_secondary: summarizeSeries(xrDtsNow),
+    xr_effective_pixels: {
+      requested_scale_factor: xrScaleFactor,
+      applied_scale_factor: envInfo?.xr_scale_factor_applied ?? null,
+      first_frame_total_px: xrFirstFramePixels,
+      first_frame_per_view_px: xrFirstFrameViewPixels || []
+    },
+    xr_viewports: xrViewports,
+    render_probe_xr: xrRenderProbe || createXRRenderProbeState()
+  };
+  if (storeFrames) {
+    out.frames_ms = xrDts;
+    out.frames_ms_now = xrDtsNow;
+  }
+  if (!xrSession || session !== xrSession) {
+    xrFinalizing = false;
+    return;
+  }
+
+  resultsXR.push(out);
+  xrIndex++;
+  xrActive = false;
+  xrFinalizing = false;
+  xrMinFramesWaitLogged = false;
+
+  const next = xrPlan[xrIndex];
+  const prev = xrPlan[xrIndex-1];
+  const pause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : warmupMs;
+  const totalPause = pause + Math.max(0, postIdleMs|0);
+  xrBlankClearOnce = true;
+  setTimeout(() => startNextXRTrial(session), totalPause);
 }
 
 function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planItem=undefined } = {}) {
@@ -971,6 +1124,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     trial: cur ? cur.trial : null,
     trials,
     durationMs,
+    minFrames,
     warmupMs,
     cooldownMs,
     preIdleMs,
@@ -998,6 +1152,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
       first_frame_total_px: xrFirstFramePixels,
       first_frame_per_view_px: xrFirstFrameViewPixels || []
     },
+    render_probe_xr: xrRenderProbe || createXRRenderProbeState(),
     xr_cadence_secondary: summarizeSeries(xrDtsNow),
     xr_viewports: xrViewports || []
   };
@@ -1042,9 +1197,10 @@ function xrHudText() {
   if (xrActive && xrStats) {
     const elapsed = performance.now() - xrStats.startWall;
     const rem = Math.max(0, durationMs - elapsed);
-    return `XR run ${xrIndex+1}/${total}\ninstances=${inst}  trial=${tr}/${trials}\nremaining=${fmtMs(rem)}\napi=${(envInfo&&envInfo.api)||"?"}`;
+    const frames = xrDts ? xrDts.length : 0;
+    return `XR run ${xrIndex+1}/${total}\ninstances=${inst}  trial=${tr}/${trials}\nremaining=${fmtMs(rem)}\nframes=${frames}/${minFrames}\napi=${(envInfo&&envInfo.api)||"?"}`;
   }
-  return `XR idle ${xrIndex+1}/${total}\nnext instances=${inst}  trial=${tr}/${trials}`;
+  return `XR idle ${xrIndex+1}/${total}\nnext instances=${inst}  trial=${tr}/${trials}\nminFrames=${minFrames}`;
 }
 
 
@@ -1070,6 +1226,9 @@ function startNextXRTrial(session) {
   xrViewports = [];
   xrFirstFramePixels = null;
   xrFirstFrameViewPixels = null;
+  xrRenderProbe = createXRRenderProbeState();
+  xrFinalizing = false;
+  xrMinFramesWaitLogged = false;
 
   xrStats = new RunStats();
   xrStats.meta = {
@@ -1081,6 +1240,7 @@ function startNextXRTrial(session) {
     trial: item.trial,
     trials,
     durationMs,
+    minFrames,
     warmupMs,
     cooldownMs,
     preIdleMs,
@@ -1256,9 +1416,12 @@ if (!xrActive || !xrStats) {
 
   let framePixelTotal = 0;
   const frameViewPixels = [];
+  const frameViewports = [];
   for (const view of pose.views) {
     const vp = glLayer.getViewport(view);
-    xrViewports.push({ x: vp.x, y: vp.y, w: vp.width, h: vp.height });
+    const vpObj = { x: vp.x, y: vp.y, w: vp.width, h: vp.height };
+    xrViewports.push(vpObj);
+    frameViewports.push(vpObj);
     const px = vp.width * vp.height;
     framePixelTotal += px;
     frameViewPixels.push(px);
@@ -1269,6 +1432,11 @@ if (!xrActive || !xrStats) {
   if (xrFirstFramePixels == null) {
     xrFirstFramePixels = framePixelTotal;
     xrFirstFrameViewPixels = frameViewPixels;
+    markXRRenderProbeFirstFrame(framePixelTotal);
+    sampleXRPixelDiffWebGL(frameViewports, [13, 13, 20, 255]);
+    if (xrRenderProbe?.performed && xrRenderProbe.readback_allowed === null) {
+      xrRenderProbe.readback_allowed = false;
+    }
   }
 
   if (xrEnterClickedAt != null && envInfo && envInfo.xr_enter_to_first_frame_ms == null) {
@@ -1276,78 +1444,32 @@ if (!xrActive || !xrStats) {
     envInfo.xr_dom_overlay_requested = hudEnabled;
   }
 
-  if (now - xrStats.startWall > durationMs) {
-    xrStats.markEnd();
-    const summary = xrStats.summarize();
-    const extras = deriveExtras(summary, xrDts);
-
-let perf = null;
-if (collectPerf) {
-  try {
-    performance.mark(`${xrTrialId}_end`);
-    performance.measure(xrTrialId, `${xrTrialId}_start`, `${xrTrialId}_end`);
-  } catch (_) {}
-
-  let trial_measure_ms = null;
-  try {
-    const ms = performance.getEntriesByName(xrTrialId, "measure");
-    trial_measure_ms = ms.length ? ms[ms.length - 1].duration : null;
-  } catch (_) {}
-
-  const longtask = summarizeLongTasks(xrStats.startWall, xrStats.endWall);
-  const memEnd = snapshotMemory();
-  const model_resource = findResourceEntry(modelUrl);
-
-  perf = {
-    trial_measure_ms,
-    memory_start: xrMemStart,
-    memory_end: memEnd,
-    longtask,
-    model_resource,
-    timeOrigin: performance.timeOrigin
-  };
-
-  if (!perfDetail) {
-    try {
-      performance.clearMarks(`${xrTrialId}_start`);
-      performance.clearMarks(`${xrTrialId}_end`);
-      performance.clearMeasures(xrTrialId);
-    } catch (_) {}
+  const elapsedMs = now - xrStats.startWall;
+  const minFramesMet = xrDts.length >= minFrames;
+  const durationMet = elapsedMs > durationMs;
+  if (durationMet && !minFramesMet && !xrMinFramesWaitLogged) {
+    xrMinFramesWaitLogged = true;
+    log(`XR minFrames gate: collected ${xrDts.length}/${minFrames} frames after durationMs; extending run.`);
   }
-}
 
-const out = {
-  ...xrStats.meta,
-  summary,
-  extras,
-  perf,
-  timing_primary_source: "xr_callback_t",
-  timing_secondary_source: "performance.now",
-  xr_cadence_secondary: summarizeSeries(xrDtsNow),
-  xr_effective_pixels: {
-    requested_scale_factor: xrScaleFactor,
-    applied_scale_factor: envInfo?.xr_scale_factor_applied ?? null,
-    first_frame_total_px: xrFirstFramePixels,
-    first_frame_per_view_px: xrFirstFrameViewPixels || []
-  },
-  xr_viewports: xrViewports
-};
-if (storeFrames) {
-  out.frames_ms = xrDts;
-  out.frames_ms_now = xrDtsNow;
-}
-
-resultsXR.push(out);
-    xrIndex++;
-    xrActive=false;
-
-    // pause between different instance counts
-    const next = xrPlan[xrIndex];
-    const prev = xrPlan[xrIndex-1];
-    const pause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : warmupMs;
-    const totalPause = pause + Math.max(0, postIdleMs|0);
-    xrBlankClearOnce = true;
-    setTimeout(()=>startNextXRTrial(session), totalPause);
+  if (durationMet && minFramesMet && !xrFinalizing) {
+    xrFinalizing = true;
+    xrActive = false;
+    try {
+      finalizeXRTrial(session);
+    } catch (e) {
+      xrFinalizing = false;
+      const reason = `XR finalize failed: ${e?.message || e}`;
+      xrAbortReason = reason;
+      if (envInfo) envInfo.xr_abort_reason = reason;
+      resultsXR.push(buildXRAbortRecord({
+        abortCode: "xr_finalize_failed",
+        abortReason: reason,
+        observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
+      }));
+      flushXRResults(xrOutFilename(), "XR finalize failed");
+      Promise.resolve(session.end()).catch(()=>{});
+    }
   }
 }
 
@@ -1367,11 +1489,11 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, layout=${layout}, seed=${seed}, mode=${runMode}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => {
     runCanvasSuite().catch((e) => {
