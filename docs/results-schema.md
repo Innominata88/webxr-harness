@@ -65,7 +65,7 @@ Exit code behavior:
 | `preIdleMs` | number | canvas, abort | Optional pre-idle window used by canvas and carried into abort metadata |
 | `postIdleMs` | number | canvas, abort | Optional post-idle window used by canvas and carried into abort metadata |
 | `betweenInstancesMs` | number | all | Delay when switching instance blocks |
-| `layout` | string | all | `"line"`, `"grid"`, `"spiral"`, `"random"` |
+| `layout` | string | all | `"line"`, `"grid"`, `"spiral"`, `"random"`, `"xrwall"` |
 | `seed` | number | all | Seed used for deterministic layout/shuffle |
 | `shuffle` | boolean | all | Whether condition order was shuffled |
 | `spacing` | number | all | Inter-instance spacing parameter |
@@ -239,6 +239,8 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_observed_view_count` | number optional |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
+| `xrFrontMinZ` | number | Requested XR forward placement anchor used by XR placement transform |
+| `xrYOffset` | number | Requested XR vertical placement offset used by XR placement transform |
 | `runMode` | string |
 | `gpu_identity` | string |
 | `order_control` | object |

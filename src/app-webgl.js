@@ -15,7 +15,7 @@ const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 1
 const outFile = params.get("out") || `results_webgl_${Date.now()}.jsonl`;
 const SCHEMA_VERSION = "1.1.0";
 
-const layout = (params.get("layout") || "line").toLowerCase(); // line|grid|spiral|random
+const layout = (params.get("layout") || "line").toLowerCase(); // line|grid|spiral|random|xrwall
 const seed = parseInt(params.get("seed") || "12345", 10) >>> 0;
 const shuffle = (params.get("shuffle") || "0") === "1";
 const storeFrames = (params.get("storeFrames") || "0") === "1";
@@ -612,6 +612,8 @@ async function initGL() {
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
+    xrFrontMinZ,
+    xrYOffset,
     runMode,
     manualDownload,
     isApplePlatform,

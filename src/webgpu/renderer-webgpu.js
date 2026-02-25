@@ -194,6 +194,23 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
       return offsets;
     }
 
+    if (layout === "xrwall") {
+      // Flat wall (z=0) laid out mostly wide so everything is visible straight ahead in XR.
+      const targetAspect = 16 / 9;
+      const cols = Math.max(1, Math.ceil(Math.sqrt(n * targetAspect)));
+      const rows = Math.max(1, Math.ceil(n / cols));
+      const xHalf = (cols - 1) / 2;
+      const yHalf = (rows - 1) / 2;
+      for (let i=0;i<n;i++) {
+        const c = i % cols;
+        const r = Math.floor(i / cols);
+        offsets[i*3+0] = (c - xHalf) * spacing;
+        offsets[i*3+1] = (yHalf - r) * spacing;
+        offsets[i*3+2] = 0;
+      }
+      return offsets;
+    }
+
     // default: line
     for (let i=0;i<n;i++) {
       offsets[i*3+0]=0;
