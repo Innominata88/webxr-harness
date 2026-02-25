@@ -239,6 +239,9 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_observed_view_count` | number optional |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
+| `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
+| `xr_projection_layer_fallback` | string optional | WebGPU XR layer fallback mode used at startup |
+| `xr_first_frame_seen` | boolean optional | `false` when XR session ended before first frame was rendered |
 | `xrFrontMinZ` | number | Requested XR forward placement anchor used by XR placement transform |
 | `xrYOffset` | number | Requested XR vertical placement offset used by XR placement transform |
 | `runMode` | string |

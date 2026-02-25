@@ -1239,11 +1239,17 @@ function flushUnexpectedXREnd() {
   if (xrResultFlushedForSession) return;
   const incomplete = !xrPlan || xrIndex < xrPlan.length;
   if (incomplete) {
-    const reason = xrAbortReason || "XR session ended before suite completion.";
+    const endedBeforeFirstFrame = (envInfo?.xr_enter_to_first_frame_ms == null);
+    const reason = xrAbortReason || (
+      endedBeforeFirstFrame
+        ? "XR session ended before first frame. Likely WebGPU XR startup incompatibility or overload."
+        : "XR session ended before suite completion."
+    );
     if (envInfo) {
       envInfo.xr_abort_reason = envInfo.xr_abort_reason || reason;
       if (!Number.isFinite(envInfo.xr_observed_view_count)) envInfo.xr_observed_view_count = 0;
       envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+      envInfo.xr_first_frame_seen = !endedBeforeFirstFrame;
     }
     const last = resultsXR[resultsXR.length - 1];
     if (!last || last.aborted !== true) {
@@ -1271,6 +1277,8 @@ async function onSessionStarted(session) {
     delete envInfo.xr_abort_reason;
     delete envInfo.xr_observed_view_count;
     delete envInfo.xr_skipped_reason;
+    delete envInfo.xr_scale_factor_fallback_used;
+    delete envInfo.xr_projection_layer_fallback;
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
   }
   btn.textContent="Exit VR";
@@ -1300,25 +1308,65 @@ async function onSessionStarted(session) {
     renderer.setCamera(proj, view);
   }
 
-  try {
-    projectionLayer = xrGpuBinding.createProjectionLayer({
-      colorFormat,
-      depthStencilFormat: "depth24plus",
-      scaleFactor: xrScaleFactor
-    });
-    if (envInfo) {
-      envInfo.xr_scale_factor_requested = xrScaleFactor;
-      envInfo.xr_scale_factor_applied = xrScaleFactor;
+  const scaleCandidates = (() => {
+    // Try requested scale first, then safe lower factors. This avoids startup failures on
+    // devices that cannot allocate full-resolution WebGPU XR layers.
+    const base = [xrScaleFactor, 0.75, 0.5, 0.35, 0.25];
+    const out = [];
+    for (const v of base) {
+      if (!Number.isFinite(v) || v <= 0) continue;
+      if (v > xrScaleFactor) continue;
+      if (!out.some((x) => Math.abs(x - v) < 1e-6)) out.push(v);
     }
-  } catch (_) {
-    projectionLayer = xrGpuBinding.createProjectionLayer({
-      colorFormat,
-      depthStencilFormat: "depth24plus"
-    });
-    if (envInfo) {
-      envInfo.xr_scale_factor_requested = xrScaleFactor;
-      envInfo.xr_scale_factor_applied = null;
+    return out.length ? out : [xrScaleFactor];
+  })();
+
+  const layerAttemptErrors = [];
+  projectionLayer = null;
+  let appliedScale = null;
+  let usedScaleFallback = false;
+
+  for (let i = 0; i < scaleCandidates.length; i++) {
+    const s = scaleCandidates[i];
+    try {
+      projectionLayer = xrGpuBinding.createProjectionLayer({
+        colorFormat,
+        depthStencilFormat: "depth24plus",
+        scaleFactor: s
+      });
+      appliedScale = s;
+      usedScaleFallback = i > 0;
+      break;
+    } catch (e) {
+      layerAttemptErrors.push(`scale=${s}: ${e?.message || e}`);
     }
+  }
+
+  if (!projectionLayer) {
+    try {
+      projectionLayer = xrGpuBinding.createProjectionLayer({
+        colorFormat,
+        depthStencilFormat: "depth24plus"
+      });
+      appliedScale = null;
+      usedScaleFallback = true;
+      if (envInfo) envInfo.xr_projection_layer_fallback = "depth24plus_without_scale";
+    } catch (e) {
+      layerAttemptErrors.push(`no-scale: ${e?.message || e}`);
+      throw new Error(`Failed to create WebGPU XR projection layer (${layerAttemptErrors.join("; ")})`);
+    }
+  }
+
+  if (envInfo) {
+    envInfo.xr_scale_factor_requested = xrScaleFactor;
+    envInfo.xr_scale_factor_applied = appliedScale;
+    envInfo.xr_scale_factor_fallback_used = usedScaleFallback;
+    if (usedScaleFallback && !envInfo.xr_projection_layer_fallback) {
+      envInfo.xr_projection_layer_fallback = `depth24plus_scale=${appliedScale == null ? "default" : appliedScale}`;
+    }
+  }
+  if (usedScaleFallback) {
+    log(`XR projection layer fallback applied (${envInfo?.xr_projection_layer_fallback || "unknown"}).`);
   }
 
   session.updateRenderState({ layers:[projectionLayer] });
