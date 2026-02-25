@@ -18,6 +18,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `trials`
   - `durationMs`
   - `minFrames` (XR)
+  - `xrNoPoseGraceMs` (XR)
   - `warmupMs`
   - `cooldownMs`
   - `betweenInstancesMs`
@@ -32,6 +33,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `hud`
   - `hudHz`
   - `renderProbe`
+  - `xrProbeReadback`
 - [ ] If using both phases in one page run, `mode=both` is intentional and documented.
 - [ ] XR comparability guard is active (`xr_expected_max_views = 2` in outputs).
 - [ ] XR scale policy is fixed and reported (`xrScaleFactor` requested/applied).
@@ -52,12 +54,7 @@ Use this checklist before collecting data intended for analysis or publication.
 
 - [ ] Schema target is confirmed (`schema_version` currently `1.1.0`).
 - [ ] Output filenames are unique and traceable (`out`, `outxr`, `suiteId`).
-- [ ] Redirect/cooldown policy is intentional:
-  - `cooldownPage`
-  - `betweenSuitesMs`
-  - `cooldownDelayMs`
-  - `cooldownAfter`
-  - `xrEntryTimeoutMs`
+- [ ] Between-suite cooldown procedure is intentional and documented (typically external orchestration + `idle.html`).
 - [ ] Rest-handoff behavior is intentional and recorded (`env.rest` usage).
 - [ ] Storage permissions/download prompts are verified on each platform/browser.
 
@@ -83,11 +80,13 @@ Use this checklist before collecting data intended for analysis or publication.
 
 ```bash
 node tools/validate-results.mjs path/to/results_webgl*.jsonl path/to/results_webgpu*.jsonl
+node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_quality path/to/results_webgl*.jsonl path/to/results_webgpu*.jsonl
 ```
 
 - [ ] No schema/type errors are present.
 - [ ] Abort records (`aborted: true`) are audited and tagged per exclusion policy.
 - [ ] Paired-run completeness is checked (matching planned conditions across APIs).
+- [ ] Quality report reviewed (`pairs_excluded = 0` or exclusions documented per protocol).
 
 ## 8) Analysis Readiness
 

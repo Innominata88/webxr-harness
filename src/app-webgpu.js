@@ -159,9 +159,14 @@ const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
   return (Number.isFinite(v) && v > 0) ? Math.min(2.0, Math.max(0.25, v)) : 1.0;
 })();
+const xrProbeReadback = (params.get("xrProbeReadback") || "0") === "1";
 const minFrames = (() => {
   const v = parseInt(params.get("minFrames") || "30", 10);
   return (Number.isFinite(v) && v >= 0) ? v : 30;
+})();
+const xrNoPoseGraceMs = (() => {
+  const v = parseInt(params.get("xrNoPoseGraceMs") || "3000", 10);
+  return (Number.isFinite(v) && v >= 0) ? v : 3000;
 })();
 
 // Session-order control for ABBA/BAAB/randomized protocols
@@ -260,8 +265,40 @@ let resultsCanvas=[];
 let resultsXR=[];
 let canvasRunInProgress=false;
 let canvasRunScheduled=false;
+let deviceLostInfo = null;
+let canvasAbortReason = null;
+let activeCanvasTrialReject = null;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
+
+function snapshotEnvInfo() {
+  if (!envInfo) return null;
+  try {
+    if (typeof structuredClone === "function") return structuredClone(envInfo);
+  } catch (_) {}
+  try { return JSON.parse(JSON.stringify(envInfo)); } catch (_) {}
+  return envInfo;
+}
+
+function currentBenchPhase() {
+  if (xrSession || xrActive) return "xr";
+  if (canvasRunInProgress) return "canvas";
+  return "idle";
+}
+
+function deviceLostReasonString() {
+  if (!deviceLostInfo) return null;
+  const reason = deviceLostInfo.reason ? ` (${deviceLostInfo.reason})` : "";
+  const msg = deviceLostInfo.message ? `: ${deviceLostInfo.message}` : "";
+  return `GPU device lost${reason}${msg}`;
+}
+
+function rejectActiveCanvasTrial(err) {
+  const rejectFn = activeCanvasTrialReject;
+  if (!rejectFn) return;
+  activeCanvasTrialReject = null;
+  try { rejectFn(err instanceof Error ? err : new Error(String(err))); } catch (_) {}
+}
 
 
 // HUD overlay element (used for both canvas and XR; XR requires dom-overlay support to be visible in-headset)
@@ -686,6 +723,44 @@ async function initWebGPU() {
   const adapter = await navigator.gpu.requestAdapter({ powerPreference:"high-performance", xrCompatible:true });
   if (!adapter) throw new Error("No WebGPU adapter");
   device = await adapter.requestDevice();
+  device.lost.then((info) => {
+    const lost = {
+      reason: (typeof info?.reason === "string") ? info.reason : null,
+      message: (typeof info?.message === "string") ? info.message : null,
+      phase: currentBenchPhase(),
+      at_iso: new Date().toISOString(),
+      at_perf_ms: performance.now()
+    };
+    deviceLostInfo = lost;
+    if (envInfo) envInfo.device_lost = lost;
+
+    try { console.warn("DEVICE LOST", info); } catch (_) {}
+    log(`${deviceLostReasonString() || "GPU device lost"}.`);
+
+    const canvasReason = deviceLostReasonString() || "GPU device lost.";
+    if (!canvasAbortReason) canvasAbortReason = canvasReason;
+    if (envInfo) envInfo.canvas_abort_reason = canvasAbortReason;
+    rejectActiveCanvasTrial(new Error(canvasAbortReason));
+
+    if (xrSession && !xrAbortReason) {
+      const reason = deviceLostReasonString() || "GPU device lost.";
+      xrAbortReason = reason;
+      if (envInfo) envInfo.xr_abort_reason = reason;
+      const last = resultsXR[resultsXR.length - 1];
+      if (!last || last.aborted !== true) {
+        resultsXR.push(buildXRAbortRecord({
+          abortCode: "webgpu_device_lost",
+          abortReason: reason,
+          observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
+        }));
+      }
+      if (!xrResultFlushedForSession) {
+        flushXRResults(xrOutFilename(), "XR aborted (device lost)");
+      }
+      xrActive = false;
+      Promise.resolve(xrSession.end()).catch(()=>{});
+    }
+  }).catch(() => {});
   adapterInfo = await adapter.requestAdapterInfo?.().catch(()=>null);
 // Capture reproducibility info (works even when adapterInfo is unavailable)
 const adapter_features = Array.from(adapter.features || []).map(String);
@@ -748,7 +823,10 @@ const device_limits = copyLimits(device.limits || {});
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
+    xr_probe_readback_requested: xrProbeReadback,
     xr_min_frames: minFrames,
+    xr_no_pose_grace_ms: xrNoPoseGraceMs,
+    device_lost: deviceLostInfo,
     xrFrontMinZ,
     xrYOffset,
     runMode,
@@ -803,7 +881,24 @@ function runCanvasTrial(item, planIdx, planLen) {
   renderer.setInstances(item.instances, spacing, { layout, seed });
 
   const dts = [];
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    function finishResolve(value) {
+      if (settled) return;
+      settled = true;
+      activeCanvasTrialReject = null;
+      resolve(value);
+    }
+    function finishReject(err) {
+      if (settled) return;
+      settled = true;
+      activeCanvasTrialReject = null;
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
+    activeCanvasTrialReject = (err) => {
+      finishReject(err);
+    };
+
     const stats = new RunStats();
     stats.meta = {
       schema_version: SCHEMA_VERSION,
@@ -830,7 +925,7 @@ function runCanvasTrial(item, planIdx, planLen) {
       suiteId,
       startedAt: new Date().toISOString(),
       ...sceneInfo,
-      env: envInfo
+      env: snapshotEnvInfo()
     };
 
     const trialId = `trial_webgpu_canvas_inst${item.instances}_t${item.trial}_idx${planIdx+1}`;
@@ -847,6 +942,11 @@ function runCanvasTrial(item, planIdx, planLen) {
       let lastT = NaN;
 
       function frame(t) {
+      if (canvasAbortReason) {
+        stats.markEnd();
+        finishReject(new Error(canvasAbortReason));
+        return;
+      }
       if (Number.isFinite(lastT)) {
         const dt = t - lastT;
         dts.push(dt);
@@ -854,25 +954,31 @@ function runCanvasTrial(item, planIdx, planLen) {
       }
       lastT = t;
 
-      const encoder = device.createCommandEncoder();
-      const pass = encoder.beginRenderPass({
-        colorAttachments: [{
-          view: context.getCurrentTexture().createView(),
-          loadOp: "clear",
-          storeOp: "store",
-          clearValue: [0.08,0.08,0.1,1]
-        }],
-        depthStencilAttachment: {
-          view: depthTex.createView(),
-          depthLoadOp: "clear",
-          depthStoreOp: "store",
-          depthClearValue: 1.0
-        }
-      });
+      try {
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: context.getCurrentTexture().createView(),
+            loadOp: "clear",
+            storeOp: "store",
+            clearValue: [0.08,0.08,0.1,1]
+          }],
+          depthStencilAttachment: {
+            view: depthTex.createView(),
+            depthLoadOp: "clear",
+            depthStoreOp: "store",
+            depthClearValue: 1.0
+          }
+        });
 
-      renderer.draw(pass);
-      pass.end();
-      device.queue.submit([encoder.finish()]);
+        renderer.draw(pass);
+        pass.end();
+        device.queue.submit([encoder.finish()]);
+      } catch (e) {
+        stats.markEnd();
+        finishReject(new Error(`Canvas render failed: ${e?.message || e}`));
+        return;
+      }
 
       if (t - stats.startWall < durationMs) requestAnimationFrame(frame);
       else {
@@ -915,13 +1021,13 @@ function runCanvasTrial(item, planIdx, planLen) {
           }
         }
         
-        const out = { ...stats.meta, summary, extras, perf };
+        const out = { ...stats.meta, env: snapshotEnvInfo(), summary, extras, perf };
         if (storeFrames) out.frames_ms = dts;
         if (postIdleMs > 0) {
   clearCanvasBlankOnce();
-  setTimeout(() => resolve(out), postIdleMs);
+  setTimeout(() => finishResolve(out), postIdleMs);
 } else {
-  resolve(out);
+  finishResolve(out);
 }
 }
     }
@@ -963,9 +1069,19 @@ async function runCanvasSuite() {
       log(`Canvas run ${i+1}/${plan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (warmup ${warmupMs}ms)`);
       await sleep(warmupMs);
 
-      const out = await runCanvasTrial(item, i, plan.length);
+      let out = null;
+      try {
+        out = await runCanvasTrial(item, i, plan.length);
+      } catch (e) {
+        const reason = `Canvas trial failed at ${i+1}/${plan.length}: ${e?.message || e}`;
+        if (!canvasAbortReason) canvasAbortReason = reason;
+        if (envInfo) envInfo.canvas_abort_reason = canvasAbortReason;
+        log(canvasAbortReason);
+        break;
+      }
       resultsCanvas.push(out);
 
+      if (canvasAbortReason) break;
       await sleep(cooldownMs);
     }
 
@@ -1096,6 +1212,11 @@ function maybeStartXRReadbackProbeWebGPU(encoder, subImage, viewport, clearRGBA8
   const probe = ensureXRRenderProbeState();
   if (!probe.performed || probe.readback_allowed !== null) return;
   if (!subImage || !subImage.colorTexture || !viewport) return;
+  if (!xrProbeReadback) {
+    probe.readback_allowed = false;
+    probe.readback_error = "xr_probe_readback_disabled_default";
+    return;
+  }
 
   const texture = subImage.colorTexture;
   const canCopy = !!(texture.usage & GPUTextureUsage.COPY_SRC);
@@ -1152,12 +1273,7 @@ async function settleXRReadbackProbe(timeoutMs = 250) {
   xrRenderProbeReadbackPromise = null;
 }
 
-async function finalizeXRTrial(session, now) {
-  if (!xrSession || session !== xrSession) {
-    xrFinalizing = false;
-    return;
-  }
-  await settleXRReadbackProbe();
+async function finalizeXRTrial(session) {
   if (!xrSession || session !== xrSession) {
     xrFinalizing = false;
     return;
@@ -1201,8 +1317,15 @@ async function finalizeXRTrial(session, now) {
     }
   }
 
+  await settleXRReadbackProbe();
+  if (!xrSession || session !== xrSession) {
+    xrFinalizing = false;
+    return;
+  }
+
   const out = {
     ...xrStats.meta,
+    env: snapshotEnvInfo(),
     summary,
     extras,
     perf,
@@ -1235,7 +1358,9 @@ async function finalizeXRTrial(session, now) {
 
   const next = xrPlan[xrIndex];
   const prev = xrPlan[xrIndex-1];
-  const pause = (next && prev && next.instances !== prev.instances) ? betweenInstancesMs : warmupMs;
+  const pause = next
+    ? cooldownMs + warmupMs + ((prev && next.instances !== prev.instances) ? betweenInstancesMs : 0)
+    : cooldownMs;
   const totalPause = pause + Math.max(0, postIdleMs|0);
   xrBlankClearOnce = true;
   setTimeout(() => startNextXRTrial(session), totalPause);
@@ -1280,7 +1405,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
       frames_collected_now: xrDtsNow ? xrDtsNow.length : 0
     },
     ...sceneInfo,
-    env: envInfo,
+    env: snapshotEnvInfo(),
     xr_effective_pixels: {
       requested_scale_factor: xrScaleFactor,
       applied_scale_factor: envInfo?.xr_scale_factor_applied ?? null,
@@ -1291,6 +1416,26 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     xr_cadence_secondary: summarizeSeries(xrDtsNow),
     xr_viewports: xrViewports || []
   };
+}
+
+function abortXRForPoseTimeout(session, elapsedMs) {
+  if (xrAbortReason) return;
+  const reason = `XR aborted: viewer pose unavailable after ${Math.round(elapsedMs)}ms (durationMs=${durationMs}, minFrames=${minFrames}).`;
+  xrAbortReason = reason;
+  if (envInfo) {
+    envInfo.xr_abort_reason = reason;
+    if (!Number.isFinite(envInfo.xr_observed_view_count)) envInfo.xr_observed_view_count = 0;
+    envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+  }
+  resultsXR.push(buildXRAbortRecord({
+    abortCode: "xr_pose_unavailable_timeout",
+    abortReason: reason,
+    observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
+  }));
+  flushXRResults(xrOutFilename(), "Aborted (XR)");
+  xrActive = false;
+  log(reason);
+  Promise.resolve(session.end()).catch(()=>{});
 }
 
 function abortXRForComparability(session, observedViews) {
@@ -1393,7 +1538,7 @@ function startNextXRTrial(session) {
     suiteId,
     startedAt: new Date().toISOString(),
     ...sceneInfo,
-    env: envInfo
+    env: snapshotEnvInfo()
   };
 
 function beginMeasuredXR() {
@@ -1618,16 +1763,16 @@ if (!xrActive || !xrStats) {
   const havePrev = Number.isFinite(xrLastT) && Number.isFinite(xrLastNow);
   const dtT = havePrev ? (t - xrLastT) : null;
   const dtNow = havePrev ? (now - xrLastNow) : null;
-  xrLastT = t;
-  xrLastNow = now;
-  if (havePrev) {
-    xrDts.push(dtT);
-    xrDtsNow.push(dtNow);
-    xrStats.addFrame(dtT);
-  }
 
   const pose = frame.getViewerPose(xrRefSpace);
-  if (!pose) return;
+  if (!pose) {
+    const elapsedMs = now - xrStats.startWall;
+    if (!xrFinalizing && elapsedMs > (durationMs + xrNoPoseGraceMs) && xrDts.length < minFrames) {
+      xrFinalizing = true;
+      abortXRForPoseTimeout(session, elapsedMs);
+    }
+    return;
+  }
   if (!ensureComparableXRViews(session, pose)) return;
 
   const encoder = device.createCommandEncoder();
@@ -1688,6 +1833,14 @@ if (!xrActive || !xrStats) {
     envInfo.xr_dom_overlay_requested = hudEnabled;
   }
 
+  if (havePrev) {
+    xrDts.push(dtT);
+    xrDtsNow.push(dtNow);
+    xrStats.addFrame(dtT);
+  }
+  xrLastT = t;
+  xrLastNow = now;
+
   const elapsedMs = now - xrStats.startWall;
   const minFramesMet = xrDts.length >= minFrames;
   const durationMet = elapsedMs > durationMs;
@@ -1699,7 +1852,7 @@ if (!xrActive || !xrStats) {
   if (durationMet && minFramesMet && !xrFinalizing) {
     xrFinalizing = true;
     xrActive = false;
-    finalizeXRTrial(session, now).catch((e) => {
+    finalizeXRTrial(session).catch((e) => {
       xrFinalizing = false;
       const reason = `XR finalize failed: ${e?.message || e}`;
       xrAbortReason = reason;
@@ -1731,11 +1884,11 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => {
     runCanvasSuite().catch((e) => {

@@ -33,6 +33,16 @@ Exit code behavior:
 - `0`: all records passed
 - `1`: one or more validation failures (missing fields, wrong types, malformed JSON, or unsupported `schema_version`)
 
+Post-validation quality/fairness checker:
+
+```bash
+node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_quality path/to/results_webgl*.jsonl path/to/results_webgpu*.jsonl
+```
+
+- Produces `reports/run_quality.json` and `reports/run_quality.csv`.
+- In strict mode (default), exits with code `2` if any pair is excluded for primary analysis.
+- Use `--pair-by suiteId` for formal data collection so trials only pair within the same run suite.
+
 ## Record types
 
 - Canvas trial record:
@@ -240,6 +250,8 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_skipped_reason` | string optional | For example `"entry_timeout"` when `mode=both` timed out before XR start |
 | `xr_observed_view_count` | number optional |
 | `xr_min_frames` | number optional | XR `minFrames` value captured in environment metadata |
+| `xr_no_pose_grace_ms` | number optional | Extra XR grace window before aborting if `getViewerPose()` stays unavailable |
+| `xr_probe_readback_requested` | boolean optional | Whether XR pixel readback probe was requested (`xrProbeReadback`) |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
 | `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
@@ -275,6 +287,7 @@ Legacy note:
 | `device_features` | string[] |
 | `device_limits` | object |
 | `colorFormat` | string |
+| `device_lost` | object or null optional |
 
 ## `partial_trial` object (abort records)
 
@@ -315,6 +328,20 @@ XR render probe metadata for “did anything render” diagnostics.
 | `readback_allowed` | boolean or null | Whether tiny pixel readback was possible |
 | `sampled_pixel_diff` | number or null | Sum/count proxy from sampled pixels against clear color |
 
+Note: XR probe readback is disabled by default for fairness/stability. Enable with `xrProbeReadback=1` when needed.
+
+## `env.device_lost` object (WebGPU env, optional)
+
+Present when the harness receives a `device.lost` signal.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `reason` | string or null | Browser/runtime loss reason |
+| `message` | string or null | Runtime-provided diagnostic message |
+| `phase` | string or null | Harness phase at loss (`canvas`, `xr`, `idle`) |
+| `at_iso` | string or null | ISO timestamp when loss was observed |
+| `at_perf_ms` | number or null | `performance.now()` when loss was observed |
+
 ## Notes for analysis and reporting
 
 - `condition_index` is 1-based.
@@ -353,7 +380,9 @@ Notes:
 
 ### cooldown redirect (optional)
 
-If you set `cooldownPage`, the harness will auto-navigate to that page after the **final** phase completes.
+Status note:
+- The current `app-webgl.js` / `app-webgpu.js` entrypoints do not parse cooldown redirect params.
+- Use `idle.html` and your external run orchestration for between-suite timing.
 
 URL params:
 - `cooldownPage=./idle.html` (or any same-origin page)

@@ -4,11 +4,11 @@
 // This avoids "only part of the mesh shows" for multi-mesh assets (e.g., Spider-Man).
 // Normalizes merged geometry into a roughly unit-sized centered model to keep camera consistent.
 
-const COMPONENT_TYPE_TO_ARRAY = {
-  5121: Uint8Array,
-  5123: Uint16Array,
-  5125: Uint32Array,
-  5126: Float32Array,
+const COMPONENT_TYPE_INFO = {
+  5121: { array: Uint8Array, bytes: 1, read: (dv, off) => dv.getUint8(off) },
+  5123: { array: Uint16Array, bytes: 2, read: (dv, off) => dv.getUint16(off, true) },
+  5125: { array: Uint32Array, bytes: 4, read: (dv, off) => dv.getUint32(off, true) },
+  5126: { array: Float32Array, bytes: 4, read: (dv, off) => dv.getFloat32(off, true) },
 };
 
 const TYPE_TO_NUM_COMPONENTS = {
@@ -19,21 +19,58 @@ function readU32(dv, offset) { return dv.getUint32(offset, true); }
 
 function getAccessorView(gltf, bin, accessorIndex) {
   const accessor = gltf.accessors[accessorIndex];
+  if (!accessor || accessor.bufferView == null) {
+    throw new Error(`Accessor ${accessorIndex} has no bufferView (sparse accessors unsupported).`);
+  }
+  if (accessor.sparse) {
+    throw new Error(`Accessor ${accessorIndex} uses sparse data; not supported by this loader.`);
+  }
   const view = gltf.bufferViews[accessor.bufferView];
+  if (!view) throw new Error(`Missing bufferView ${accessor.bufferView} for accessor ${accessorIndex}`);
 
-  const ArrayType = COMPONENT_TYPE_TO_ARRAY[accessor.componentType];
-  if (!ArrayType) throw new Error("Unsupported componentType: " + accessor.componentType);
+  const comp = COMPONENT_TYPE_INFO[accessor.componentType];
+  if (!comp) throw new Error("Unsupported componentType: " + accessor.componentType);
+  const ArrayType = comp.array;
 
   const numComps = TYPE_TO_NUM_COMPONENTS[accessor.type];
   if (!numComps) throw new Error("Unsupported accessor type: " + accessor.type);
 
-  const byteOffset = (view.byteOffset || 0) + (accessor.byteOffset || 0);
-  const count = accessor.count * numComps;
+  const viewByteOffset = view.byteOffset || 0;
+  const viewByteLength = view.byteLength || 0;
+  const accessorByteOffset = accessor.byteOffset || 0;
+  const count = accessor.count;
+  const packedElemBytes = comp.bytes * numComps;
+  const byteStride = view.byteStride || packedElemBytes;
+  if (byteStride < packedElemBytes) {
+    throw new Error(`Invalid byteStride ${byteStride} for accessor ${accessorIndex} (needs at least ${packedElemBytes}).`);
+  }
 
-  // NOTE: We intentionally ignore bufferView.byteStride and assume tightly packed.
-  // Most glTF exports for POSITION/indices are tightly packed; this keeps the loader simple.
-  const slice = bin.slice(byteOffset, byteOffset + count * ArrayType.BYTES_PER_ELEMENT);
-  return new ArrayType(slice.buffer, slice.byteOffset, count);
+  const byteOffset = viewByteOffset + accessorByteOffset;
+  const lastByteExclusive = byteOffset + Math.max(0, count - 1) * byteStride + packedElemBytes;
+  const viewEnd = viewByteOffset + viewByteLength;
+  if (lastByteExclusive > viewEnd) {
+    throw new Error(`Accessor ${accessorIndex} exceeds bufferView bounds.`);
+  }
+
+  const totalComponents = count * numComps;
+
+  // Fast path for tightly packed data.
+  if (byteStride === packedElemBytes) {
+    const slice = bin.slice(byteOffset, byteOffset + totalComponents * comp.bytes);
+    return new ArrayType(slice.buffer, slice.byteOffset, totalComponents);
+  }
+
+  // Strided/interleaved accessor path.
+  const out = new ArrayType(totalComponents);
+  const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+  for (let i = 0; i < count; i++) {
+    const srcBase = byteOffset + i * byteStride;
+    const dstBase = i * numComps;
+    for (let c = 0; c < numComps; c++) {
+      out[dstBase + c] = comp.read(dv, srcBase + c * comp.bytes);
+    }
+  }
+  return out;
 }
 
 function computeBounds(pos) {

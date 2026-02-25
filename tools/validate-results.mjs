@@ -264,6 +264,22 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_skipped_reason", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_observed_view_count", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_min_frames", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_no_pose_grace_ms", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
+  if (hasOwn(value, "device_lost")) {
+    const lost = value.device_lost;
+    if (lost === null) {
+      // No device-loss event observed.
+    } else if (!isObject(lost)) {
+      pushTypeError(errors, `${loc}.${key}`, "device_lost", "object or null", typeName(lost));
+    } else {
+      checkStringOrNull(lost, "reason", `${loc}.${key}.device_lost`, errors);
+      checkStringOrNull(lost, "message", `${loc}.${key}.device_lost`, errors);
+      checkStringOrNull(lost, "phase", `${loc}.${key}.device_lost`, errors);
+      checkStringOrNull(lost, "at_iso", `${loc}.${key}.device_lost`, errors);
+      checkNumberOrNull(lost, "at_perf_ms", `${loc}.${key}.device_lost`, errors);
+    }
+  }
 
   // Optional rest metadata: newer runs include it; legacy 1.0.0 files may omit it.
   if ("rest" in value) {
