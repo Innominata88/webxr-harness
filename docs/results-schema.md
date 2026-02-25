@@ -43,6 +43,26 @@ node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_qualit
 - In strict mode (default), exits with code `2` if any pair is excluded for primary analysis.
 - Use `--pair-by suiteId` for formal data collection so trials only pair within the same run suite.
 
+Failure-rate curve generator (stability analysis):
+
+```bash
+node tools/failure-curve.mjs --out-base reports/failure_curve path/to/results_webgl*.jsonl path/to/results_webgpu*.jsonl
+```
+
+- Produces `reports/failure_curve.json` and `reports/failure_curve.csv`.
+- Aggregates by `api x mode x instances`.
+- Reports `n_total`, `n_fail`, `fail_rate`, Wilson 95% CI, and failure reason/abort-code counts.
+
+Failure-curve plotter (SVG):
+
+```bash
+node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --out reports/failure_curve_xr.svg
+```
+
+- Reads `tools/failure-curve.mjs` JSON output.
+- Generates a publication-ready SVG line chart with one curve per API.
+- Includes optional Wilson 95% CI bars (`--ci 1`, default on).
+
 ## Record types
 
 - Canvas trial record:
@@ -261,6 +281,10 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
 | `xr_projection_layer_fallback` | string optional | WebGPU XR layer fallback mode used at startup |
 | `xr_first_frame_seen` | boolean optional | `false` when XR session ended before first frame was rendered |
+| `harness_version` | string optional | Harness build/version identifier (query `harnessVersion`, meta tag fallback, or schema version) |
+| `harness_commit` | string or null optional | Harness commit identifier for reproducibility (query `harnessCommit` or meta tag fallback) |
+| `asset_revision` | string or null optional | Asset revision/hash identifier (query `assetRevision`/`assetHash` or meta tag fallback) |
+| `provenance` | object or null optional | Grouped provenance block (see `env.provenance` section) |
 | `js_errors` | object[] or null optional | Ring buffer of global JS runtime `error` events captured by `window.onerror` listener |
 | `js_unhandled_rejections` | object[] or null optional | Ring buffer of global Promise rejection events captured by `window.unhandledrejection` listener |
 | `error_ring_capacity` | object or null optional | Declared ring-buffer capacities used for error diagnostics (for reproducibility/reporting) |
@@ -299,6 +323,17 @@ Legacy note:
 | `device_lost_info` | object or null optional | Alias of `device_lost` for parser compatibility |
 | `device_lost_count` | number optional | Number of observed `device.lost` events since page load |
 | `webgpu_uncaptured_errors` | object[] or null optional |
+
+## `env.provenance` object (shared env, optional)
+
+Explicit run provenance for reproducibility and paper reporting.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `harness_version` | string | Harness version identifier |
+| `harness_commit` | string or null | Commit identifier when available |
+| `asset_revision` | string or null | Asset revision/hash identifier when available |
+| `asset_url` | string | Model URL used by the run |
 
 ## `partial_trial` object (abort records)
 

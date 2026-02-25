@@ -15,6 +15,36 @@ const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 1
 const outFile = params.get("out") || `results_webgpu_${Date.now()}.jsonl`;
 const SCHEMA_VERSION = "1.1.0";
 
+function readMetaContent(name) {
+  const el = document.querySelector(`meta[name="${name}"]`);
+  if (!el) return null;
+  const v = el.getAttribute("content");
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeOptionalString(v) {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed ? trimmed : null;
+}
+
+const harnessVersion = normalizeOptionalString(params.get("harnessVersion"))
+  || normalizeOptionalString(readMetaContent("webxr-harness-version"))
+  || SCHEMA_VERSION;
+const harnessCommit = normalizeOptionalString(params.get("harnessCommit"))
+  || normalizeOptionalString(readMetaContent("webxr-harness-commit"));
+const assetRevision = normalizeOptionalString(params.get("assetRevision"))
+  || normalizeOptionalString(params.get("assetHash"))
+  || normalizeOptionalString(readMetaContent("webxr-asset-revision"));
+const provenanceInfo = {
+  harness_version: harnessVersion,
+  harness_commit: harnessCommit,
+  asset_revision: assetRevision,
+  asset_url: modelUrl
+};
+
 const layout = (params.get("layout") || "line").toLowerCase(); // line|grid|spiral|random|xrwall
 const seed = parseInt(params.get("seed") || "12345", 10) >>> 0;
 const shuffle = (params.get("shuffle") || "0") === "1";
@@ -959,6 +989,10 @@ const device_limits = copyLimits(device.limits || {});
     js_unhandled_rejections: globalJsUnhandledRejections,
     xrFrontMinZ,
     xrYOffset,
+    harness_version: harnessVersion,
+    harness_commit: harnessCommit,
+    asset_revision: assetRevision,
+    provenance: provenanceInfo,
     runMode,
     manualDownload,
     isApplePlatform,

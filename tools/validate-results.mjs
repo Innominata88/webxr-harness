@@ -267,6 +267,22 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_no_pose_grace_ms", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xrScaleFactor", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "harness_version", checkString, `${loc}.${key}`, errors);
+  checkIfPresent(value, "harness_commit", checkStringOrNull, `${loc}.${key}`, errors);
+  checkIfPresent(value, "asset_revision", checkStringOrNull, `${loc}.${key}`, errors);
+  if (hasOwn(value, "provenance")) {
+    const provenance = value.provenance;
+    if (provenance === null) {
+      // optional null for legacy/transitional outputs
+    } else if (!isObject(provenance)) {
+      pushTypeError(errors, `${loc}.${key}`, "provenance", "object or null", typeName(provenance));
+    } else {
+      checkString(provenance, "harness_version", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "harness_commit", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "asset_revision", `${loc}.${key}.provenance`, errors);
+      checkString(provenance, "asset_url", `${loc}.${key}.provenance`, errors);
+    }
+  }
   if (hasOwn(value, "device_lost")) {
     const lost = value.device_lost;
     if (lost === null) {
@@ -600,6 +616,9 @@ function validateBase(record, loc, errors) {
   checkNumber(record, "seed", loc, errors);
   checkBoolean(record, "shuffle", loc, errors);
   checkNumber(record, "spacing", loc, errors);
+  checkIfPresent(record, "xrScaleFactor", checkNumber, loc, errors);
+  checkIfPresent(record, "xrFrontMinZ", checkNumber, loc, errors);
+  checkIfPresent(record, "xrYOffset", checkNumber, loc, errors);
   checkBoolean(record, "collectPerf", loc, errors);
   checkBoolean(record, "perfDetail", loc, errors);
   checkOneOfTypes(record, "condition_index", ["number", "null"], loc, errors);
