@@ -989,6 +989,14 @@ function sampleXRPixelDiffWebGL(viewports, clearRGBA8) {
   const probe = ensureXRRenderProbeState();
   if (!probe.performed || probe.readback_allowed !== null) return;
   try {
+    // XRWebGLLayer framebuffers are often multisampled; readPixels on those is invalid.
+    const samples = Number(gl.getParameter(gl.SAMPLES) || 0);
+    if (samples > 0) {
+      probe.readback_allowed = false;
+      probe.readback_error = `multisampled_framebuffer_samples_${samples}`;
+      return;
+    }
+
     const px = new Uint8Array(4);
     let diff = 0;
     let sampleCount = 0;
