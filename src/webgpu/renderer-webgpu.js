@@ -293,6 +293,23 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
       }
     }
 
+    // Optional XR anchoring: place the cloud relative to the first viewer pose yaw/position.
+    if (opts.isXR) {
+      const anchorYaw = Number.isFinite(opts.xrAnchorYaw) ? opts.xrAnchorYaw : null;
+      const anchorX = Number.isFinite(opts.xrAnchorX) ? opts.xrAnchorX : null;
+      const anchorZ = Number.isFinite(opts.xrAnchorZ) ? opts.xrAnchorZ : null;
+      if (anchorYaw != null && anchorX != null && anchorZ != null) {
+        const c = Math.cos(anchorYaw);
+        const s = Math.sin(anchorYaw);
+        for (let i=0;i<n;i++) {
+          const lx = offsets[i*3+0];
+          const lz = offsets[i*3+2];
+          offsets[i*3+0] = anchorX + (lx * c) + (lz * s);
+          offsets[i*3+2] = anchorZ + (-lx * s) + (lz * c);
+        }
+      }
+    }
+
     this.setInstanceOffsets(offsets);
   }
 

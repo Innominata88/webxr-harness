@@ -103,6 +103,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `debugColor` | string | all | Debug fragment coloring mode: `"flat"`, `"abspos"`, or `"instance"` |
 | `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
 | `xrStartOnFirstPose` | boolean | all | Requested XR timing mode; when `true`, measured XR window starts on first valid pose |
+| `xrAnchorToFirstPose` | boolean | all | Requested XR placement mode; when `true`, XR layout is anchored to the first viewer pose |
 | `xrFrontMinZ` | number | all | Requested XR forward placement anchor captured at record level |
 | `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
 | `collectPerf` | boolean | all | Whether perf block was collected |
@@ -280,6 +281,11 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_no_pose_grace_ms` | number optional | Extra XR grace window before aborting if `getViewerPose()` stays unavailable |
 | `xr_start_on_first_pose_requested` | boolean optional | Whether query `xrStartOnFirstPose=1` was requested for this run |
 | `xr_start_on_first_pose_applied` | boolean optional | `true` when the measured window actually began on first valid pose |
+| `xr_anchor_to_first_pose_requested` | boolean optional | Whether query `xrAnchorToFirstPose=1` was requested for this run |
+| `xr_anchor_to_first_pose_applied` | boolean optional | `true` when XR instances were re-anchored from the first viewer pose |
+| `xr_anchor_pose_yaw_rad` | number optional | Yaw (radians) used for first-pose anchoring |
+| `xr_anchor_pose_x` | number optional | Viewer X used for first-pose anchoring |
+| `xr_anchor_pose_z` | number optional | Viewer Z used for first-pose anchoring |
 | `xr_measurement_waiting_for_first_pose` | boolean optional | `true` while trial is waiting for the first valid pose before timing starts |
 | `xr_no_pose_frames` | number optional | Running/session-level no-pose callback count for XR diagnostics |
 | `xr_no_pose_ms_total` | number optional | Running/session-level no-pose wall-time total (ms) for XR diagnostics |
@@ -482,6 +488,7 @@ Declared ring sizes for diagnostic arrays. Keys vary by backend/runtime.
 - Use `schema_version` to gate parsers when fields evolve.
 - `debugColor` is controlled via URL param `debugColor=flat|abspos|instance` (default `flat`).
 - `xrStartOnFirstPose=1` starts XR trial timing on first valid pose (recommended when startup no-pose gaps are large).
+- `xrAnchorToFirstPose=1` anchors XR placement to the first viewer pose (default ON for `layout=xrwall`).
 - `webgpuInitTimeoutMs` (default `15000`) can fail fast on devices where `requestAdapter`/`requestDevice` stall.
 - For paper reproducibility, also pin analyses to a git commit hash.
 

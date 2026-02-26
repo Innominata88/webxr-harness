@@ -27,6 +27,7 @@ const ROOT_FAIRNESS_FIELDS = [
   { name: "postIdleMs" },
   { name: "collectPerf" },
   { name: "perfDetail" },
+  { name: "xrAnchorToFirstPose" },
 ];
 
 const ENV_FAIRNESS_FIELDS = [
@@ -37,6 +38,7 @@ const ENV_FAIRNESS_FIELDS = [
   { name: "xr_scale_factor_applied", tol: 1e-9 },
   { name: "xr_no_pose_grace_ms" },
   { name: "xr_start_on_first_pose_requested" },
+  { name: "xr_anchor_to_first_pose_requested" },
   { name: "xr_probe_readback_requested" },
   { name: "manualDownload" },
   { name: "hudEnabled" },

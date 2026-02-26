@@ -21,6 +21,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `minFrames` (XR)
   - `xrNoPoseGraceMs` (XR)
   - `xrStartOnFirstPose` (XR timing policy)
+  - `xrAnchorToFirstPose` (XR placement policy)
   - `warmupMs`
   - `cooldownMs`
   - `betweenInstancesMs`

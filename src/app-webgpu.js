@@ -205,6 +205,11 @@ const xrNoPoseGraceMs = (() => {
   return (Number.isFinite(v) && v >= 0) ? v : 3000;
 })();
 const xrStartOnFirstPose = (params.get("xrStartOnFirstPose") || "0") === "1";
+const xrAnchorToFirstPose = (() => {
+  const raw = params.get("xrAnchorToFirstPose");
+  if (raw == null) return layout === "xrwall";
+  return raw === "1";
+})();
 const webgpuInitTimeoutMs = (() => {
   const v = parseInt(params.get("webgpuInitTimeoutMs") || "15000", 10);
   return (Number.isFinite(v) && v >= 1000) ? Math.min(120000, v) : 15000;
@@ -879,6 +884,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     debugColor,
     xrScaleFactor,
     xrStartOnFirstPose,
+    xrAnchorToFirstPose,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -1034,6 +1040,8 @@ const device_limits = copyLimits(device.limits || {});
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
     xr_start_on_first_pose_requested: xrStartOnFirstPose,
     xr_start_on_first_pose_applied: false,
+    xr_anchor_to_first_pose_requested: xrAnchorToFirstPose,
+    xr_anchor_to_first_pose_applied: false,
     xr_measurement_waiting_for_first_pose: false,
     xr_no_pose_frames: 0,
     xr_no_pose_ms_total: 0,
@@ -1145,6 +1153,7 @@ function runCanvasTrial(item, planIdx, planLen) {
       debugColor,
       xrScaleFactor,
       xrStartOnFirstPose,
+      xrAnchorToFirstPose,
       xrFrontMinZ,
       xrYOffset,
       collectPerf,
@@ -1465,6 +1474,7 @@ let xrFrameLoopLastNow = NaN;
 let xrTrialWallStartNow = NaN;
 let xrAwaitingFirstPoseStart = false;
 let xrStartedOnFirstPose = false;
+let xrAnchoredToFirstPose = false;
 
 
 function fmtMs(ms) {
@@ -1527,6 +1537,50 @@ function beginXRMeasuredWindow(startMode = "immediate") {
 
 function currentXRPlanItem() {
   return (xrPlan && xrIndex >= 0 && xrIndex < xrPlan.length) ? xrPlan[xrIndex] : null;
+}
+
+function yawFromQuaternion(q) {
+  if (!q) return null;
+  const x = Number.isFinite(q.x) ? q.x : 0;
+  const y = Number.isFinite(q.y) ? q.y : 0;
+  const z = Number.isFinite(q.z) ? q.z : 0;
+  const w = Number.isFinite(q.w) ? q.w : 1;
+  const siny = 2 * (w * y + x * z);
+  const cosy = 1 - 2 * (y * y + z * z);
+  const yaw = Math.atan2(siny, cosy);
+  return Number.isFinite(yaw) ? yaw : null;
+}
+
+function maybeAnchorXRInstancesToPose(pose) {
+  if (!xrAnchorToFirstPose || xrAnchoredToFirstPose) return false;
+  const item = currentXRPlanItem();
+  const t = pose?.transform;
+  if (!item || !renderer || !t) return false;
+
+  const yaw = yawFromQuaternion(t.orientation);
+  const px = Number.isFinite(t.position?.x) ? t.position.x : null;
+  const pz = Number.isFinite(t.position?.z) ? t.position.z : null;
+  if (!Number.isFinite(yaw) || !Number.isFinite(px) || !Number.isFinite(pz)) return false;
+
+  renderer.setInstances(item.instances, spacing, {
+    layout,
+    seed,
+    isXR: true,
+    xrFrontMinZ,
+    xrYOffset,
+    xrAnchorYaw: yaw,
+    xrAnchorX: px,
+    xrAnchorZ: pz
+  });
+  xrAnchoredToFirstPose = true;
+  if (envInfo) {
+    envInfo.xr_anchor_to_first_pose_applied = true;
+    envInfo.xr_anchor_pose_yaw_rad = yaw;
+    envInfo.xr_anchor_pose_x = px;
+    envInfo.xr_anchor_pose_z = pz;
+  }
+  log(`XR anchor applied from first pose (yaw=${yaw.toFixed(3)}, x=${px.toFixed(3)}, z=${pz.toFixed(3)}).`);
+  return true;
 }
 
 function ensureXRRenderProbeState() {
@@ -1736,6 +1790,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     debugColor,
     xrScaleFactor,
     xrStartOnFirstPose,
+    xrAnchorToFirstPose,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -1852,6 +1907,13 @@ function startNextXRTrial(session) {
 
   const item = xrPlan[xrIndex];
   renderer.setInstances(item.instances, spacing, { layout, seed, isXR: true, xrFrontMinZ, xrYOffset });
+  xrAnchoredToFirstPose = false;
+  if (envInfo) {
+    envInfo.xr_anchor_to_first_pose_applied = false;
+    delete envInfo.xr_anchor_pose_yaw_rad;
+    delete envInfo.xr_anchor_pose_x;
+    delete envInfo.xr_anchor_pose_z;
+  }
 
   xrDts = [];
   xrDtsNow = [];
@@ -1886,6 +1948,7 @@ function startNextXRTrial(session) {
     debugColor,
     xrScaleFactor,
     xrStartOnFirstPose,
+    xrAnchorToFirstPose,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -1976,6 +2039,11 @@ async function onSessionStarted(session) {
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
     envInfo.xr_start_on_first_pose_requested = xrStartOnFirstPose;
     envInfo.xr_start_on_first_pose_applied = false;
+    envInfo.xr_anchor_to_first_pose_requested = xrAnchorToFirstPose;
+    envInfo.xr_anchor_to_first_pose_applied = false;
+    delete envInfo.xr_anchor_pose_yaw_rad;
+    delete envInfo.xr_anchor_pose_x;
+    delete envInfo.xr_anchor_pose_z;
     envInfo.xr_measurement_waiting_for_first_pose = false;
     envInfo.xr_no_pose_frames = 0;
     envInfo.xr_no_pose_ms_total = 0;
@@ -2146,6 +2214,7 @@ if (!xrActive || !xrStats) {
     return;
   }
   if (!ensureComparableXRViews(session, pose)) return;
+  maybeAnchorXRInstancesToPose(pose);
   if (xrAwaitingFirstPoseStart && !isXRMeasurementStarted()) {
     beginXRMeasuredWindow("first_pose");
   }
@@ -2265,11 +2334,11 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => {
     runCanvasSuite().catch((e) => {
