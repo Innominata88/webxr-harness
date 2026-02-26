@@ -2156,12 +2156,11 @@ function onXRFrame(t, frame) {
 
 if (!xrActive || !xrStats) {
   if (xrBlankClearOnce) {
-    // Render one blank frame to "park" the compositor, then stop work.
+    // Keep submitting clear-only frames while idle to keep XR layer/compositor active.
     try {
       const pose = frame.getViewerPose(xrRefSpace);
       if (pose && projectionLayer && xrGpuBinding) {
         if (!ensureComparableXRViews(session, pose)) {
-          xrBlankClearOnce = false;
           return;
         }
         const encoder = device.createCommandEncoder();
@@ -2180,7 +2179,6 @@ if (!xrActive || !xrStats) {
         device.queue.submit([encoder.finish()]);
       }
     } catch (_) {}
-    xrBlankClearOnce = false;
 
     if (xrEnterClickedAt != null && envInfo && envInfo.xr_enter_to_first_frame_ms == null) {
       envInfo.xr_enter_to_first_frame_ms = performance.now() - xrEnterClickedAt;

@@ -1941,15 +1941,18 @@ function onXRFrame(t, frame) {
 
 if (!xrActive || !xrStats) {
   if (xrBlankClearOnce) {
-    // Render one blank frame to "park" the compositor, then stop work.
+    // Keep submitting clear-only frames while idle to keep XR layer/compositor active.
     try {
-      const glLayer = session.renderState.baseLayer;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-      gl.clearColor(0,0,0,1);
-      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      gl.flush?.();
+      const pose = frame.getViewerPose(xrRefSpace);
+      if (pose) {
+        if (!ensureComparableXRViews(session, pose)) return;
+        const glLayer = session.renderState.baseLayer;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+        gl.clearColor(0,0,0,1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.flush?.();
+      }
     } catch (_) {}
-    xrBlankClearOnce = false;
 
     if (xrEnterClickedAt != null && envInfo && envInfo.xr_enter_to_first_frame_ms == null) {
       envInfo.xr_enter_to_first_frame_ms = performance.now() - xrEnterClickedAt;
