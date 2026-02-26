@@ -102,6 +102,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `spacing` | number | all | Inter-instance spacing parameter |
 | `debugColor` | string | all | Debug fragment coloring mode: `"flat"`, `"abspos"`, or `"instance"` |
 | `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
+| `xrStartOnFirstPose` | boolean | all | Requested XR timing mode; when `true`, measured XR window starts on first valid pose |
 | `xrFrontMinZ` | number | all | Requested XR forward placement anchor captured at record level |
 | `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
 | `collectPerf` | boolean | all | Whether perf block was collected |
@@ -122,6 +123,8 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `timing_secondary_source` | string | xr trial | Secondary cadence source; currently `"performance.now"` |
 | `xr_cadence_secondary` | object or null | xr | Secondary cadence summary from `performance.now` deltas |
 | `xr_effective_pixels` | object | xr | Requested/applied scale factor and first-frame pixel counts |
+| `xr_no_pose_frames` | number | xr | Count of XR callbacks where `getViewerPose()` returned null during trial |
+| `xr_no_pose_ms_total` | number | xr | Approx total wall time (ms) spent in no-pose callbacks during trial |
 | `render_probe_xr` | object | xr | XR render-probe diagnostics (`performed`, `rendered_anything`, `first_frame_px`, optional sampled pixel diff) |
 | `xr_viewports` | object[] | xr | Per-view viewport samples (`x`,`y`,`w`,`h`) collected each frame |
 | `aborted` | boolean | abort | Always `true` for abort records |
@@ -275,6 +278,11 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_observed_view_count` | number optional |
 | `xr_min_frames` | number optional | XR `minFrames` value captured in environment metadata |
 | `xr_no_pose_grace_ms` | number optional | Extra XR grace window before aborting if `getViewerPose()` stays unavailable |
+| `xr_start_on_first_pose_requested` | boolean optional | Whether query `xrStartOnFirstPose=1` was requested for this run |
+| `xr_start_on_first_pose_applied` | boolean optional | `true` when the measured window actually began on first valid pose |
+| `xr_measurement_waiting_for_first_pose` | boolean optional | `true` while trial is waiting for the first valid pose before timing starts |
+| `xr_no_pose_frames` | number optional | Running/session-level no-pose callback count for XR diagnostics |
+| `xr_no_pose_ms_total` | number optional | Running/session-level no-pose wall-time total (ms) for XR diagnostics |
 | `xr_probe_readback_requested` | boolean optional | Whether XR pixel readback probe was requested (`xrProbeReadback`) |
 | `debugColor` | string optional | Debug fragment coloring mode used by renderer (`flat`, `abspos`, `instance`) |
 | `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
@@ -473,6 +481,7 @@ Declared ring sizes for diagnostic arrays. Keys vary by backend/runtime.
 - `perf.longtask.entries` is only present when `perfDetail=1`.
 - Use `schema_version` to gate parsers when fields evolve.
 - `debugColor` is controlled via URL param `debugColor=flat|abspos|instance` (default `flat`).
+- `xrStartOnFirstPose=1` starts XR trial timing on first valid pose (recommended when startup no-pose gaps are large).
 - `webgpuInitTimeoutMs` (default `15000`) can fail fast on devices where `requestAdapter`/`requestDevice` stall.
 - For paper reproducibility, also pin analyses to a git commit hash.
 

@@ -266,6 +266,11 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_observed_view_count", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_min_frames", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_no_pose_grace_ms", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_start_on_first_pose_requested", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_start_on_first_pose_applied", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_measurement_waiting_for_first_pose", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_no_pose_frames", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_no_pose_ms_total", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
   if (hasOwn(value, "debugColor")) {
     checkString(value, "debugColor", `${loc}.${key}`, errors);
@@ -631,8 +636,11 @@ function validateBase(record, loc, errors) {
     }
   }
   checkIfPresent(record, "xrScaleFactor", checkNumber, loc, errors);
+  checkIfPresent(record, "xrStartOnFirstPose", checkBoolean, loc, errors);
   checkIfPresent(record, "xrFrontMinZ", checkNumber, loc, errors);
   checkIfPresent(record, "xrYOffset", checkNumber, loc, errors);
+  checkIfPresent(record, "xr_no_pose_frames", checkNumber, loc, errors);
+  checkIfPresent(record, "xr_no_pose_ms_total", checkNumber, loc, errors);
   checkBoolean(record, "collectPerf", loc, errors);
   checkBoolean(record, "perfDetail", loc, errors);
   checkOneOfTypes(record, "condition_index", ["number", "null"], loc, errors);

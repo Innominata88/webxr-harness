@@ -204,6 +204,7 @@ const xrNoPoseGraceMs = (() => {
   const v = parseInt(params.get("xrNoPoseGraceMs") || "3000", 10);
   return (Number.isFinite(v) && v >= 0) ? v : 3000;
 })();
+const xrStartOnFirstPose = (params.get("xrStartOnFirstPose") || "0") === "1";
 
 // Session-order control for ABBA/BAAB/randomized protocols
 const enforceOrder = (params.get("enforceOrder") || "0") === "1";
@@ -852,6 +853,11 @@ async function initGL() {
     xr_probe_readback_requested: xrProbeReadback,
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
+    xr_start_on_first_pose_requested: xrStartOnFirstPose,
+    xr_start_on_first_pose_applied: false,
+    xr_measurement_waiting_for_first_pose: false,
+    xr_no_pose_frames: 0,
+    xr_no_pose_ms_total: 0,
     context_lost: webglContextLostInfo,
     webgl: {
       context_lost_count: webglContextLostCount,
@@ -976,6 +982,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     spacing,
     debugColor,
     xrScaleFactor,
+    xrStartOnFirstPose,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -1035,6 +1042,7 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       spacing,
       debugColor,
       xrScaleFactor,
+      xrStartOnFirstPose,
       xrFrontMinZ,
       xrYOffset,
       collectPerf,
@@ -1327,12 +1335,66 @@ let xrFirstFrameViewPixels=null;
 let xrRenderProbe = createXRRenderProbeState();
 let xrFinalizing = false;
 let xrMinFramesWaitLogged = false;
+let xrNoPoseFrames = 0;
+let xrNoPoseMsTotal = 0;
+let xrFrameLoopLastNow = NaN;
+let xrTrialWallStartNow = NaN;
+let xrAwaitingFirstPoseStart = false;
+let xrStartedOnFirstPose = false;
 
 
 function fmtMs(ms) {
   if (ms == null || !Number.isFinite(ms)) return "n/a";
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
   return `${(ms/1000).toFixed(1)}s`;
+}
+
+function resetXRNoPoseDiagnostics() {
+  xrNoPoseFrames = 0;
+  xrNoPoseMsTotal = 0;
+  xrFrameLoopLastNow = NaN;
+  xrTrialWallStartNow = NaN;
+  xrAwaitingFirstPoseStart = false;
+  xrStartedOnFirstPose = false;
+}
+
+function syncXRNoPoseDiagnosticsToEnv() {
+  if (!envInfo) return;
+  envInfo.xr_no_pose_frames = xrNoPoseFrames;
+  envInfo.xr_no_pose_ms_total = xrNoPoseMsTotal;
+  envInfo.xr_start_on_first_pose_applied = xrStartedOnFirstPose;
+  envInfo.xr_measurement_waiting_for_first_pose = xrAwaitingFirstPoseStart;
+}
+
+function xrPoseTimeoutElapsedMs(now) {
+  if (xrStats && Number.isFinite(xrStats.startWall)) return Math.max(0, now - xrStats.startWall);
+  if (Number.isFinite(xrTrialWallStartNow)) return Math.max(0, now - xrTrialWallStartNow);
+  return null;
+}
+
+function beginXRMeasuredWindow(startMode = "immediate") {
+  if (!xrSession || !xrStats) return;
+  if (Number.isFinite(xrStats.startWall)) return;
+  const item = currentXRPlanItem();
+  if (!item) return;
+
+  xrStats.markStart();
+  xrTrialId = `trial_webgl2_xr_inst${item.instances}_t${item.trial}_idx${xrIndex+1}`;
+  xrMemStart = collectPerf ? snapshotMemory() : null;
+  if (collectPerf) {
+    try {
+      performance.mark(`${xrTrialId}_start`);
+      console.timeStamp?.(`${xrTrialId}_start`);
+    } catch (_) {}
+  }
+  xrLastT = NaN;
+  xrLastNow = NaN;
+  xrAwaitingFirstPoseStart = false;
+  xrStartedOnFirstPose = (startMode === "first_pose");
+  syncXRNoPoseDiagnosticsToEnv();
+
+  const startNote = xrStartedOnFirstPose ? ", start=first_pose" : ", start=immediate";
+  log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms${startNote})`);
 }
 
 function currentXRPlanItem() {
@@ -1408,6 +1470,7 @@ function finalizeXRTrial(session) {
     xrFinalizing = false;
     return;
   }
+  syncXRNoPoseDiagnosticsToEnv();
   xrStats.markEnd();
   const summary = xrStats.summarize();
   const extras = deriveExtras(summary, xrDts);
@@ -1462,6 +1525,8 @@ function finalizeXRTrial(session) {
       first_frame_total_px: xrFirstFramePixels,
       first_frame_per_view_px: xrFirstFrameViewPixels || []
     },
+    xr_no_pose_frames: xrNoPoseFrames,
+    xr_no_pose_ms_total: xrNoPoseMsTotal,
     xr_viewports: xrViewports,
     render_probe_xr: xrRenderProbe || createXRRenderProbeState()
   };
@@ -1491,8 +1556,9 @@ function finalizeXRTrial(session) {
 }
 
 function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planItem=undefined } = {}) {
+  syncXRNoPoseDiagnosticsToEnv();
   const cur = (planItem === undefined) ? currentXRPlanItem() : planItem;
-  const elapsedMs = (xrStats && xrStats.startWall) ? Math.max(0, performance.now() - xrStats.startWall) : null;
+  const elapsedMs = xrPoseTimeoutElapsedMs(performance.now());
   return {
     schema_version: SCHEMA_VERSION,
     api: "webgl2",
@@ -1520,6 +1586,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     spacing,
     debugColor,
     xrScaleFactor,
+    xrStartOnFirstPose,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -1532,6 +1599,8 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
       frames_collected_t: xrDts ? xrDts.length : 0,
       frames_collected_now: xrDtsNow ? xrDtsNow.length : 0
     },
+    xr_no_pose_frames: xrNoPoseFrames,
+    xr_no_pose_ms_total: xrNoPoseMsTotal,
     ...sceneInfo,
     env: snapshotEnvInfo(),
     xr_effective_pixels: {
@@ -1546,15 +1615,18 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
   };
 }
 
-function abortXRForPoseTimeout(session, elapsedMs) {
+function abortXRForPoseTimeout(session, elapsedMs, waitingForFirstPose=false) {
   if (xrAbortReason) return;
-  const reason = `XR aborted: viewer pose unavailable after ${Math.round(elapsedMs)}ms (durationMs=${durationMs}, minFrames=${minFrames}).`;
+  const reason = waitingForFirstPose
+    ? `XR aborted: first viewer pose unavailable after ${Math.round(elapsedMs)}ms (durationMs=${durationMs}, minFrames=${minFrames}, xrStartOnFirstPose=1).`
+    : `XR aborted: viewer pose unavailable after ${Math.round(elapsedMs)}ms (durationMs=${durationMs}, minFrames=${minFrames}).`;
   xrAbortReason = reason;
   if (envInfo) {
     envInfo.xr_abort_reason = reason;
     if (!Number.isFinite(envInfo.xr_observed_view_count)) envInfo.xr_observed_view_count = 0;
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
   }
+  syncXRNoPoseDiagnosticsToEnv();
   resultsXR.push(buildXRAbortRecord({
     abortCode: "xr_pose_unavailable_timeout",
     abortReason: reason,
@@ -1660,6 +1732,7 @@ function startNextXRTrial(session) {
     spacing,
     debugColor,
     xrScaleFactor,
+    xrStartOnFirstPose,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -1672,31 +1745,33 @@ function startNextXRTrial(session) {
     env: snapshotEnvInfo()
   };
 
-function beginMeasuredXR() {
+function beginTrialActiveWindow() {
   if (!xrSession || session !== xrSession) return;
-  xrStats.markStart();
-  xrTrialId = `trial_webgl2_xr_inst${item.instances}_t${item.trial}_idx${xrIndex+1}`;
-  xrMemStart = collectPerf ? snapshotMemory() : null;
-  if (collectPerf) {
-    try {
-      performance.mark(`${xrTrialId}_start`);
-      console.timeStamp?.(`${xrTrialId}_start`);
-    } catch (_) {}
-  }
   xrLastT = NaN;
   xrLastNow = NaN;
+  xrFrameLoopLastNow = NaN;
+  xrTrialWallStartNow = performance.now();
   xrActive = true;
   xrBlankClearOnce = false;
-  log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms)`);
+  xrAwaitingFirstPoseStart = !!xrStartOnFirstPose;
+  xrStartedOnFirstPose = false;
+  syncXRNoPoseDiagnosticsToEnv();
+  if (xrStartOnFirstPose) {
+    log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms, waiting for first pose)`);
+  } else {
+    beginXRMeasuredWindow("immediate");
+  }
 }
 
-// Pre-idle: render a single blank frame, then do no drawing until we start the measured window.
+// Pre-idle: render a single blank frame, then do no drawing until we start the trial window.
+resetXRNoPoseDiagnostics();
+syncXRNoPoseDiagnosticsToEnv();
 xrActive = false;
 xrBlankClearOnce = true;
 if (preIdleMs > 0) {
-  setTimeout(beginMeasuredXR, preIdleMs);
+  setTimeout(beginTrialActiveWindow, preIdleMs);
 } else {
-  beginMeasuredXR();
+  beginTrialActiveWindow();
 }
 
 }
@@ -1738,6 +1813,11 @@ async function onSessionStarted(session) {
     delete envInfo.xr_observed_view_count;
     delete envInfo.xr_skipped_reason;
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+    envInfo.xr_start_on_first_pose_requested = xrStartOnFirstPose;
+    envInfo.xr_start_on_first_pose_applied = false;
+    envInfo.xr_measurement_waiting_for_first_pose = false;
+    envInfo.xr_no_pose_frames = 0;
+    envInfo.xr_no_pose_ms_total = 0;
   }
   btn.textContent = "Exit VR";
   hudStartAuto(xrHudText);
@@ -1809,17 +1889,28 @@ if (!xrActive || !xrStats) {
   const havePrev = Number.isFinite(xrLastT) && Number.isFinite(xrLastNow);
   const dtT = havePrev ? (t - xrLastT) : null;
   const dtNow = havePrev ? (now - xrLastNow) : null;
+  const frameLoopHavePrev = Number.isFinite(xrFrameLoopLastNow);
+  const frameLoopDtNow = frameLoopHavePrev ? (now - xrFrameLoopLastNow) : null;
 
   const pose = frame.getViewerPose(xrRefSpace);
   if (!pose) {
-    const elapsedMs = now - xrStats.startWall;
-    if (!xrFinalizing && elapsedMs > (durationMs + xrNoPoseGraceMs) && xrDts.length < minFrames) {
+    xrNoPoseFrames++;
+    if (Number.isFinite(frameLoopDtNow) && frameLoopDtNow >= 0) {
+      xrNoPoseMsTotal += frameLoopDtNow;
+    }
+    syncXRNoPoseDiagnosticsToEnv();
+    xrFrameLoopLastNow = now;
+    const elapsedMs = xrPoseTimeoutElapsedMs(now);
+    if (!xrFinalizing && elapsedMs != null && elapsedMs > (durationMs + xrNoPoseGraceMs) && xrDts.length < minFrames) {
       xrFinalizing = true;
-      abortXRForPoseTimeout(session, elapsedMs);
+      abortXRForPoseTimeout(session, elapsedMs, xrAwaitingFirstPoseStart);
     }
     return;
   }
   if (!ensureComparableXRViews(session, pose)) return;
+  if (xrAwaitingFirstPoseStart && (!xrStats || !Number.isFinite(xrStats.startWall))) {
+    beginXRMeasuredWindow("first_pose");
+  }
 
   const glLayer = session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
@@ -1863,7 +1954,9 @@ if (!xrActive || !xrStats) {
   }
   xrLastT = t;
   xrLastNow = now;
+  xrFrameLoopLastNow = now;
 
+  if (!Number.isFinite(xrStats?.startWall)) return;
   const elapsedMs = now - xrStats.startWall;
   const minFramesMet = xrDts.length >= minFrames;
   const durationMet = elapsedMs > durationMs;
@@ -1911,11 +2004,11 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => {
     runCanvasSuite().catch((e) => {

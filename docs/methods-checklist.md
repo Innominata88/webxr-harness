@@ -20,6 +20,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `runMode` (canonical URL param; avoid mixing `mode=both` and `runMode=xr` in primary comparisons)
   - `minFrames` (XR)
   - `xrNoPoseGraceMs` (XR)
+  - `xrStartOnFirstPose` (XR timing policy)
   - `warmupMs`
   - `cooldownMs`
   - `betweenInstancesMs`
