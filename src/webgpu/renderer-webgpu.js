@@ -1,7 +1,20 @@
 // src/webgpu/renderer-webgpu.js
 import { mat4Mul } from "../common/mat4.js";
+
+const DEBUG_COLOR_MODES = Object.freeze({
+  flat: 0,
+  abspos: 1,
+  instance: 2,
+});
+
+function normalizeDebugColorMode(value) {
+  const v = (typeof value === "string" ? value : "flat").toLowerCase();
+  if (v === "abspos" || v === "instance" || v === "flat") return v;
+  return "flat";
+}
+
 export class WebGPUMeshRenderer {
-  constructor(device, colorFormat, depthFormat='depth24plus') {
+  constructor(device, colorFormat, depthFormat='depth24plus', opts={}) {
     const CAMERA_SLOT_STRIDE = 256; // WebGPU dynamic offset alignment requirement
     const CAMERA_SLOT_COUNT = 2;    // immersive-vr without secondary views => up to 2 eyes
     const INITIAL_INSTANCE_CAPACITY = 4096;
@@ -14,6 +27,9 @@ export class WebGPUMeshRenderer {
     this.cameraSlotCount = CAMERA_SLOT_COUNT;
     this.instanceStrideBytes = INSTANCE_STRIDE_BYTES;
     this.instanceCapacity = 0;
+    this.debugColorModeName = normalizeDebugColorMode(opts.debugColor);
+    this.debugColorMode = DEBUG_COLOR_MODES[this.debugColorModeName];
+    this.debugParamsScratch = new Float32Array(4);
 
     this.uniformBuffer = device.createBuffer({
       size: this.cameraSlotStride * this.cameraSlotCount,
@@ -21,7 +37,7 @@ export class WebGPUMeshRenderer {
     });
 
     this.bindGroupLayout = device.createBindGroupLayout({
-      entries: [{ binding:0, visibility: GPUShaderStage.VERTEX, buffer: { type:"uniform" } }]
+      entries: [{ binding:0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type:"uniform" } }]
     });
 
     this.pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [this.bindGroupLayout] });
@@ -30,16 +46,19 @@ export class WebGPUMeshRenderer {
       code: `
 struct Camera {
   viewProj : mat4x4<f32>,
+  debugParams : vec4<f32>,
 }
 @group(0) @binding(0) var<uniform> camera : Camera;
 
 struct VSIn {
   @location(0) position : vec3<f32>,
   @location(1) instanceOffset : vec3<f32>,
+  @builtin(instance_index) instanceIndex : u32,
 }
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
   @location(0) dbg : vec3<f32>,
+  @location(1) iid : f32,
 }
 @vertex
 fn vsMain(input: VSIn) -> VSOut {
@@ -47,11 +66,26 @@ fn vsMain(input: VSIn) -> VSOut {
   let p = input.position + input.instanceOffset;
   out.pos = camera.viewProj * vec4<f32>(p, 1.0);
   out.dbg = abs(p);
+  out.iid = f32(input.instanceIndex);
   return out;
+}
+
+fn hash01(x : f32) -> f32 {
+  return fract(sin(x * 12.9898) * 43758.5453);
 }
 @fragment
 fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
-  return vec4<f32>(input.dbg, 1.0);
+  let mode = camera.debugParams.x;
+  if (mode < 0.5) {
+    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+  }
+  if (mode < 1.5) {
+    return vec4<f32>(min(input.dbg, vec3<f32>(1.0, 1.0, 1.0)), 1.0);
+  }
+  let r = hash01(input.iid + 0.13);
+  let g = hash01(input.iid + 1.17);
+  let b = hash01(input.iid + 2.31);
+  return vec4<f32>(r, g, b, 1.0);
 }
       `
     });
@@ -80,7 +114,7 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
           resource: {
             buffer: this.uniformBuffer,
             offset: i * this.cameraSlotStride,
-            size: 4 * 4 * 4,
+            size: 4 * 4 * 5,
           }
         }]
       }));
@@ -96,6 +130,21 @@ fn fsMain(input: VSOut) -> @location(0) vec4<f32> {
     this._ensureInstanceCapacity(INITIAL_INSTANCE_CAPACITY);
     this.instanceCount=1;
     this.viewProjScratch = Array.from({ length: this.cameraSlotCount }, () => new Float32Array(16));
+    this.setDebugColor(this.debugColorModeName);
+  }
+
+  setDebugColor(modeName = "flat") {
+    const normalized = normalizeDebugColorMode(modeName);
+    this.debugColorModeName = normalized;
+    this.debugColorMode = DEBUG_COLOR_MODES[normalized];
+    for (let i = 0; i < this.cameraSlotCount; i++) {
+      this.debugParamsScratch[0] = this.debugColorMode;
+      this.debugParamsScratch[1] = 0;
+      this.debugParamsScratch[2] = 0;
+      this.debugParamsScratch[3] = 0;
+      this.device.queue.writeBuffer(this.uniformBuffer, i * this.cameraSlotStride + (4 * 4 * 4), this.debugParamsScratch);
+    }
+    return normalized;
   }
 
   _ensureInstanceCapacity(instanceCount) {

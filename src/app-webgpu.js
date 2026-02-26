@@ -34,6 +34,7 @@ const harnessVersion = normalizeOptionalString(params.get("harnessVersion"))
   || normalizeOptionalString(readMetaContent("webxr-harness-version"))
   || SCHEMA_VERSION;
 const harnessCommit = normalizeOptionalString(params.get("harnessCommit"))
+  || normalizeOptionalString(params.get("appRev"))
   || normalizeOptionalString(readMetaContent("webxr-harness-commit"));
 const assetRevision = normalizeOptionalString(params.get("assetRevision"))
   || normalizeOptionalString(params.get("assetHash"))
@@ -55,6 +56,10 @@ const storeFrames = (params.get("storeFrames") || "0") === "1";
 const spacing = (() => {
   const v = parseFloat(params.get("spacing") || "0.35");
   return (Number.isFinite(v) && v > 0) ? v : 0.35;
+})();
+const debugColor = (() => {
+  const v = String(params.get("debugColor") || "flat").toLowerCase();
+  return (v === "flat" || v === "abspos" || v === "instance") ? v : "flat";
 })();
 
 // XR placement so the user can look straight ahead (especially on Vision Pro)
@@ -199,6 +204,10 @@ const xrNoPoseGraceMs = (() => {
   const v = parseInt(params.get("xrNoPoseGraceMs") || "3000", 10);
   return (Number.isFinite(v) && v >= 0) ? v : 3000;
 })();
+const webgpuInitTimeoutMs = (() => {
+  const v = parseInt(params.get("webgpuInitTimeoutMs") || "15000", 10);
+  return (Number.isFinite(v) && v >= 1000) ? Math.min(120000, v) : 15000;
+})();
 
 // Session-order control for ABBA/BAAB/randomized protocols
 const enforceOrder = (params.get("enforceOrder") || "0") === "1";
@@ -314,6 +323,35 @@ const ERROR_RING_CAPACITY = {
 let globalErrorListenersInstalled = false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
+function setXRButtonDisabled(label) {
+  btn.disabled = true;
+  btn.textContent = label;
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 function snapshotEnvInfo() {
   if (!envInfo) return null;
@@ -837,6 +875,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     seed,
     shuffle,
     spacing,
+    debugColor,
     xrScaleFactor,
     xrFrontMinZ,
     xrYOffset,
@@ -856,9 +895,17 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
 
 async function initWebGPU() {
   if (!navigator.gpu) throw new Error("WebGPU not supported");
-  const adapter = await navigator.gpu.requestAdapter({ powerPreference:"high-performance", xrCompatible:true });
+  const adapter = await withTimeout(
+    navigator.gpu.requestAdapter({ powerPreference:"high-performance", xrCompatible:true }),
+    webgpuInitTimeoutMs,
+    "WebGPU adapter request"
+  );
   if (!adapter) throw new Error("No WebGPU adapter");
-  device = await adapter.requestDevice();
+  device = await withTimeout(
+    adapter.requestDevice(),
+    webgpuInitTimeoutMs,
+    "WebGPU device request"
+  );
   device.lost.then((info) => {
     const lost = {
       reason: (typeof info?.reason === "string") ? info.reason : null,
@@ -953,7 +1000,7 @@ const device_limits = copyLimits(device.limits || {});
     usage: GPUTextureUsage.RENDER_ATTACHMENT
   });
 
-  renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus");
+  renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor });
 
   const scene = await loadGLBMesh(modelUrl);
   sceneMesh = { positions: scene.positions, indices: scene.indices };
@@ -975,12 +1022,15 @@ const device_limits = copyLimits(device.limits || {});
     hudEnabled,
     hudHz,
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
+    xr_available: !!navigator.xr,
+    xr_webgpu_binding_available: ("XRGPUBinding" in window),
     xrScaleFactor,
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
     xr_probe_readback_requested: xrProbeReadback,
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
+    webgpu_init_timeout_ms: webgpuInitTimeoutMs,
     device_lost: deviceLostInfo,
     device_lost_info: deviceLostInfo,
     device_lost_count: deviceLostCount,
@@ -990,6 +1040,7 @@ const device_limits = copyLimits(device.limits || {});
     js_unhandled_rejections: globalJsUnhandledRejections,
     xrFrontMinZ,
     xrYOffset,
+    debugColor,
     harness_version: harnessVersion,
     harness_commit: harnessCommit,
     asset_revision: assetRevision,
@@ -1084,6 +1135,7 @@ function runCanvasTrial(item, planIdx, planLen) {
       seed,
       shuffle,
       spacing,
+      debugColor,
       xrScaleFactor,
       xrFrontMinZ,
       xrYOffset,
@@ -1297,10 +1349,25 @@ async function runCanvasSuite() {
 }
 
 async function initXR() {
-  if (!navigator.xr) { log("WebXR not supported (canvas-only)"); return; }
-  if (!("XRGPUBinding" in window)) { log("WebXR/WebGPU interop not supported here (canvas-only)"); return; }
+  if (!navigator.xr) {
+    if (envInfo) envInfo.xr_skipped_reason = "webxr_unsupported";
+    setXRButtonDisabled("XR unavailable");
+    log("WebXR not supported (canvas-only).");
+    return;
+  }
+  if (!("XRGPUBinding" in window)) {
+    if (envInfo) envInfo.xr_skipped_reason = "webxr_webgpu_interop_unsupported";
+    setXRButtonDisabled("XR WebGPU unavailable");
+    log("WebXR/WebGPU interop not supported on this browser/device (missing XRGPUBinding). WebGL XR may still work.");
+    return;
+  }
   const supported = await navigator.xr.isSessionSupported("immersive-vr").catch(()=>false);
-  if (!supported) { log("Immersive VR not supported here (canvas-only)"); return; }
+  if (!supported) {
+    if (envInfo) envInfo.xr_skipped_reason = "immersive_vr_unsupported";
+    setXRButtonDisabled("Immersive VR unavailable");
+    log("Immersive VR not supported here (canvas-only).");
+    return;
+  }
 
   btn.disabled=false;
   btn.textContent="Enter VR";
@@ -1596,6 +1663,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     seed,
     shuffle,
     spacing,
+    debugColor,
     xrScaleFactor,
     xrFrontMinZ,
     xrYOffset,
@@ -1736,6 +1804,7 @@ function startNextXRTrial(session) {
     seed,
     shuffle,
     spacing,
+    debugColor,
     xrScaleFactor,
     xrFrontMinZ,
     xrYOffset,
@@ -1842,7 +1911,7 @@ async function onSessionStarted(session) {
     colorFormat = preferred;
     envInfo.colorFormat = colorFormat;
     context.configure({ device, format: colorFormat, alphaMode:"opaque" });
-    renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus");
+    renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor });
     if (!sceneMesh) throw new Error("Scene mesh not loaded");
     renderer.setMesh(sceneMesh);
     // Keep canvas path valid if a canvas trial is active/queued while entering XR.
@@ -2078,6 +2147,7 @@ if (!xrActive || !xrStats) {
 
 async function main() {
   installGlobalErrorListeners();
+  setXRButtonDisabled("Checking WebGPU…");
 
   canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
   canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
@@ -2087,6 +2157,7 @@ async function main() {
   log("Loading model...");
   await initWebGPU();
   if (runMode !== "canvas") {
+    setXRButtonDisabled("Checking XR…");
     await initXR();
   } else {
     btn.disabled = true;
@@ -2108,4 +2179,17 @@ async function main() {
   }, canvasAutoDelayMs);
 }
 
-main().catch(e=>{ console.error(e); log(String(e)); });
+main().catch((e) => {
+  console.error(e);
+  if (/^Checking /.test(btn.textContent)) {
+    const msg = String(e?.message || e || "");
+    if (/timed out/i.test(msg) && /webgpu/i.test(msg)) {
+      setXRButtonDisabled("WebGPU init timeout");
+    } else if (/webgpu/i.test(msg) && /not supported|no webgpu adapter|no webgpu/i.test(msg)) {
+      setXRButtonDisabled("WebGPU unavailable");
+    } else {
+      setXRButtonDisabled("XR unavailable");
+    }
+  }
+  log(String(e));
+});

@@ -17,6 +17,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `instances`
   - `trials`
   - `durationMs`
+  - `runMode` (canonical URL param; avoid mixing `mode=both` and `runMode=xr` in primary comparisons)
   - `minFrames` (XR)
   - `xrNoPoseGraceMs` (XR)
   - `warmupMs`
@@ -26,6 +27,9 @@ Use this checklist before collecting data intended for analysis or publication.
   - `seed`
   - `shuffle`
   - `spacing`
+  - `debugColor`
+  - `xrFrontMinZ`
+  - `xrYOffset`
   - `preIdleMs`
   - `postIdleMs`
   - `collectPerf`
@@ -34,7 +38,8 @@ Use this checklist before collecting data intended for analysis or publication.
   - `hudHz`
   - `renderProbe`
   - `xrProbeReadback`
-- [ ] If using both phases in one page run, `mode=both` is intentional and documented.
+  - `manualDownload`
+- [ ] If using both phases in one page run, `runMode=both` is intentional and documented (`mode=` kept only as legacy alias).
 - [ ] XR comparability guard is active (`xr_expected_max_views = 2` in outputs).
 - [ ] XR scale policy is fixed and reported (`xrScaleFactor` requested/applied).
 - [ ] Order/bias controls are fixed and reported (`orderMode`, `orderIndex`, `assignedApi`, `orderSeed`).
@@ -99,6 +104,7 @@ node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_qualit
 ## 9) Reporting & Reproducibility Package
 
 - [ ] Final parameter manifest is exported (exact query strings used).
+- [ ] Provenance IDs are captured and frozen (`harnessCommit`, `assetRevision`, and model URL).
 - [ ] Raw JSONL outputs are archived read-only.
 - [ ] Validation logs are archived.
 - [ ] Device/browser inventory table is archived.

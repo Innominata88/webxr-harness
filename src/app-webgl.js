@@ -34,6 +34,7 @@ const harnessVersion = normalizeOptionalString(params.get("harnessVersion"))
   || normalizeOptionalString(readMetaContent("webxr-harness-version"))
   || SCHEMA_VERSION;
 const harnessCommit = normalizeOptionalString(params.get("harnessCommit"))
+  || normalizeOptionalString(params.get("appRev"))
   || normalizeOptionalString(readMetaContent("webxr-harness-commit"));
 const assetRevision = normalizeOptionalString(params.get("assetRevision"))
   || normalizeOptionalString(params.get("assetHash"))
@@ -55,6 +56,10 @@ const storeFrames = (params.get("storeFrames") || "0") === "1";
 const spacing = (() => {
   const v = parseFloat(params.get("spacing") || "0.35");
   return (Number.isFinite(v) && v > 0) ? v : 0.35;
+})();
+const debugColor = (() => {
+  const v = String(params.get("debugColor") || "flat").toLowerCase();
+  return (v === "flat" || v === "abspos" || v === "instance") ? v : "flat";
 })();
 
 // XR placement so the user can look straight ahead (especially on Vision Pro)
@@ -822,6 +827,7 @@ async function initGL() {
   }, false);
 
   renderer = new WebGLMeshRenderer(gl);
+  renderer.setDebugColor(debugColor);
 
   const scene = await loadGLBMesh(modelUrl);
   renderer.setMesh(scene);
@@ -860,6 +866,7 @@ async function initGL() {
     js_unhandled_rejections: globalJsUnhandledRejections,
     xrFrontMinZ,
     xrYOffset,
+    debugColor,
     harness_version: harnessVersion,
     harness_commit: harnessCommit,
     asset_revision: assetRevision,
@@ -967,6 +974,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     seed,
     shuffle,
     spacing,
+    debugColor,
     xrScaleFactor,
     xrFrontMinZ,
     xrYOffset,
@@ -1025,6 +1033,7 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       seed,
       shuffle,
       spacing,
+      debugColor,
       xrScaleFactor,
       xrFrontMinZ,
       xrYOffset,
@@ -1509,6 +1518,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     seed,
     shuffle,
     spacing,
+    debugColor,
     xrScaleFactor,
     xrFrontMinZ,
     xrYOffset,
@@ -1648,6 +1658,7 @@ function startNextXRTrial(session) {
     seed,
     shuffle,
     spacing,
+    debugColor,
     xrScaleFactor,
     xrFrontMinZ,
     xrYOffset,

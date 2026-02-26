@@ -100,6 +100,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `seed` | number | all | Seed used for deterministic layout/shuffle |
 | `shuffle` | boolean | all | Whether condition order was shuffled |
 | `spacing` | number | all | Inter-instance spacing parameter |
+| `debugColor` | string | all | Debug fragment coloring mode: `"flat"`, `"abspos"`, or `"instance"` |
 | `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
 | `xrFrontMinZ` | number | all | Requested XR forward placement anchor captured at record level |
 | `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
@@ -275,6 +276,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_min_frames` | number optional | XR `minFrames` value captured in environment metadata |
 | `xr_no_pose_grace_ms` | number optional | Extra XR grace window before aborting if `getViewerPose()` stays unavailable |
 | `xr_probe_readback_requested` | boolean optional | Whether XR pixel readback probe was requested (`xrProbeReadback`) |
+| `debugColor` | string optional | Debug fragment coloring mode used by renderer (`flat`, `abspos`, `instance`) |
 | `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
@@ -282,7 +284,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_projection_layer_fallback` | string optional | WebGPU XR layer fallback mode used at startup |
 | `xr_first_frame_seen` | boolean optional | `false` when XR session ended before first frame was rendered |
 | `harness_version` | string optional | Harness build/version identifier (query `harnessVersion`, meta tag fallback, or schema version) |
-| `harness_commit` | string or null optional | Harness commit identifier for reproducibility (query `harnessCommit` or meta tag fallback) |
+| `harness_commit` | string or null optional | Harness commit/cache-buster identifier for reproducibility (query `harnessCommit` or `appRev`, then meta tag fallback) |
 | `asset_revision` | string or null optional | Asset revision/hash identifier (query `assetRevision`/`assetHash` or meta tag fallback) |
 | `provenance` | object or null optional | Grouped provenance block (see `env.provenance` section) |
 | `js_errors` | object[] or null optional | Ring buffer of global JS runtime `error` events captured by `window.onerror` listener |
@@ -322,6 +324,7 @@ Legacy note:
 | `device_lost` | object or null optional |
 | `device_lost_info` | object or null optional | Alias of `device_lost` for parser compatibility |
 | `device_lost_count` | number optional | Number of observed `device.lost` events since page load |
+| `webgpu_init_timeout_ms` | number optional | Timeout applied to adapter/device initialization (URL param `webgpuInitTimeoutMs`) |
 | `webgpu_uncaptured_errors` | object[] or null optional |
 
 ## `env.provenance` object (shared env, optional)
@@ -469,6 +472,8 @@ Declared ring sizes for diagnostic arrays. Keys vary by backend/runtime.
 - `frames_ms` is optional and only emitted with `storeFrames=1`.
 - `perf.longtask.entries` is only present when `perfDetail=1`.
 - Use `schema_version` to gate parsers when fields evolve.
+- `debugColor` is controlled via URL param `debugColor=flat|abspos|instance` (default `flat`).
+- `webgpuInitTimeoutMs` (default `15000`) can fail fast on devices where `requestAdapter`/`requestDevice` stall.
 - For paper reproducibility, also pin analyses to a git commit hash.
 
 

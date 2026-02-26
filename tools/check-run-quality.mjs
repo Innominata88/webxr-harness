@@ -22,6 +22,7 @@ const ROOT_FAIRNESS_FIELDS = [
   { name: "seed" },
   { name: "shuffle" },
   { name: "spacing", tol: 1e-9 },
+  { name: "debugColor" },
   { name: "preIdleMs" },
   { name: "postIdleMs" },
   { name: "collectPerf" },
@@ -29,10 +30,12 @@ const ROOT_FAIRNESS_FIELDS = [
 ];
 
 const ENV_FAIRNESS_FIELDS = [
+  { name: "runMode" },
   { name: "xrFrontMinZ", tol: 1e-9 },
   { name: "xrYOffset", tol: 1e-9 },
   { name: "xr_scale_factor_requested", tol: 1e-9 },
   { name: "xr_scale_factor_applied", tol: 1e-9 },
+  { name: "xr_no_pose_grace_ms" },
   { name: "xr_probe_readback_requested" },
   { name: "manualDownload" },
   { name: "hudEnabled" },

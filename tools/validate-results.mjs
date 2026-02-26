@@ -6,6 +6,7 @@ import process from "node:process";
 const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0.0", "1.1.0"]);
 const VALID_APIS = new Set(["webgl2", "webgpu"]);
 const VALID_MODES = new Set(["canvas", "xr"]);
+const VALID_DEBUG_COLOR_MODES = new Set(["flat", "abspos", "instance"]);
 const MAX_PRINTED_ERRORS = 200;
 
 const COMMON_REQUIRED_FIELDS = [
@@ -266,6 +267,12 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_min_frames", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_no_pose_grace_ms", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
+  if (hasOwn(value, "debugColor")) {
+    checkString(value, "debugColor", `${loc}.${key}`, errors);
+    if (typeof value.debugColor === "string" && !VALID_DEBUG_COLOR_MODES.has(value.debugColor)) {
+      errors.push(`${loc}.${key}: \`debugColor\` expected one of [${Array.from(VALID_DEBUG_COLOR_MODES).join(", ")}], got ${JSON.stringify(value.debugColor)}`);
+    }
+  }
   checkIfPresent(value, "xrScaleFactor", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "harness_version", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "harness_commit", checkStringOrNull, `${loc}.${key}`, errors);
@@ -298,6 +305,7 @@ function validateEnv(record, loc, errors) {
     }
   }
   checkIfPresent(value, "device_lost_count", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "webgpu_init_timeout_ms", checkNumber, `${loc}.${key}`, errors);
   if (hasOwn(value, "device_lost_info")) {
     const lostInfo = value.device_lost_info;
     if (lostInfo === null) {
@@ -616,6 +624,12 @@ function validateBase(record, loc, errors) {
   checkNumber(record, "seed", loc, errors);
   checkBoolean(record, "shuffle", loc, errors);
   checkNumber(record, "spacing", loc, errors);
+  if (hasOwn(record, "debugColor")) {
+    checkString(record, "debugColor", loc, errors);
+    if (typeof record.debugColor === "string" && !VALID_DEBUG_COLOR_MODES.has(record.debugColor)) {
+      errors.push(`${loc}: \`debugColor\` expected one of [${Array.from(VALID_DEBUG_COLOR_MODES).join(", ")}], got ${JSON.stringify(record.debugColor)}`);
+    }
+  }
   checkIfPresent(record, "xrScaleFactor", checkNumber, loc, errors);
   checkIfPresent(record, "xrFrontMinZ", checkNumber, loc, errors);
   checkIfPresent(record, "xrYOffset", checkNumber, loc, errors);

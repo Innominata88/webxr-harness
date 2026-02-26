@@ -1,6 +1,18 @@
 // src/webgl/renderer-webgl.js
 import { mat4Mul } from "../common/mat4.js";
 
+const DEBUG_COLOR_MODES = Object.freeze({
+  flat: 0,
+  abspos: 1,
+  instance: 2,
+});
+
+function normalizeDebugColorMode(value) {
+  const v = (typeof value === "string" ? value : "flat").toLowerCase();
+  if (v === "abspos" || v === "instance" || v === "flat") return v;
+  return "flat";
+}
+
 function compile(gl, type, src) {
   const sh=gl.createShader(type);
   gl.shaderSource(sh, src);
@@ -30,20 +42,41 @@ layout(location=0) in vec3 a_position;
 layout(location=1) in vec3 a_instanceOffset;
 uniform mat4 u_viewProj;
 out vec3 v_dbg;
+out float v_iid;
 void main() {
   vec3 p = a_position + a_instanceOffset;
   gl_Position = u_viewProj * vec4(p, 1.0);
   v_dbg = abs(p);
+  v_iid = float(gl_InstanceID);
 }
 `;
 
 const FS = `#version 300 es
 precision highp float;
 in vec3 v_dbg;
+in float v_iid;
+uniform int u_debugColorMode;
 out vec4 outColor;
+
+float hash11(float p) {
+  return fract(sin(p * 12.9898) * 43758.5453);
+}
+
 void main() {
-  // Simple color so you can see something without textures.
-  outColor = vec4(v_dbg, 1.0);
+  if (u_debugColorMode == 0) {
+    outColor = vec4(1.0, 1.0, 1.0, 1.0);
+    return;
+  }
+  if (u_debugColorMode == 1) {
+    outColor = vec4(min(v_dbg, vec3(1.0)), 1.0);
+    return;
+  }
+  outColor = vec4(
+    hash11(v_iid + 0.13),
+    hash11(v_iid + 1.17),
+    hash11(v_iid + 2.31),
+    1.0
+  );
 }
 `;
 
@@ -127,6 +160,7 @@ export class WebGLMeshRenderer {
     this.gl=gl;
     this.prog=link(gl, VS, FS);
     this.uViewProj=gl.getUniformLocation(this.prog, "u_viewProj");
+    this.uDebugColorMode=gl.getUniformLocation(this.prog, "u_debugColorMode");
     this.vao=gl.createVertexArray();
     this.vbo=null;
     this.ibo=null;
@@ -137,6 +171,15 @@ export class WebGLMeshRenderer {
     this.instanceCount=1;
     this.instanceCapacity=0;
     this.instanceStrideBytes=4*3;
+    this.debugColorModeName="flat";
+    this.debugColorMode=DEBUG_COLOR_MODES.flat;
+  }
+
+  setDebugColor(modeName="flat") {
+    const normalized = normalizeDebugColorMode(modeName);
+    this.debugColorModeName = normalized;
+    this.debugColorMode = DEBUG_COLOR_MODES[normalized];
+    return normalized;
   }
 
   _ensureInstanceCapacity(instanceCount) {
@@ -224,6 +267,7 @@ export class WebGLMeshRenderer {
     const gl=this.gl;
     gl.useProgram(this.prog);
     gl.uniformMatrix4fv(this.uViewProj, false, viewProjMat);
+    if (this.uDebugColorMode !== null) gl.uniform1i(this.uDebugColorMode, this.debugColorMode);
 
     gl.bindVertexArray(this.vao);
     if (this.ibo) {
