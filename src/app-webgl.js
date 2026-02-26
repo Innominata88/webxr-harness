@@ -1358,6 +1358,10 @@ function resetXRNoPoseDiagnostics() {
   xrStartedOnFirstPose = false;
 }
 
+function isXRMeasurementStarted() {
+  return !!(xrStats && Number.isFinite(xrStats.startWall) && xrStats.startWall > 0);
+}
+
 function syncXRNoPoseDiagnosticsToEnv() {
   if (!envInfo) return;
   envInfo.xr_no_pose_frames = xrNoPoseFrames;
@@ -1367,14 +1371,14 @@ function syncXRNoPoseDiagnosticsToEnv() {
 }
 
 function xrPoseTimeoutElapsedMs(now) {
-  if (xrStats && Number.isFinite(xrStats.startWall)) return Math.max(0, now - xrStats.startWall);
+  if (isXRMeasurementStarted()) return Math.max(0, now - xrStats.startWall);
   if (Number.isFinite(xrTrialWallStartNow)) return Math.max(0, now - xrTrialWallStartNow);
   return null;
 }
 
 function beginXRMeasuredWindow(startMode = "immediate") {
   if (!xrSession || !xrStats) return;
-  if (Number.isFinite(xrStats.startWall)) return;
+  if (isXRMeasurementStarted()) return;
   const item = currentXRPlanItem();
   if (!item) return;
 
@@ -1675,6 +1679,9 @@ function xrHudText() {
   const inst = cur ? cur.instances : "-";
   const tr = cur ? cur.trial : "-";
   if (xrActive && xrStats) {
+    if (!isXRMeasurementStarted()) {
+      return `XR run ${xrIndex+1}/${total}\ninstances=${inst}  trial=${tr}/${trials}\nwaiting_for_pose=1\nframes=${xrDts ? xrDts.length : 0}/${minFrames}\napi=${(envInfo&&envInfo.api)||"?"}`;
+    }
     const elapsed = performance.now() - xrStats.startWall;
     const rem = Math.max(0, durationMs - elapsed);
     const frames = xrDts ? xrDts.length : 0;
@@ -1908,7 +1915,7 @@ if (!xrActive || !xrStats) {
     return;
   }
   if (!ensureComparableXRViews(session, pose)) return;
-  if (xrAwaitingFirstPoseStart && (!xrStats || !Number.isFinite(xrStats.startWall))) {
+  if (xrAwaitingFirstPoseStart && !isXRMeasurementStarted()) {
     beginXRMeasuredWindow("first_pose");
   }
 
@@ -1956,7 +1963,7 @@ if (!xrActive || !xrStats) {
   xrLastNow = now;
   xrFrameLoopLastNow = now;
 
-  if (!Number.isFinite(xrStats?.startWall)) return;
+  if (!isXRMeasurementStarted()) return;
   const elapsedMs = now - xrStats.startWall;
   const minFramesMet = xrDts.length >= minFrames;
   const durationMet = elapsedMs > durationMs;
