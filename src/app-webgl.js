@@ -197,6 +197,7 @@ const runMode = (() => {
   return (v === "canvas" || v === "xr" || v === "both") ? v : "both";
 })();
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
+const manualStart = (params.get("manualStart") || "0") === "1";
 const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
   return (Number.isFinite(v) && v > 0) ? Math.min(2.0, Math.max(0.25, v)) : 1.0;
@@ -326,6 +327,7 @@ let canvasAbortReason = null;
 let activeCanvasTrialReject = null;
 let xrSuiteTraceClosed = false;
 let xrTraceStartMark = null;
+let manualCanvasStartButton = null;
 const globalJsErrors = [];
 const globalJsUnhandledRejections = [];
 const GLOBAL_JS_ERROR_RING = 20;
@@ -337,6 +339,32 @@ const ERROR_RING_CAPACITY = {
 let globalErrorListenersInstalled = false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
+
+function ensureManualCanvasStartButton() {
+  if (manualCanvasStartButton) return manualCanvasStartButton;
+  const header = document.querySelector("header");
+  if (!header) return null;
+  const b = document.createElement("button");
+  b.id = "start-suite-button";
+  b.textContent = "Start Canvas Suite";
+  b.disabled = true;
+  b.addEventListener("click", () => startCanvasSuiteNow("manual_button"));
+  if (status && status.parentElement === header) {
+    header.insertBefore(b, status);
+  } else {
+    header.appendChild(b);
+  }
+  manualCanvasStartButton = b;
+  return b;
+}
+
+function setManualCanvasStartButtonState({ visible, enabled, text } = {}) {
+  const b = ensureManualCanvasStartButton();
+  if (!b) return;
+  if (typeof text === "string" && text) b.textContent = text;
+  if (typeof enabled === "boolean") b.disabled = !enabled;
+  if (typeof visible === "boolean") b.style.display = visible ? "" : "none";
+}
 
 function traceField(v) {
   if (v == null) return "-";
@@ -973,6 +1001,8 @@ async function initGL() {
     trace_overlay_enabled: traceOverlay,
     runMode,
     manualDownload,
+    manualStart,
+    canvasAutoDelayMs,
     isApplePlatform,
     renderProbeRequested: renderProbe,
     order_control: {
@@ -1071,6 +1101,8 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     preIdleMs,
     postIdleMs,
     betweenInstancesMs,
+    canvasAutoDelayMs,
+    manualStart,
     layout,
     seed,
     shuffle,
@@ -1143,6 +1175,8 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       preIdleMs,
       postIdleMs,
       betweenInstancesMs,
+      canvasAutoDelayMs,
+      manualStart,
       layout,
       seed,
       shuffle,
@@ -1365,7 +1399,41 @@ async function runCanvasSuite() {
     clearCanvasBlankOnce();
   } finally {
     canvasRunInProgress = false;
+    if (manualStart && manualCanvasStartButton) {
+      setManualCanvasStartButtonState({
+        visible: true,
+        enabled: false,
+        text: "Canvas Complete"
+      });
+    }
   }
+}
+
+function startCanvasSuiteNow(trigger = "manual") {
+  if (runMode === "xr") {
+    log("Canvas start ignored (mode=xr).");
+    return;
+  }
+  if (canvasRunInProgress) {
+    log("Canvas suite already running.");
+    return;
+  }
+  if (!canvasRunScheduled) {
+    log("Canvas suite is not armed.");
+    return;
+  }
+  if (manualStart && manualCanvasStartButton) {
+    setManualCanvasStartButtonState({
+      visible: true,
+      enabled: false,
+      text: "Starting Canvas..."
+    });
+  }
+  log(`Starting canvas suite (${trigger}).`);
+  runCanvasSuite().catch((e) => {
+    console.error(e);
+    log(String(e));
+  });
 }
 
 async function initXR() {
@@ -1765,6 +1833,8 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     preIdleMs,
     postIdleMs,
     betweenInstancesMs,
+    canvasAutoDelayMs,
+    manualStart,
     layout,
     seed,
     shuffle,
@@ -1967,6 +2037,8 @@ function startNextXRTrial(session) {
     preIdleMs,
     postIdleMs,
     betweenInstancesMs,
+    canvasAutoDelayMs,
+    manualStart,
     layout,
     seed,
     shuffle,
@@ -2317,18 +2389,24 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. runId=${runId}, mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. runId=${runId}, mode=${runMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
-  canvasRunScheduled = true;
-  setTimeout(() => {
-    runCanvasSuite().catch((e) => {
-      console.error(e);
-      log(String(e));
+  if (manualStart) {
+    canvasRunScheduled = true; // also blocks XR entry in mode=both until canvas completes
+    setManualCanvasStartButtonState({
+      visible: true,
+      enabled: true,
+      text: "Start Canvas Suite"
     });
-  }, canvasAutoDelayMs);
+    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    return;
+  }
+
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  canvasRunScheduled = true;
+  setTimeout(() => startCanvasSuiteNow("auto_delay"), canvasAutoDelayMs);
 }
 
 main().catch(e=>{ console.error(e); log(String(e)); });

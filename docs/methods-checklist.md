@@ -34,6 +34,8 @@ Use this checklist before collecting data intended for analysis or publication.
   - `xrYOffset`
   - `preIdleMs`
   - `postIdleMs`
+  - `manualStart` (trace/profiling runs)
+  - `canvasAutoDelayMs` (trace/profiling runs when `manualStart=0`)
   - `collectPerf`
   - `perfDetail`
   - `hud`

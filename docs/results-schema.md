@@ -95,6 +95,8 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `cooldownMs` | number | all | Delay after each trial |
 | `preIdleMs` | number | canvas, abort | Optional pre-idle window used by canvas and carried into abort metadata |
 | `postIdleMs` | number | canvas, abort | Optional post-idle window used by canvas and carried into abort metadata |
+| `canvasAutoDelayMs` | number | all | Canvas auto-start delay parameter (informational when `manualStart=true`) |
+| `manualStart` | boolean | all | When `true`, canvas suite required explicit operator start click |
 | `betweenInstancesMs` | number | all | Delay when switching instance blocks |
 | `layout` | string | all | `"line"`, `"grid"`, `"spiral"`, `"random"`, `"xrwall"` |
 | `seed` | number | all | Seed used for deterministic layout/shuffle |

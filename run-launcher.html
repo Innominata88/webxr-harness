@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebXR Run Launcher</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #0f1218;
+      color: #d8e0ee;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 12px;
+    }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      opacity: 0.92;
+    }
+    .muted {
+      opacity: 0.78;
+      font-size: 12px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 8px;
+      align-items: center;
+      margin: 7px 0;
+    }
+    .inline {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(0, 0, 0, 0.34);
+      color: #e9f0ff;
+      padding: 7px 9px;
+      font-size: 12px;
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height: 1.35;
+    }
+    button {
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      padding: 7px 11px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    th, td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      text-align: left;
+      padding: 6px 7px;
+      vertical-align: top;
+    }
+    th {
+      opacity: 0.86;
+      font-weight: 600;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .pending { background: rgba(180, 180, 180, 0.1); }
+    .started { background: rgba(120, 180, 255, 0.18); border-color: rgba(120, 180, 255, 0.45); }
+    .completed { background: rgba(110, 220, 150, 0.16); border-color: rgba(110, 220, 150, 0.45); }
+    .failed { background: rgba(255, 140, 140, 0.16); border-color: rgba(255, 140, 140, 0.45); }
+    .skipped { background: rgba(255, 200, 120, 0.16); border-color: rgba(255, 200, 120, 0.45); }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #cooldownClock {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin-top: 6px;
+    }
+    #statusLine {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    #progressExportJson {
+      min-height: 140px;
+    }
+    #progressExportCsv {
+      min-height: 120px;
+    }
+    #nextChromeTraceName, #nextSafariTraceName {
+      min-height: 56px;
+    }
+    @media (max-width: 860px) {
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>WebXR Run Launcher</h1>
+      <div class="muted">Load a manifest JSON exported from <span class="mono">builder.html</span>, then execute runs in order without manual URL copy/paste.</div>
+    </section>
+
+    <section class="card">
+      <h2>Load Manifest</h2>
+      <div class="row">
+        <label for="manifestFile">Manifest JSON File</label>
+        <div class="inline">
+          <input id="manifestFile" type="file" accept=".json,application/json" />
+          <button id="loadStagedBtn" type="button">Load Staged Manifest</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="manifestText">Paste JSON</label>
+        <div>
+          <textarea id="manifestText" placeholder='Paste manifest JSON here if file import is inconvenient.'></textarea>
+          <div class="inline" style="margin-top: 8px;">
+            <button id="loadTextBtn" type="button">Load Pasted JSON</button>
+            <button id="clearTextBtn" type="button">Clear Text</button>
+          </div>
+        </div>
+      </div>
+      <div id="statusLine">No manifest loaded.</div>
+    </section>
+
+    <section class="card">
+      <h2>Run Control</h2>
+      <div class="row">
+        <label>Manifest Summary</label>
+        <div id="manifestSummary" class="mono muted">--</div>
+      </div>
+      <div class="row">
+        <label for="cooldownMsInput">Between-Runs Cooldown (ms)</label>
+        <div class="inline">
+          <input id="cooldownMsInput" type="number" min="0" step="1000" value="300000" style="max-width: 220px;" />
+          <button id="startCooldownBtn" type="button">Start Cooldown</button>
+          <button id="clearCooldownBtn" type="button">Clear Cooldown</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Cooldown Timer</label>
+        <div>
+          <div id="cooldownClock">00:00</div>
+          <div class="muted">Cooldown automatically starts after marking a run complete/failed/skipped.</div>
+        </div>
+      </div>
+      <div class="row">
+        <label>Run Focus</label>
+        <div id="nextRunSummary" class="mono muted">--</div>
+      </div>
+      <div class="row">
+        <label>Run URL</label>
+        <div>
+          <textarea id="nextRunUrl" readonly></textarea>
+          <div class="inline" style="margin-top: 8px;">
+            <button id="copyNextUrlBtn" type="button">Copy Next URL</button>
+            <button id="startNextBtn" type="button">Start Next Run (Same Tab)</button>
+            <button id="forceStartNextBtn" type="button">Force Start (Ignore Cooldown)</button>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <label>Trace Names</label>
+        <div>
+          <div class="muted">Use template copy for manual naming, or stamped copy to inject current timestamp (started run, else next pending, else last run).</div>
+          <div class="muted">Recommended workflow: copy stamped trace names before clicking Start Next Run. At run start, stamped names are frozen and remain copyable after completion.</div>
+          <div class="inline" style="margin-top: 6px;">
+            <button id="copyChromeTraceTemplateBtn" type="button">Copy Chrome Template</button>
+            <button id="copyChromeTraceStampedBtn" type="button">Copy Chrome Stamped</button>
+          </div>
+          <textarea id="nextChromeTraceName" readonly></textarea>
+          <div class="inline" style="margin-top: 6px;">
+            <button id="copySafariTraceTemplateBtn" type="button">Copy Safari Template</button>
+            <button id="copySafariTraceStampedBtn" type="button">Copy Safari Stamped</button>
+          </div>
+          <textarea id="nextSafariTraceName" readonly></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <label>Run State</label>
+        <div class="inline">
+          <button id="markCompleteBtn" type="button">Mark Started Run Complete</button>
+          <button id="markFailedBtn" type="button">Mark Started Run Failed</button>
+          <button id="skipNextBtn" type="button">Skip Next Run</button>
+          <button id="resetProgressBtn" type="button">Reset Progress</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Progress</h2>
+      <div id="progressSummary" class="mono muted">--</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>API</th>
+            <th>Suite</th>
+            <th>Order</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="progressTbody"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Progress Export</h2>
+      <div class="muted">Export launcher state for auditability (order, skips/fails, cooldown events). Not a performance metric source.</div>
+      <div class="inline" style="margin-top: 8px;">
+        <button id="refreshExportBtn" type="button">Refresh Export</button>
+        <button id="copyProgressJsonBtn" type="button">Copy Progress JSON</button>
+        <button id="downloadProgressJsonBtn" type="button">Download Progress JSON</button>
+        <button id="copyProgressCsvBtn" type="button">Copy Progress CSV</button>
+        <button id="downloadProgressCsvBtn" type="button">Download Progress CSV</button>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <label for="progressExportJson">Progress JSON</label>
+        <textarea id="progressExportJson" readonly></textarea>
+      </div>
+      <div class="row">
+        <label for="progressExportCsv">Events CSV</label>
+        <textarea id="progressExportCsv" readonly></textarea>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const STAGED_MANIFEST_KEY = "webxr_harness_launcher_staged_manifest";
+    const PROGRESS_PREFIX = "webxr_harness_launcher_progress_";
+    const MAX_PROGRESS_ROWS = 40;
+
+    const manifestFileEl = document.getElementById("manifestFile");
+    const manifestTextEl = document.getElementById("manifestText");
+    const statusLineEl = document.getElementById("statusLine");
+    const manifestSummaryEl = document.getElementById("manifestSummary");
+    const cooldownMsInputEl = document.getElementById("cooldownMsInput");
+    const cooldownClockEl = document.getElementById("cooldownClock");
+    const nextRunSummaryEl = document.getElementById("nextRunSummary");
+    const nextRunUrlEl = document.getElementById("nextRunUrl");
+    const nextChromeTraceNameEl = document.getElementById("nextChromeTraceName");
+    const nextSafariTraceNameEl = document.getElementById("nextSafariTraceName");
+    const progressSummaryEl = document.getElementById("progressSummary");
+    const progressTbodyEl = document.getElementById("progressTbody");
+    const progressExportJsonEl = document.getElementById("progressExportJson");
+    const progressExportCsvEl = document.getElementById("progressExportCsv");
+
+    let manifest = null;
+    let manifestRows = [];
+    let manifestKey = "";
+    let progress = null;
+    let cooldownTimer = null;
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    function fnv1a32(text) {
+      let h = 0x811c9dc5 >>> 0;
+      for (let i = 0; i < text.length; i++) {
+        h ^= text.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      return h >>> 0;
+    }
+
+    function computeManifestKey(obj) {
+      const basis = {
+        schema: obj.schema || null,
+        source: obj.source || null,
+        rows: (Array.isArray(obj.rows) ? obj.rows : []).map((r) => ({
+          run_number: r.run_number,
+          api: r.api,
+          run_id: r.run_id,
+          suite_id: r.suite_id,
+          url: r.url
+        }))
+      };
+      const hash = fnv1a32(JSON.stringify(basis)).toString(16).padStart(8, "0");
+      return `m_${hash}`;
+    }
+
+    function parseNonNegativeInt(raw, fallback) {
+      const n = Number.parseInt(String(raw ?? "").trim(), 10);
+      if (!Number.isFinite(n) || n < 0) return fallback;
+      return n;
+    }
+
+    function parseManifest(obj) {
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+        throw new Error("Manifest root must be an object.");
+      }
+      if (!Array.isArray(obj.rows) || !obj.rows.length) {
+        throw new Error("Manifest rows are missing or empty.");
+      }
+
+      const rows = obj.rows.map((r, idx) => {
+        const runNumber = parseNonNegativeInt(r.run_number, idx + 1);
+        if (!r.url || typeof r.url !== "string") {
+          throw new Error(`Row ${idx + 1} missing url.`);
+        }
+        return {
+          run_number: runNumber,
+          api: String(r.api || ""),
+          suite_id: String(r.suite_id || ""),
+          run_id: String(r.run_id || ""),
+          order_index: String(r.order_index || ""),
+          url: r.url,
+          raw: r
+        };
+      }).sort((a, b) => a.run_number - b.run_number);
+
+      const sourceCooldown = obj.source && obj.source.cooldownBetweenRunsMs != null
+        ? parseNonNegativeInt(obj.source.cooldownBetweenRunsMs, 300000)
+        : null;
+      const rowCooldown = rows[0] && rows[0].raw && rows[0].raw.cooldown_after_ms != null
+        ? parseNonNegativeInt(rows[0].raw.cooldown_after_ms, 300000)
+        : null;
+      const defaultCooldown = sourceCooldown != null ? sourceCooldown : (rowCooldown != null ? rowCooldown : 300000);
+
+      return { obj, rows, defaultCooldown };
+    }
+
+    function progressStorageKey() {
+      return `${PROGRESS_PREFIX}${manifestKey}`;
+    }
+
+    function loadProgress() {
+      const key = progressStorageKey();
+      let existing = null;
+      try {
+        existing = localStorage.getItem(key);
+      } catch (_) {
+        existing = null;
+      }
+      if (!existing) return buildInitialProgress();
+
+      try {
+        const parsed = JSON.parse(existing);
+        if (!parsed || typeof parsed !== "object") return buildInitialProgress();
+        const out = buildInitialProgress();
+        if (parsed.statuses && typeof parsed.statuses === "object") {
+          for (const row of manifestRows) {
+            const k = String(row.run_number);
+            const status = parsed.statuses[k];
+            if (status === "completed" || status === "failed" || status === "skipped" || status === "pending") {
+              out.statuses[k] = status;
+            }
+          }
+        }
+        if (parsed.startedRunNumber != null) {
+          const started = Number.parseInt(String(parsed.startedRunNumber), 10);
+          if (Number.isFinite(started) && out.statuses[String(started)] === "pending") {
+            out.startedRunNumber = started;
+          }
+        }
+        out.startedAtIso = parsed.startedAtIso || null;
+        out.cooldownEndMs = parseNonNegativeInt(parsed.cooldownEndMs, 0);
+        out.cooldownMs = parseNonNegativeInt(parsed.cooldownMs, out.cooldownMs);
+        out.traceNameSnapshotByRun = {};
+        if (parsed.lastRunNumber != null) {
+          const last = Number.parseInt(String(parsed.lastRunNumber), 10);
+          if (Number.isFinite(last) && manifestRowByRunNumber(last)) {
+            out.lastRunNumber = last;
+          }
+        }
+        if (parsed.traceNameSnapshotByRun && typeof parsed.traceNameSnapshotByRun === "object") {
+          for (const row of manifestRows) {
+            const k = String(row.run_number);
+            const snap = parsed.traceNameSnapshotByRun[k];
+            if (!snap || typeof snap !== "object") continue;
+            out.traceNameSnapshotByRun[k] = {
+              token: typeof snap.token === "string" ? snap.token : "",
+              createdAtIso: typeof snap.createdAtIso === "string" ? snap.createdAtIso : "",
+              chromeTemplate: typeof snap.chromeTemplate === "string" ? snap.chromeTemplate : "",
+              safariTemplate: typeof snap.safariTemplate === "string" ? snap.safariTemplate : "",
+              chromeStamped: typeof snap.chromeStamped === "string" ? snap.chromeStamped : "",
+              safariStamped: typeof snap.safariStamped === "string" ? snap.safariStamped : ""
+            };
+          }
+        }
+        if (Array.isArray(parsed.events)) {
+          out.events = parsed.events.slice(-80);
+        }
+        return out;
+      } catch (_) {
+        return buildInitialProgress();
+      }
+    }
+
+    function buildInitialProgress() {
+      const statuses = {};
+      for (const row of manifestRows) statuses[String(row.run_number)] = "pending";
+      const cooldownMs = parseNonNegativeInt(cooldownMsInputEl.value, 300000);
+      return {
+        version: 1,
+        statuses,
+        startedRunNumber: null,
+        startedAtIso: null,
+        lastRunNumber: null,
+        traceNameSnapshotByRun: {},
+        cooldownEndMs: 0,
+        cooldownMs,
+        events: []
+      };
+    }
+
+    function saveProgress() {
+      if (!manifestKey || !progress) return;
+      try {
+        localStorage.setItem(progressStorageKey(), JSON.stringify(progress));
+      } catch (_) {
+        // ignore storage errors; launcher still works without persistence
+      }
+    }
+
+    function statusForRow(row) {
+      const k = String(row.run_number);
+      if (progress.startedRunNumber === row.run_number) return "started";
+      return progress.statuses[k] || "pending";
+    }
+
+    function nextPendingRow() {
+      for (const row of manifestRows) {
+        if (statusForRow(row) === "pending") return row;
+      }
+      return null;
+    }
+
+    function traceRowForControls() {
+      if (!progress) return null;
+      if (progress.startedRunNumber != null) {
+        const started = manifestRowByRunNumber(progress.startedRunNumber);
+        if (started) return started;
+      }
+      const next = nextPendingRow();
+      if (next) return next;
+      if (progress.lastRunNumber != null) {
+        const last = manifestRowByRunNumber(progress.lastRunNumber);
+        if (last) return last;
+      }
+      return null;
+    }
+
+    function activeCooldownMs() {
+      const remain = progress.cooldownEndMs - Date.now();
+      return Math.max(0, remain);
+    }
+
+    function isCooldownActive() {
+      return activeCooldownMs() > 0;
+    }
+
+    function fmtMs(ms) {
+      const total = Math.ceil(ms / 1000);
+      const mins = Math.floor(total / 60);
+      const secs = total % 60;
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function timestampTokenNowUtc() {
+      const d = new Date();
+      const y = d.getUTCFullYear();
+      const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const da = String(d.getUTCDate()).padStart(2, "0");
+      const h = String(d.getUTCHours()).padStart(2, "0");
+      const mi = String(d.getUTCMinutes()).padStart(2, "0");
+      const s = String(d.getUTCSeconds()).padStart(2, "0");
+      return `${y}${mo}${da}-${h}${mi}${s}`;
+    }
+
+    function applyTimestampToken(name, token) {
+      const raw = String(name || "").trim();
+      if (!raw) return "";
+      if (raw.includes("YYYYMMDD-HHMMSS")) return raw.replaceAll("YYYYMMDD-HHMMSS", token);
+      if (raw.includes("{ts}")) return raw.replaceAll("{ts}", token);
+      return raw;
+    }
+
+    function traceTemplatesForRow(row) {
+      if (!row || !row.raw) return { chrome: "", safari: "" };
+      return {
+        chrome: String(row.raw.chrome_trace_name || "").trim(),
+        safari: String(row.raw.safari_timeline_name || "").trim()
+      };
+    }
+
+    function traceSnapshotForRun(runNumber) {
+      if (!progress || !progress.traceNameSnapshotByRun) return null;
+      const snap = progress.traceNameSnapshotByRun[String(runNumber)];
+      return snap && typeof snap === "object" ? snap : null;
+    }
+
+    function nextRunTraceTemplates() {
+      const row = traceRowForControls();
+      return traceTemplatesForRow(row);
+    }
+
+    function stampedTraceNameForFocus(kind) {
+      const row = traceRowForControls();
+      if (!row) return "";
+      const snap = traceSnapshotForRun(row.run_number);
+      if (snap) {
+        if (kind === "chrome") return String(snap.chromeStamped || "").trim();
+        if (kind === "safari") return String(snap.safariStamped || "").trim();
+        return "";
+      }
+      const token = timestampTokenNowUtc();
+      const templates = traceTemplatesForRow(row);
+      if (kind === "chrome") return applyTimestampToken(templates.chrome, token);
+      if (kind === "safari") return applyTimestampToken(templates.safari, token);
+      return "";
+    }
+
+    async function copyTextToClipboard(text, okLabel) {
+      if (!text) {
+        statusLineEl.textContent = "Nothing to copy.";
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        statusLineEl.textContent = okLabel;
+      } catch (_) {
+        statusLineEl.textContent = "Clipboard copy failed.";
+      }
+    }
+
+    function pushEvent(type, extra = {}) {
+      progress.events.push({
+        t_iso: nowIso(),
+        type,
+        ...extra
+      });
+      if (progress.events.length > 80) progress.events.shift();
+    }
+
+    function csvCell(value) {
+      if (value == null) return "";
+      const s = String(value);
+      if (!/[",\n\r]/.test(s)) return s;
+      return `"${s.replaceAll("\"", "\"\"")}"`;
+    }
+
+    function rowsToCsv(rows, columns) {
+      const lines = [];
+      lines.push(columns.join(","));
+      for (const row of rows) {
+        lines.push(columns.map((c) => csvCell(row[c])).join(","));
+      }
+      return lines.join("\n");
+    }
+
+    function downloadTextFile(fileName, text, mimeType) {
+      const blob = new Blob([text], { type: mimeType || "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function manifestRowByRunNumber(runNumber) {
+      return manifestRows.find((r) => r.run_number === runNumber) || null;
+    }
+
+    function buildProgressExport() {
+      if (!manifest || !progress) {
+        return { json: "", csv: "" };
+      }
+      const statuses = manifestRows.map((row) => ({
+        run_number: row.run_number,
+        api: row.api,
+        suite_id: row.suite_id,
+        run_id: row.run_id,
+        order_index: row.order_index,
+        status: statusForRow(row),
+        url: row.url
+      }));
+      const jsonObj = {
+        schema: "webxr-harness-launcher-progress/v1",
+        exportedAt: nowIso(),
+        manifestKey,
+        manifestMeta: {
+          schema: manifest.schema || null,
+          generatedAt: manifest.generatedAt || null,
+          rowCount: manifestRows.length
+        },
+        progressState: {
+          startedRunNumber: progress.startedRunNumber,
+          startedAtIso: progress.startedAtIso,
+          lastRunNumber: progress.lastRunNumber,
+          traceNameSnapshotByRun: progress.traceNameSnapshotByRun || {},
+          cooldownMs: progress.cooldownMs,
+          cooldownEndMs: progress.cooldownEndMs
+        },
+        statuses,
+        events: Array.isArray(progress.events) ? progress.events : []
+      };
+      const json = JSON.stringify(jsonObj, null, 2);
+
+      const eventRows = (Array.isArray(progress.events) ? progress.events : []).map((e, idx) => {
+        const runNumber = e && e.run_number != null ? Number.parseInt(String(e.run_number), 10) : null;
+        const row = Number.isFinite(runNumber) ? manifestRowByRunNumber(runNumber) : null;
+        return {
+          idx: idx + 1,
+          t_iso: e?.t_iso || "",
+          type: e?.type || "",
+          run_number: Number.isFinite(runNumber) ? runNumber : "",
+          api: row ? row.api : "",
+          suite_id: row ? row.suite_id : "",
+          run_id: row ? row.run_id : "",
+          status: e?.status || "",
+          cooldown_ms: e?.cooldown_ms != null ? e.cooldown_ms : ""
+        };
+      });
+      const csvColumns = [
+        "idx",
+        "t_iso",
+        "type",
+        "run_number",
+        "api",
+        "suite_id",
+        "run_id",
+        "status",
+        "cooldown_ms"
+      ];
+      const csv = rowsToCsv(eventRows, csvColumns);
+      return { json, csv };
+    }
+
+    function refreshProgressExport() {
+      const out = buildProgressExport();
+      progressExportJsonEl.value = out.json;
+      progressExportCsvEl.value = out.csv;
+    }
+
+    function render() {
+      if (!manifest) {
+        manifestSummaryEl.textContent = "--";
+        nextRunSummaryEl.textContent = "--";
+        nextRunUrlEl.value = "";
+        nextChromeTraceNameEl.value = "";
+        nextSafariTraceNameEl.value = "";
+        progressSummaryEl.textContent = "--";
+        progressTbodyEl.innerHTML = "";
+        cooldownClockEl.textContent = "00:00";
+        progressExportJsonEl.value = "";
+        progressExportCsvEl.value = "";
+        setButtonState(false, false);
+        return;
+      }
+
+      const total = manifestRows.length;
+      let completed = 0;
+      let failed = 0;
+      let skipped = 0;
+      for (const row of manifestRows) {
+        const status = statusForRow(row);
+        if (status === "completed") completed++;
+        if (status === "failed") failed++;
+        if (status === "skipped") skipped++;
+      }
+      const remaining = total - completed - failed - skipped;
+      const next = nextPendingRow();
+      const focus = traceRowForControls();
+
+      manifestSummaryEl.textContent =
+        `key=${manifestKey}  rows=${total}  generated=${manifest.generatedAt || "?"}  schema=${manifest.schema || "?"}`;
+      progressSummaryEl.textContent =
+        `completed=${completed}  failed=${failed}  skipped=${skipped}  remaining=${remaining}  started=${progress.startedRunNumber ?? "-"}`;
+
+      if (progress.startedRunNumber != null && focus) {
+        nextRunSummaryEl.textContent =
+          `started run=${focus.run_number} api=${focus.api} suite=${focus.suite_id || "-"} order=${focus.order_index || "-"}`;
+        nextRunUrlEl.value = focus.url;
+      } else if (next) {
+        nextRunSummaryEl.textContent =
+          `run=${next.run_number} api=${next.api} suite=${next.suite_id || "-"} order=${next.order_index || "-"}`;
+        nextRunUrlEl.value = next.url;
+      } else if (focus) {
+        nextRunSummaryEl.textContent =
+          `last run=${focus.run_number} api=${focus.api} suite=${focus.suite_id || "-"} order=${focus.order_index || "-"} (no pending runs left)`;
+        nextRunUrlEl.value = focus.url;
+      } else {
+        nextRunSummaryEl.textContent = "No pending runs left.";
+        nextRunUrlEl.value = "";
+      }
+      const traceTemplates = nextRunTraceTemplates();
+      nextChromeTraceNameEl.value = traceTemplates.chrome;
+      nextSafariTraceNameEl.value = traceTemplates.safari;
+
+      cooldownClockEl.textContent = fmtMs(activeCooldownMs());
+      renderTable();
+      refreshProgressExport();
+      setButtonState(Boolean(next), Boolean(focus));
+    }
+
+    function renderTable() {
+      progressTbodyEl.innerHTML = "";
+      const rows = manifestRows.slice(0, MAX_PROGRESS_ROWS);
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        const status = statusForRow(row);
+        tr.innerHTML = [
+          `<td>${row.run_number}</td>`,
+          `<td>${escapeHtml(row.api || "-")}</td>`,
+          `<td class="mono">${escapeHtml(row.suite_id || "-")}</td>`,
+          `<td>${escapeHtml(row.order_index || "-")}</td>`,
+          `<td><span class="status-pill ${status}">${status}</span></td>`
+        ].join("");
+        progressTbodyEl.appendChild(tr);
+      }
+      if (manifestRows.length > MAX_PROGRESS_ROWS) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="5" class="muted">Showing first ${MAX_PROGRESS_ROWS} rows of ${manifestRows.length}.</td>`;
+        progressTbodyEl.appendChild(tr);
+      }
+    }
+
+    function setButtonState(hasNext, hasTraceFocus) {
+      const hasManifest = Boolean(manifest);
+      const hasStarted = hasManifest && progress && progress.startedRunNumber != null;
+      const hasChromeTemplate = Boolean(nextChromeTraceNameEl.value.trim());
+      const hasSafariTemplate = Boolean(nextSafariTraceNameEl.value.trim());
+      document.getElementById("startNextBtn").disabled = !hasManifest || !hasNext || isCooldownActive();
+      document.getElementById("forceStartNextBtn").disabled = !hasManifest || !hasNext;
+      document.getElementById("copyNextUrlBtn").disabled = !hasManifest || !hasNext;
+      document.getElementById("copyChromeTraceTemplateBtn").disabled = !hasManifest || !hasTraceFocus || !hasChromeTemplate;
+      document.getElementById("copyChromeTraceStampedBtn").disabled = !hasManifest || !hasTraceFocus || !hasChromeTemplate;
+      document.getElementById("copySafariTraceTemplateBtn").disabled = !hasManifest || !hasTraceFocus || !hasSafariTemplate;
+      document.getElementById("copySafariTraceStampedBtn").disabled = !hasManifest || !hasTraceFocus || !hasSafariTemplate;
+      document.getElementById("markCompleteBtn").disabled = !hasStarted;
+      document.getElementById("markFailedBtn").disabled = !hasStarted;
+      document.getElementById("skipNextBtn").disabled = !hasManifest || !hasNext;
+      document.getElementById("resetProgressBtn").disabled = !hasManifest;
+      document.getElementById("startCooldownBtn").disabled = !hasManifest;
+      document.getElementById("clearCooldownBtn").disabled = !hasManifest;
+      document.getElementById("refreshExportBtn").disabled = !hasManifest;
+      document.getElementById("copyProgressJsonBtn").disabled = !hasManifest;
+      document.getElementById("downloadProgressJsonBtn").disabled = !hasManifest;
+      document.getElementById("copyProgressCsvBtn").disabled = !hasManifest;
+      document.getElementById("downloadProgressCsvBtn").disabled = !hasManifest;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function applyManifest(obj, sourceLabel = "manifest") {
+      const parsed = parseManifest(obj);
+      manifest = parsed.obj;
+      manifestRows = parsed.rows;
+      manifestKey = computeManifestKey(manifest);
+      cooldownMsInputEl.value = String(parsed.defaultCooldown);
+      progress = loadProgress();
+      if (!Number.isFinite(progress.cooldownMs) || progress.cooldownMs < 0) {
+        progress.cooldownMs = parsed.defaultCooldown;
+      }
+      cooldownMsInputEl.value = String(progress.cooldownMs);
+      saveProgress();
+      statusLineEl.textContent = `Loaded ${sourceLabel}: ${manifestRows.length} rows.`;
+      startCooldownTicker();
+      render();
+    }
+
+    function startCooldownTicker() {
+      if (cooldownTimer != null) clearInterval(cooldownTimer);
+      cooldownTimer = setInterval(() => {
+        if (!manifest || !progress) return;
+        if (!isCooldownActive()) {
+          progress.cooldownEndMs = 0;
+          saveProgress();
+        }
+        render();
+      }, 500);
+    }
+
+    async function loadManifestFile(file) {
+      if (!file) return;
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      applyManifest(parsed, file.name);
+    }
+
+    function loadManifestText() {
+      const text = manifestTextEl.value.trim();
+      if (!text) {
+        statusLineEl.textContent = "Paste manifest JSON first.";
+        return;
+      }
+      const parsed = JSON.parse(text);
+      applyManifest(parsed, "pasted JSON");
+    }
+
+    function loadStagedManifest() {
+      let staged = null;
+      try {
+        staged = localStorage.getItem(STAGED_MANIFEST_KEY);
+      } catch (_) {
+        staged = null;
+      }
+      if (!staged) {
+        statusLineEl.textContent = "No staged manifest found in localStorage.";
+        return;
+      }
+      const parsed = JSON.parse(staged);
+      applyManifest(parsed, "staged manifest");
+    }
+
+    function setCooldownNow(ms) {
+      const cooldown = parseNonNegativeInt(ms, 0);
+      progress.cooldownMs = cooldown;
+      progress.cooldownEndMs = cooldown > 0 ? Date.now() + cooldown : 0;
+      pushEvent("cooldown_start", { cooldown_ms: cooldown });
+      saveProgress();
+      render();
+    }
+
+    function clearCooldown() {
+      progress.cooldownEndMs = 0;
+      pushEvent("cooldown_clear");
+      saveProgress();
+      render();
+    }
+
+    function currentCooldownMs() {
+      return parseNonNegativeInt(cooldownMsInputEl.value, 300000);
+    }
+
+    function copyNextUrl() {
+      const row = nextPendingRow();
+      if (!row) return;
+      copyTextToClipboard(row.url, "Next run URL copied.");
+    }
+
+    function startNextRun(force) {
+      if (!manifest || !progress) return;
+      if (!force && isCooldownActive()) {
+        statusLineEl.textContent = "Cooldown is active. Wait or use Force Start.";
+        return;
+      }
+      const row = nextPendingRow();
+      if (!row) {
+        statusLineEl.textContent = "No pending runs.";
+        return;
+      }
+      const templates = traceTemplatesForRow(row);
+      const token = timestampTokenNowUtc();
+      const snapshot = {
+        token,
+        createdAtIso: nowIso(),
+        chromeTemplate: templates.chrome,
+        safariTemplate: templates.safari,
+        chromeStamped: applyTimestampToken(templates.chrome, token),
+        safariStamped: applyTimestampToken(templates.safari, token)
+      };
+      if (!progress.traceNameSnapshotByRun || typeof progress.traceNameSnapshotByRun !== "object") {
+        progress.traceNameSnapshotByRun = {};
+      }
+      progress.traceNameSnapshotByRun[String(row.run_number)] = snapshot;
+      progress.startedRunNumber = row.run_number;
+      progress.startedAtIso = nowIso();
+      progress.lastRunNumber = row.run_number;
+      progress.cooldownMs = currentCooldownMs();
+      pushEvent("run_start", { run_number: row.run_number, api: row.api, run_id: row.run_id });
+      saveProgress();
+      location.href = row.url;
+    }
+
+    function markStartedRun(status) {
+      if (!progress || progress.startedRunNumber == null) {
+        statusLineEl.textContent = "No started run to mark.";
+        return;
+      }
+      const runNumber = progress.startedRunNumber;
+      const key = String(runNumber);
+      progress.statuses[key] = status;
+      progress.lastRunNumber = runNumber;
+      pushEvent("run_mark", { run_number: runNumber, status });
+      progress.startedRunNumber = null;
+      progress.startedAtIso = null;
+      setCooldownNow(currentCooldownMs());
+      saveProgress();
+      statusLineEl.textContent = `Run ${runNumber} marked ${status}.`;
+      render();
+    }
+
+    function skipNextRun() {
+      const row = nextPendingRow();
+      if (!row) {
+        statusLineEl.textContent = "No pending run to skip.";
+        return;
+      }
+      progress.statuses[String(row.run_number)] = "skipped";
+      progress.lastRunNumber = row.run_number;
+      pushEvent("run_skip", { run_number: row.run_number });
+      setCooldownNow(currentCooldownMs());
+      saveProgress();
+      statusLineEl.textContent = `Run ${row.run_number} skipped.`;
+      render();
+    }
+
+    function resetProgress() {
+      if (!manifest) return;
+      const ok = window.confirm("Reset launcher progress for this manifest?");
+      if (!ok) return;
+      progress = buildInitialProgress();
+      saveProgress();
+      statusLineEl.textContent = "Progress reset.";
+      render();
+    }
+
+    function bindEvents() {
+      manifestFileEl.addEventListener("change", async (ev) => {
+        const file = ev.target.files && ev.target.files[0] ? ev.target.files[0] : null;
+        try {
+          await loadManifestFile(file);
+        } catch (e) {
+          statusLineEl.textContent = `Manifest file load failed: ${e?.message || e}`;
+        } finally {
+          ev.target.value = "";
+        }
+      });
+
+      document.getElementById("loadTextBtn").addEventListener("click", () => {
+        try {
+          loadManifestText();
+        } catch (e) {
+          statusLineEl.textContent = `Manifest parse failed: ${e?.message || e}`;
+        }
+      });
+      document.getElementById("clearTextBtn").addEventListener("click", () => {
+        manifestTextEl.value = "";
+      });
+      document.getElementById("loadStagedBtn").addEventListener("click", () => {
+        try {
+          loadStagedManifest();
+        } catch (e) {
+          statusLineEl.textContent = `Staged manifest parse failed: ${e?.message || e}`;
+        }
+      });
+
+      cooldownMsInputEl.addEventListener("input", () => {
+        if (!progress) return;
+        progress.cooldownMs = currentCooldownMs();
+        saveProgress();
+      });
+      document.getElementById("startCooldownBtn").addEventListener("click", () => {
+        if (!progress) return;
+        setCooldownNow(currentCooldownMs());
+      });
+      document.getElementById("clearCooldownBtn").addEventListener("click", () => {
+        if (!progress) return;
+        clearCooldown();
+      });
+
+      document.getElementById("copyNextUrlBtn").addEventListener("click", copyNextUrl);
+      document.getElementById("copyChromeTraceTemplateBtn").addEventListener("click", () => {
+        copyTextToClipboard(nextChromeTraceNameEl.value.trim(), "Chrome trace template copied.");
+      });
+      document.getElementById("copyChromeTraceStampedBtn").addEventListener("click", () => {
+        const row = traceRowForControls();
+        const snap = row ? traceSnapshotForRun(row.run_number) : null;
+        const stamped = stampedTraceNameForFocus("chrome");
+        const label = snap
+          ? "Chrome trace name copied (frozen at run start)."
+          : "Chrome trace name copied with current timestamp.";
+        copyTextToClipboard(stamped, label);
+      });
+      document.getElementById("copySafariTraceTemplateBtn").addEventListener("click", () => {
+        copyTextToClipboard(nextSafariTraceNameEl.value.trim(), "Safari trace template copied.");
+      });
+      document.getElementById("copySafariTraceStampedBtn").addEventListener("click", () => {
+        const row = traceRowForControls();
+        const snap = row ? traceSnapshotForRun(row.run_number) : null;
+        const stamped = stampedTraceNameForFocus("safari");
+        const label = snap
+          ? "Safari trace name copied (frozen at run start)."
+          : "Safari trace name copied with current timestamp.";
+        copyTextToClipboard(stamped, label);
+      });
+      document.getElementById("startNextBtn").addEventListener("click", () => startNextRun(false));
+      document.getElementById("forceStartNextBtn").addEventListener("click", () => startNextRun(true));
+      document.getElementById("markCompleteBtn").addEventListener("click", () => markStartedRun("completed"));
+      document.getElementById("markFailedBtn").addEventListener("click", () => markStartedRun("failed"));
+      document.getElementById("skipNextBtn").addEventListener("click", skipNextRun);
+      document.getElementById("resetProgressBtn").addEventListener("click", resetProgress);
+      document.getElementById("refreshExportBtn").addEventListener("click", refreshProgressExport);
+      document.getElementById("copyProgressJsonBtn").addEventListener("click", () => {
+        const text = progressExportJsonEl.value;
+        if (!text) return;
+        navigator.clipboard.writeText(text)
+          .then(() => { statusLineEl.textContent = "Progress JSON copied."; })
+          .catch(() => { statusLineEl.textContent = "Clipboard copy failed."; });
+      });
+      document.getElementById("downloadProgressJsonBtn").addEventListener("click", () => {
+        if (!manifest || !progressExportJsonEl.value) return;
+        const fileName = `run-launcher-progress-${manifestKey}-${Date.now()}.json`;
+        downloadTextFile(fileName, progressExportJsonEl.value, "application/json");
+        statusLineEl.textContent = `Downloaded ${fileName}`;
+      });
+      document.getElementById("copyProgressCsvBtn").addEventListener("click", () => {
+        const text = progressExportCsvEl.value;
+        if (!text) return;
+        navigator.clipboard.writeText(text)
+          .then(() => { statusLineEl.textContent = "Progress CSV copied."; })
+          .catch(() => { statusLineEl.textContent = "Clipboard copy failed."; });
+      });
+      document.getElementById("downloadProgressCsvBtn").addEventListener("click", () => {
+        if (!manifest || !progressExportCsvEl.value) return;
+        const fileName = `run-launcher-events-${manifestKey}-${Date.now()}.csv`;
+        downloadTextFile(fileName, progressExportCsvEl.value, "text/csv");
+        statusLineEl.textContent = `Downloaded ${fileName}`;
+      });
+    }
+
+    function tryAutoLoadFromHash() {
+      if (!location.hash.includes("staged=1")) return false;
+      try {
+        loadStagedManifest();
+        return true;
+      } catch (e) {
+        statusLineEl.textContent = `Failed to auto-load staged manifest: ${e?.message || e}`;
+        return false;
+      }
+    }
+
+    function init() {
+      bindEvents();
+      render();
+      tryAutoLoadFromHash();
+    }
+
+    init();
+  </script>
+</body>
+</html>
