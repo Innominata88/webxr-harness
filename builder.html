@@ -368,11 +368,22 @@
             <option value="sanity_canvas">Sanity Canvas Pair</option>
             <option value="sanity_xr">Sanity XR Pair</option>
             <option value="cliff_xr">Cliff Sweep XR</option>
+            <option value="regular_primary_10x10">Primary Regular (10x10)</option>
+            <option value="cliff_primary_10x10">Primary Cliff (10x10 draft)</option>
           </select>
           <button id="applyPresetBtn" type="button">Apply Preset</button>
           <button id="newRunIdBtn" type="button">New Run ID</button>
           <button id="newSuiteIdBtn" type="button">New Suite ID</button>
+          <button id="nextDeviceIdsBtn" type="button">Next Device IDs</button>
         </div>
+      </div>
+      <div class="hint">
+        <span class="mono">suiteId</span>: change once per paired run campaign/device session.
+        <span class="mono">runId</span>: keep as campaign base ID; manifest rows auto-suffix per run.
+      </div>
+      <div class="hint">
+        Recommended start: apply <span class="mono">Primary Regular (10x10)</span>, then adjust only
+        <span class="mono">instances</span> and provenance tags before export.
       </div>
 
       <details open id="builderSettings">
@@ -431,14 +442,22 @@
             </details>
           </div>
         </div>
-        <div class="help-box">
-          <strong>Fairness Guidance</strong>
-          <div>Primary comparisons should keep all <span class="mono">Match Across APIs</span> fields identical between WebGL and WebGPU.</div>
-          <div>Use <span class="mono">Lock fairness fields</span> after you finalize setup to prevent accidental drift.</div>
-          <div class="legend-row">
-            <span class="badge match">Match Across APIs</span>
-            <span class="badge avoid">Avoid In Primary</span>
-            <span class="badge provenance">Provenance</span>
+      <div class="help-box">
+        <strong>Fairness Guidance</strong>
+        <div>Primary comparisons should keep all <span class="mono">Match Across APIs</span> fields identical between WebGL and WebGPU.</div>
+        <div>Use <span class="mono">Lock fairness fields</span> after you finalize setup to prevent accidental drift.</div>
+        <div>
+          ID policy: keep one <span class="mono">suiteId</span> for the whole paired manifest on a device, and rotate to a new
+          <span class="mono">suiteId</span> when you start a new campaign/device/day block.
+        </div>
+        <div>
+          Keep <span class="mono">runId</span> stable as the base campaign label; exported manifest auto-generates unique per-run
+          <span class="mono">runId</span> values.
+        </div>
+        <div class="legend-row">
+          <span class="badge match">Match Across APIs</span>
+          <span class="badge avoid">Avoid In Primary</span>
+          <span class="badge provenance">Provenance</span>
             <span class="badge optional">Optional</span>
           </div>
           <div class="hint">Recommended for primary runs: <span class="mono">hud=0</span>, <span class="mono">traceOverlay=0</span>, <span class="mono">xrProbeReadback=0</span>, <span class="mono">perfDetail=0</span>, <span class="mono">storeFrames=0</span>.</div>
@@ -512,6 +531,8 @@
             <option value="none">none</option>
             <option value="abba">abba</option>
             <option value="baab">baab</option>
+            <option value="abba_baab">abba_baab</option>
+            <option value="baab_abba">baab_abba</option>
             <option value="randomized">randomized</option>
           </select>
         </label>
@@ -521,11 +542,18 @@
         <label>manifestOrderSeed
           <input id="manifestOrderSeed" type="text" placeholder="defaults to orderSeed, then seed" />
         </label>
+        <label>targetRunsPerApi
+          <div class="inline">
+            <input id="targetRunsPerApi" type="number" min="1" step="1" value="10" />
+            <button id="applyTargetRunsBtn" type="button">Set manifestRuns</button>
+          </div>
+        </label>
         <label>betweenRunsMs
           <input id="manifestCooldownMs" type="number" min="0" step="1000" value="300000" />
         </label>
       </div>
       <div class="hint">Exports a run sheet with one URL per run in deterministic order, including naming convention columns and blank note columns for power/observer logs.</div>
+      <div id="manifestPlanSummary" class="help-box"></div>
       <textarea id="manifestCsvOut" readonly></textarea>
       <div class="inline">
         <button id="copyManifestCsvBtn" type="button">Copy Manifest CSV</button>
@@ -597,7 +625,7 @@
       { key: "assetRevision", label: "assetRevision", group: "provenance", type: "text", def: "" },
 
       { key: "enforceOrder", label: "enforceOrder", group: "order", type: "bool", def: "0" },
-      { key: "orderMode", label: "orderMode", group: "order", type: "select", def: "none", options: ["none", "abba", "baab", "randomized"] },
+      { key: "orderMode", label: "orderMode", group: "order", type: "select", def: "none", options: ["none", "abba", "baab", "abba_baab", "baab_abba", "randomized"] },
       { key: "orderIndex", label: "orderIndex", group: "order", type: "number", def: "0", step: "1" },
       { key: "assignedApi", label: "assignedApi", group: "order", type: "text", def: "", hint: "Usually auto-filled for randomized mode." },
       { key: "orderSeed", label: "orderSeed", group: "order", type: "text", def: "" },
@@ -663,6 +691,64 @@
         debugColor: "flat",
         __manifestCooldownMs: "600000",
       },
+      regular_primary_10x10: {
+        runMode: "xr",
+        suiteId: "PRIMARY_REGULAR",
+        instances: "64,128,192,256,320",
+        trials: "10",
+        durationMs: "6000",
+        layout: "xrwall",
+        xrFrontMinZ: "-2.5",
+        xrYOffset: "1.4",
+        xrScaleFactor: "0.25",
+        preIdleMs: "500",
+        postIdleMs: "500",
+        shuffle: "1",
+        seed: "12345",
+        xrStartOnFirstPose: "1",
+        xrAnchorToFirstPose: "1",
+        manualDownload: "1",
+        hud: "0",
+        debugColor: "flat",
+        collectPerf: "1",
+        perfDetail: "0",
+        traceMarkers: "1",
+        traceOverlay: "0",
+        manualStart: "0",
+        __manifestOrderMode: "abba_baab",
+        __manifestRuns: "20",
+        __targetRunsPerApi: "10",
+        __manifestCooldownMs: "300000",
+      },
+      cliff_primary_10x10: {
+        runMode: "xr",
+        suiteId: "PRIMARY_CLIFF",
+        instances: "340,345,350",
+        trials: "10",
+        durationMs: "6000",
+        layout: "xrwall",
+        xrFrontMinZ: "-2.5",
+        xrYOffset: "1.4",
+        xrScaleFactor: "0.25",
+        preIdleMs: "0",
+        postIdleMs: "0",
+        shuffle: "0",
+        seed: "12345",
+        xrStartOnFirstPose: "1",
+        xrAnchorToFirstPose: "1",
+        manualDownload: "1",
+        hud: "0",
+        debugColor: "flat",
+        collectPerf: "1",
+        perfDetail: "0",
+        traceMarkers: "1",
+        traceOverlay: "0",
+        manualStart: "0",
+        __manifestOrderMode: "abba_baab",
+        __manifestRuns: "20",
+        __targetRunsPerApi: "10",
+        __manifestCooldownMs: "600000",
+      },
     };
 
     const statusLine = document.getElementById("statusLine");
@@ -678,7 +764,10 @@
     const manifestOrderModeEl = document.getElementById("manifestOrderMode");
     const manifestRunsEl = document.getElementById("manifestRuns");
     const manifestOrderSeedEl = document.getElementById("manifestOrderSeed");
+    const targetRunsPerApiEl = document.getElementById("targetRunsPerApi");
+    const applyTargetRunsBtn = document.getElementById("applyTargetRunsBtn");
     const manifestCooldownMsEl = document.getElementById("manifestCooldownMs");
+    const manifestPlanSummaryEl = document.getElementById("manifestPlanSummary");
     const manifestCsvOutEl = document.getElementById("manifestCsvOut");
     const manifestJsonOutEl = document.getElementById("manifestJsonOut");
     const jumpToSectionEl = document.getElementById("jumpToSection");
@@ -697,6 +786,7 @@
     const applyPresetBtn = document.getElementById("applyPresetBtn");
     const newRunIdBtn = document.getElementById("newRunIdBtn");
     const newSuiteIdBtn = document.getElementById("newSuiteIdBtn");
+    const nextDeviceIdsBtn = document.getElementById("nextDeviceIdsBtn");
 
     const fieldEls = new Map();
     const defByKey = new Map(FIELD_DEFS.map((d) => [d.key, d]));
@@ -806,6 +896,8 @@
       outxr: "Optional XR JSONL output filename."
     });
     const FIELD_REC = Object.freeze({
+      suiteId: "Change once per campaign/device session. Keep fixed across all paired runs in that manifest.",
+      runId: "Use as campaign base ID. Manifest rows auto-generate unique runId suffixes per run.",
       shuffle: "Regular runs: keep ON with fixed/logged seed. Cliff runs: keep OFF for monotonic stepping.",
       debugColor: "Primary: keep FLAT. Use abspos/instance only for diagnostics or screenshots.",
       hud: "Primary: keep OFF (or fixed ON for all paired runs).",
@@ -895,6 +987,13 @@
       return `SUITE_${stamp}`;
     }
 
+    function newSuiteIdForDevice(deviceTagRaw) {
+      const base = newSuiteId();
+      const deviceTag = slugSegment(deviceTagRaw || "", "");
+      if (!deviceTag) return base;
+      return `${base}_${deviceTag}`;
+    }
+
     function mkControl(def) {
       let input;
       if (def.type === "select") {
@@ -952,6 +1051,7 @@
       presetSelect.disabled = locked;
       applyPresetBtn.disabled = locked;
       newSuiteIdBtn.disabled = locked;
+      if (nextDeviceIdsBtn) nextDeviceIdsBtn.disabled = locked;
       newRunIdBtn.disabled = false;
     }
 
@@ -1339,12 +1439,12 @@
     function resolveManifestOrderMode(values) {
       const raw = String(manifestOrderModeEl.value || "from-config").toLowerCase();
       if (raw !== "from-config") {
-        if (raw === "none" || raw === "abba" || raw === "baab" || raw === "randomized") return raw;
+        if (raw === "none" || raw === "abba" || raw === "baab" || raw === "abba_baab" || raw === "baab_abba" || raw === "randomized") return raw;
         return "none";
       }
       if (values.enforceOrder !== "1") return "none";
       const fromConfig = String(values.orderMode || "none").toLowerCase();
-      if (fromConfig === "none" || fromConfig === "abba" || fromConfig === "baab" || fromConfig === "randomized") return fromConfig;
+      if (fromConfig === "none" || fromConfig === "abba" || fromConfig === "baab" || fromConfig === "abba_baab" || fromConfig === "baab_abba" || fromConfig === "randomized") return fromConfig;
       return "none";
     }
 
@@ -1353,6 +1453,8 @@
         none: 2,
         abba: 4,
         baab: 4,
+        abba_baab: 20,
+        baab_abba: 20,
         randomized: 8
       };
       const n = Number.parseInt(String(raw ?? "").trim(), 10);
@@ -1364,6 +1466,22 @@
       const n = Number.parseInt(String(raw ?? "").trim(), 10);
       if (!Number.isFinite(n) || n < 0) return 300000;
       return Math.min(3600000, n);
+    }
+
+    function parseTargetRunsPerApi(raw) {
+      const n = Number.parseInt(String(raw ?? "").trim(), 10);
+      if (!Number.isFinite(n) || n < 1) return 10;
+      return Math.min(500, n);
+    }
+
+    function suggestedManifestRuns(orderMode, targetRunsPerApi) {
+      const target = parseTargetRunsPerApi(targetRunsPerApi);
+      // Every manifest row executes one API run; balanced target is always 2 * target.
+      // ABBA/BAAB-family modes can run partial terminal blocks; warnings will report it.
+      if (orderMode === "none" || orderMode === "abba" || orderMode === "baab" || orderMode === "abba_baab" || orderMode === "baab_abba" || orderMode === "randomized") {
+        return target * 2;
+      }
+      return target * 2;
     }
 
     function repeatPattern(pattern, count) {
@@ -1387,6 +1505,14 @@
     function buildManifestApiSequence(orderMode, runCount, seedU32) {
       if (orderMode === "abba") return repeatPattern(["webgl2", "webgpu", "webgpu", "webgl2"], runCount);
       if (orderMode === "baab") return repeatPattern(["webgpu", "webgl2", "webgl2", "webgpu"], runCount);
+      if (orderMode === "abba_baab") {
+        const block = ["webgl2", "webgpu", "webgpu", "webgl2", "webgpu", "webgl2", "webgl2", "webgpu"];
+        return repeatPattern(block, runCount);
+      }
+      if (orderMode === "baab_abba") {
+        const block = ["webgpu", "webgl2", "webgl2", "webgpu", "webgl2", "webgpu", "webgpu", "webgl2"];
+        return repeatPattern(block, runCount);
+      }
       if (orderMode === "randomized") {
         const half = Math.floor(runCount / 2);
         const seq = [];
@@ -1399,6 +1525,16 @@
         return shuffledCopy(seq, seedU32);
       }
       return repeatPattern(["webgl2", "webgpu"], runCount);
+    }
+
+    function parseInstancesList(raw) {
+      const out = [];
+      const parts = String(raw || "").split(",");
+      for (const p of parts) {
+        const n = Number.parseInt(p.trim(), 10);
+        if (Number.isFinite(n) && n > 0) out.push(n);
+      }
+      return out;
     }
 
     function makeManifestRunId(baseRunId, runNumber, api) {
@@ -1445,6 +1581,10 @@
       const orderSeedU32 = toSeedU32(orderSeedRaw, 12345);
       const sequence = buildManifestApiSequence(orderMode, runCount, orderSeedU32);
       const ts = "YYYYMMDD-HHMMSS";
+      const instancesList = parseInstancesList(values.instances);
+      const instanceCount = instancesList.length;
+      const trialCount = Number.parseInt(String(values.trials || "0"), 10);
+      const safeTrialCount = Number.isFinite(trialCount) && trialCount > 0 ? trialCount : 0;
 
       const rows = [];
       for (let i = 0; i < sequence.length; i++) {
@@ -1532,6 +1672,10 @@
       ];
 
       const csv = rowsToCsv(rows, csvColumns);
+      const webglRuns = rows.filter((r) => r.api === "webgl2").length;
+      const webgpuRuns = rows.filter((r) => r.api === "webgpu").length;
+      const perApiDatapointsPerInstance = safeTrialCount * Math.min(webglRuns, webgpuRuns);
+      const perApiDatapointsTotal = perApiDatapointsPerInstance * instanceCount;
       const json = JSON.stringify({
         schema: "webxr-harness-manifest/v1",
         generatedAt: new Date().toISOString(),
@@ -1544,7 +1688,22 @@
         rows
       }, null, 2);
 
-      return { csv, json };
+      return {
+        csv,
+        json,
+        meta: {
+          orderMode,
+          runCount,
+          orderSeedRaw,
+          cooldownBetweenRunsMs,
+          webglRuns,
+          webgpuRuns,
+          instanceCount,
+          safeTrialCount,
+          perApiDatapointsPerInstance,
+          perApiDatapointsTotal
+        }
+      };
     }
 
     function buildConfigExport(values) {
@@ -1571,6 +1730,7 @@
             orderMode: manifestOrderModeEl.value,
             runs: manifestRunsEl.value,
             orderSeed: manifestOrderSeedEl.value.trim(),
+            targetRunsPerApi: targetRunsPerApiEl ? String(parseTargetRunsPerApi(targetRunsPerApiEl.value)) : "10",
             cooldownMs: String(parseManifestCooldownMs(manifestCooldownMsEl.value))
           }
         },
@@ -1613,6 +1773,7 @@
         if (typeof builder.manifest.orderMode === "string") manifestOrderModeEl.value = builder.manifest.orderMode;
         if (builder.manifest.runs != null) manifestRunsEl.value = String(builder.manifest.runs);
         if (builder.manifest.orderSeed != null) manifestOrderSeedEl.value = String(builder.manifest.orderSeed);
+        if (builder.manifest.targetRunsPerApi != null && targetRunsPerApiEl) targetRunsPerApiEl.value = String(builder.manifest.targetRunsPerApi);
         if (builder.manifest.cooldownMs != null) manifestCooldownMsEl.value = String(builder.manifest.cooldownMs);
       }
 
@@ -1690,9 +1851,10 @@
       }
       const manifestMode = resolveManifestOrderMode(values);
       const manifestRuns = parseManifestRunCount(manifestRunsEl.value, manifestMode);
+      const targetRunsPerApi = parseTargetRunsPerApi(targetRunsPerApiEl ? targetRunsPerApiEl.value : "10");
       const manifestCooldownMs = parseManifestCooldownMs(manifestCooldownMsEl.value);
       if (values.enforceOrder === "1" && String(values.orderMode || "").toLowerCase() === "none") {
-        warnings.push("enforceOrder=1 with orderMode=none is invalid. Use abba, baab, randomized, or set enforceOrder=0.");
+        warnings.push("enforceOrder=1 with orderMode=none is invalid. Use abba/baab/abba_baab/baab_abba/randomized, or set enforceOrder=0.");
       }
       if (manifestMode === "randomized" && manifestRuns % 2 === 1) {
         notes.push("Manifest randomized mode with odd run count produces a 1-run API imbalance.");
@@ -1702,8 +1864,16 @@
           notes.push("Manifest ABBA/BAAB run count is not a multiple of 4; final block is partial.");
         }
       }
+      if (manifestMode === "abba_baab" || manifestMode === "baab_abba") {
+        if (manifestRuns % 8 !== 0) {
+          notes.push("Manifest ABBA+BAAB cycle run count is not a multiple of 8; cycle mix will be partially truncated.");
+        }
+      }
       if (manifestCooldownMs === 0) {
         notes.push("betweenRunsMs is 0 in launcher manifest. Use a nonzero value if your protocol requires cooldown between runs.");
+      }
+      if (manifestRuns !== targetRunsPerApi * 2) {
+        notes.push(`targetRunsPerApi=${targetRunsPerApi} implies manifestRuns=${targetRunsPerApi * 2} for balanced counts.`);
       }
 
       if (!warnings.length && !notes.length) {
@@ -1723,6 +1893,33 @@
         parts.push("</div>");
       }
       warningBox.innerHTML = parts.join("");
+    }
+
+    function renderManifestPlanSummary(values, manifestMeta) {
+      if (!manifestPlanSummaryEl) return;
+      const meta = manifestMeta || {};
+      const runs = Number(meta.runCount || 0);
+      const wgl = Number(meta.webglRuns || 0);
+      const wgpu = Number(meta.webgpuRuns || 0);
+      const instN = Number(meta.instanceCount || 0);
+      const trials = Number(meta.safeTrialCount || 0);
+      const perInst = Number(meta.perApiDatapointsPerInstance || 0);
+      const perApiTotal = Number(meta.perApiDatapointsTotal || 0);
+      const mode = String(meta.orderMode || resolveManifestOrderMode(values));
+      const targetRuns = parseTargetRunsPerApi(targetRunsPerApiEl ? targetRunsPerApiEl.value : "10");
+      const balanced = wgl === wgpu && wgl > 0;
+      const planLines = [
+        `<strong>Collection Plan Summary</strong>`,
+        `orderMode=<span class="mono">${escapeHtml(mode)}</span>, total runs=<span class="mono">${runs}</span>, webgl runs=<span class="mono">${wgl}</span>, webgpu runs=<span class="mono">${wgpu}</span>.`,
+        `targetRunsPerApi=<span class="mono">${targetRuns}</span> (balanced target total runs=<span class="mono">${targetRuns * 2}</span>).`,
+        `instances per run=<span class="mono">${instN}</span>, trials per instance per run=<span class="mono">${trials}</span>.`,
+        `effective paired datapoints per instance per API=<span class="mono">${perInst}</span>, per API total across instances=<span class="mono">${perApiTotal}</span>.`,
+        balanced
+          ? `API run counts are balanced for pairing.`
+          : `API run counts are not balanced; adjust manifestRuns/orderMode before formal collection.`,
+        `For your 10x10 plan: set <span class="mono">trials=10</span> and produce <span class="mono">20 total runs</span> (10 per API).`
+      ];
+      manifestPlanSummaryEl.innerHTML = planLines.map((line) => `<div>${line}</div>`).join("");
     }
 
     function escapeHtml(s) {
@@ -1747,6 +1944,7 @@
       traceNamesOutEl.value = traceNames;
       manifestCsvOutEl.value = manifest.csv;
       manifestJsonOutEl.value = manifest.json;
+      renderManifestPlanSummary(values, manifest.meta);
       drawLayoutPreview(values);
       setWarnings(values);
       statusLine.textContent = `Updated ${new Date().toLocaleTimeString()}`;
@@ -1792,6 +1990,15 @@
           setFieldValue(def, p[def.key]);
         }
       }
+      if (Object.prototype.hasOwnProperty.call(p, "__manifestOrderMode")) {
+        manifestOrderModeEl.value = String(p.__manifestOrderMode);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__manifestRuns")) {
+        manifestRunsEl.value = String(p.__manifestRuns);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__targetRunsPerApi") && targetRunsPerApiEl) {
+        targetRunsPerApiEl.value = String(p.__targetRunsPerApi);
+      }
       if (Object.prototype.hasOwnProperty.call(p, "__manifestCooldownMs")) {
         manifestCooldownMsEl.value = String(p.__manifestCooldownMs);
       }
@@ -1818,6 +2025,7 @@
       if (qs.has("manifestOrderMode")) manifestOrderModeEl.value = qs.get("manifestOrderMode");
       if (qs.has("manifestRuns")) manifestRunsEl.value = qs.get("manifestRuns");
       if (qs.has("manifestOrderSeed")) manifestOrderSeedEl.value = qs.get("manifestOrderSeed");
+      if (qs.has("targetRunsPerApi") && targetRunsPerApiEl) targetRunsPerApiEl.value = qs.get("targetRunsPerApi");
       if (qs.has("betweenRunsMs")) manifestCooldownMsEl.value = qs.get("betweenRunsMs");
     }
 
@@ -1835,6 +2043,10 @@
       manifestRunsEl.addEventListener("input", updateOutputs);
       manifestRunsEl.addEventListener("change", updateOutputs);
       manifestOrderSeedEl.addEventListener("input", updateOutputs);
+      if (targetRunsPerApiEl) {
+        targetRunsPerApiEl.addEventListener("input", updateOutputs);
+        targetRunsPerApiEl.addEventListener("change", updateOutputs);
+      }
       manifestCooldownMsEl.addEventListener("input", updateOutputs);
       manifestCooldownMsEl.addEventListener("change", updateOutputs);
       jumpToSectionEl.addEventListener("change", () => {
@@ -1850,6 +2062,14 @@
       applyPresetBtn.addEventListener("click", () => {
         applyPreset(presetSelect.value);
       });
+      if (applyTargetRunsBtn) {
+        applyTargetRunsBtn.addEventListener("click", () => {
+          const values = collectValues();
+          const mode = resolveManifestOrderMode(values);
+          manifestRunsEl.value = String(suggestedManifestRuns(mode, targetRunsPerApiEl ? targetRunsPerApiEl.value : "10"));
+          updateOutputs();
+        });
+      }
       newRunIdBtn.addEventListener("click", () => {
         setFieldValue(defByKey.get("runId"), newUuid());
         updateOutputs();
@@ -1858,6 +2078,13 @@
         setFieldValue(defByKey.get("suiteId"), newSuiteId());
         updateOutputs();
       });
+      if (nextDeviceIdsBtn) {
+        nextDeviceIdsBtn.addEventListener("click", () => {
+          setFieldValue(defByKey.get("suiteId"), newSuiteIdForDevice(traceDeviceTagEl.value));
+          setFieldValue(defByKey.get("runId"), newUuid());
+          updateOutputs();
+        });
+      }
 
       document.getElementById("copyWebglBtn").addEventListener("click", () => copyText(webglOut.value, "WebGL URL"));
       document.getElementById("copyWebgpuBtn").addEventListener("click", () => copyText(webgpuOut.value, "WebGPU URL"));
