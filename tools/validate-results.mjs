@@ -277,6 +277,9 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_no_pose_frames", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_no_pose_ms_total", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "run_id", checkString, `${loc}.${key}`, errors);
+  checkIfPresent(value, "trace_markers_enabled", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "trace_overlay_enabled", checkBoolean, `${loc}.${key}`, errors);
   if (hasOwn(value, "debugColor")) {
     checkString(value, "debugColor", `${loc}.${key}`, errors);
     if (typeof value.debugColor === "string" && !VALID_DEBUG_COLOR_MODES.has(value.debugColor)) {
@@ -622,6 +625,7 @@ function validateBase(record, loc, errors) {
   checkEnum(record, "api", VALID_APIS, loc, errors);
   checkEnum(record, "mode", VALID_MODES, loc, errors);
   checkString(record, "modelUrl", loc, errors);
+  checkIfPresent(record, "runId", checkString, loc, errors);
   checkOneOfTypes(record, "instances", ["number", "null"], loc, errors);
   checkOneOfTypes(record, "trial", ["number", "null"], loc, errors);
   checkNumber(record, "trials", loc, errors);

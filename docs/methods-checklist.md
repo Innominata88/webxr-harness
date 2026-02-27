@@ -41,6 +41,9 @@ Use this checklist before collecting data intended for analysis or publication.
   - `renderProbe`
   - `xrProbeReadback`
   - `manualDownload`
+  - `runId` (trace/session identifier)
+  - `traceMarkers`
+  - `traceOverlay` (if used for operator workflow)
 - [ ] If using both phases in one page run, `runMode=both` is intentional and documented (`mode=` kept only as legacy alias).
 - [ ] XR comparability guard is active (`xr_expected_max_views = 2` in outputs).
 - [ ] XR scale policy is fixed and reported (`xrScaleFactor` requested/applied).

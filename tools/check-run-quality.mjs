@@ -45,6 +45,8 @@ const ENV_FAIRNESS_FIELDS = [
   { name: "hudHz", tol: 1e-9 },
   { name: "renderProbeRequested" },
   { name: "xr_expected_max_views" },
+  { name: "trace_markers_enabled" },
+  { name: "trace_overlay_enabled" },
   { name: "harness_version" },
   { name: "harness_commit" },
   { name: "asset_revision" },

@@ -182,6 +182,12 @@ function parseIntList(value, fallback=[4]) {
 const instancesList = parseIntList(params.get("instances"), [4]);
 const MAX_COMPARABLE_XR_VIEWS = 2;
 const apiLabel = "webgl2";
+const runId = normalizeOptionalString(params.get("runId"))
+  || ((typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : `${apiLabel}_${suiteId}_${Date.now()}`);
+const traceMarkers = (params.get("traceMarkers") || "1") !== "0";
+const traceOverlay = (params.get("traceOverlay") || "0") === "1";
 
 const runMode = (() => {
   // Canonical parameter is ?runMode=. Keep ?mode= as backward-compatible alias.
@@ -318,6 +324,8 @@ const WEBGL_CONTEXT_LOST_RING = 5;
 let webglContextIsLost = false;
 let canvasAbortReason = null;
 let activeCanvasTrialReject = null;
+let xrSuiteTraceClosed = false;
+let xrTraceStartMark = null;
 const globalJsErrors = [];
 const globalJsUnhandledRejections = [];
 const GLOBAL_JS_ERROR_RING = 20;
@@ -329,6 +337,80 @@ const ERROR_RING_CAPACITY = {
 let globalErrorListenersInstalled = false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
+
+function traceField(v) {
+  if (v == null) return "-";
+  return String(v).replace(/[|\s]/g, "_");
+}
+
+function traceName(kind, meta={}) {
+  const mode = meta.mode || runMode;
+  const test = meta.testId || "-";
+  const trial = meta.trial ?? "-";
+  const idx = meta.index ?? "-";
+  const total = meta.total ?? "-";
+  return `TRACE|${traceField(kind)}|run=${traceField(runId)}|suite=${traceField(suiteId)}|api=${apiLabel}|mode=${traceField(mode)}|test=${traceField(test)}|trial=${traceField(trial)}|idx=${traceField(idx)}|n=${traceField(total)}`;
+}
+
+function traceMark(kind, meta={}) {
+  if (!traceMarkers) return null;
+  const name = traceName(kind, meta);
+  try {
+    performance.mark(name);
+    console.timeStamp?.(name);
+  } catch (_) {}
+  return name;
+}
+
+function traceMeasure(kind, startMark, endMark, meta={}) {
+  if (!traceMarkers || !startMark || !endMark) return null;
+  const name = traceName(kind, meta);
+  try {
+    performance.measure(name, startMark, endMark);
+  } catch (_) {}
+  return name;
+}
+
+function closeXRSuiteTrace(kind, meta={}) {
+  if (xrSuiteTraceClosed) return;
+  xrSuiteTraceClosed = true;
+  traceMark(kind, { mode: "xr", ...meta });
+}
+
+const traceOverlayEl = (() => {
+  if (!traceOverlay) return null;
+  const el = document.createElement("div");
+  el.id = "trace-overlay";
+  el.style.cssText = [
+    "position:fixed",
+    "left:12px",
+    "top:12px",
+    "z-index:999999",
+    "max-width:78vw",
+    "padding:8px 10px",
+    "border-radius:10px",
+    "background:rgba(0,0,0,0.65)",
+    "color:#fff",
+    "font:11px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    "pointer-events:none",
+    "white-space:pre"
+  ].join(";");
+  document.body.appendChild(el);
+  return el;
+})();
+
+function updateTraceOverlay(extra="") {
+  if (!traceOverlayEl) return;
+  const lines = [
+    `runId: ${runId}`,
+    `suiteId: ${suiteId}`,
+    `api: ${apiLabel}`
+  ];
+  if (extra) lines.push(extra);
+  traceOverlayEl.textContent = lines.join("\n");
+}
+
+updateTraceOverlay();
 
 function snapshotEnvInfo() {
   if (!envInfo) return null;
@@ -855,6 +937,8 @@ async function initGL() {
     xrScaleFactor,
     xr_scale_factor_requested: xrScaleFactor,
     xr_scale_factor_applied: null,
+    xr_scale_factor_fallback_used: false,
+    xr_projection_layer_fallback: null,
     xr_probe_readback_requested: xrProbeReadback,
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
@@ -884,6 +968,9 @@ async function initGL() {
     harness_commit: harnessCommit,
     asset_revision: assetRevision,
     provenance: provenanceInfo,
+    run_id: runId,
+    trace_markers_enabled: traceMarkers,
+    trace_overlay_enabled: traceOverlay,
     runMode,
     manualDownload,
     isApplePlatform,
@@ -972,6 +1059,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     aborted: true,
     abort_code: abortCode || "canvas_trial_failed",
     abort_reason: abortReason || "Canvas trial failed before completion.",
+    runId,
     suiteId,
     modelUrl,
     instances: item ? item.instances : null,
@@ -1011,17 +1099,28 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
   renderer.setInstances(item.instances, spacing, { layout, seed });
 
   const dts = [];
+  const traceMeta = {
+    mode: "canvas",
+    testId: `instances_${item.instances}`,
+    trial: item.trial,
+    index: planIdx + 1,
+    total: planLen
+  };
+  let traceStartMark = null;
   return new Promise((resolve, reject) => {
     let settled = false;
     function finishResolve(value) {
       if (settled) return;
       settled = true;
+      const traceEndMark = traceMark("TEST_END", traceMeta);
+      traceMeasure("TEST_MEASURE", traceStartMark, traceEndMark, traceMeta);
       activeCanvasTrialReject = null;
       resolve(value);
     }
     function finishReject(err) {
       if (settled) return;
       settled = true;
+      traceMark("TEST_ABORT", { ...traceMeta, reason: err?.abortCode || "canvas_trial_failed" });
       activeCanvasTrialReject = null;
       reject(err instanceof Error ? err : new Error(String(err)));
     }
@@ -1058,6 +1157,7 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       perfDetail,
       condition_index: planIdx + 1,
       condition_count: planLen,
+      runId,
       suiteId,
       startedAt: new Date().toISOString(),
       ...sceneInfo,
@@ -1086,6 +1186,8 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
     }
     
     function beginMeasured() {
+      traceStartMark = traceMark("TEST_START", traceMeta);
+      updateTraceOverlay(`mode=canvas\ntrial ${planIdx + 1}/${planLen}\ninst=${item.instances} t=${item.trial}`);
       stats.markStart();
       let lastT = NaN;
 
@@ -1198,12 +1300,15 @@ async function runCanvasSuite() {
 
   canvasRunScheduled = false;
   canvasRunInProgress = true;
+  let plan = [];
   try {
     const vp = getDefaultViewProj();
     ensureCanvasRenderProbe(vp);
     resultsCanvas = [];
 
-    const plan = buildPlan();
+    plan = buildPlan();
+    traceMark("SUITE_START", { mode: "canvas", testId: "suite", trial: "-", index: 1, total: plan.length });
+    updateTraceOverlay(`mode=canvas\nsuite=${suiteId}\nrunId=${runId}`);
     for (let i=0;i<plan.length;i++) {
       const item = plan[i];
 
@@ -1256,6 +1361,7 @@ async function runCanvasSuite() {
     const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
     downloadText(jsonl, outFile, "Canvas results");
     log(`Done (canvas). ${manualDownload ? "Queued" : "Downloaded"} ${outFile}`);
+    traceMark("SUITE_END", { mode: "canvas", testId: "suite", trial: "-", index: plan.length, total: plan.length });
     clearCanvasBlankOnce();
   } finally {
     canvasRunInProgress = false;
@@ -1409,6 +1515,14 @@ function beginXRMeasuredWindow(startMode = "immediate") {
 
   const startNote = xrStartedOnFirstPose ? ", start=first_pose" : ", start=immediate";
   log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms${startNote})`);
+  xrTraceStartMark = traceMark("TEST_START", {
+    mode: "xr",
+    testId: `instances_${item.instances}`,
+    trial: item.trial,
+    index: xrIndex + 1,
+    total: xrPlan.length
+  });
+  updateTraceOverlay(`mode=xr\ntrial ${xrIndex + 1}/${xrPlan.length}\ninst=${item.instances} t=${item.trial}`);
 }
 
 function currentXRPlanItem() {
@@ -1597,6 +1711,18 @@ function finalizeXRTrial(session) {
     return;
   }
 
+  const cur = currentXRPlanItem();
+  const traceMeta = {
+    mode: "xr",
+    testId: cur ? `instances_${cur.instances}` : "instances_-",
+    trial: cur ? cur.trial : "-",
+    index: cur ? (xrIndex + 1) : "-",
+    total: xrPlan ? xrPlan.length : "-"
+  };
+  const xrTraceEnd = traceMark("TEST_END", traceMeta);
+  traceMeasure("TEST_MEASURE", xrTraceStartMark, xrTraceEnd, traceMeta);
+  xrTraceStartMark = null;
+
   resultsXR.push(out);
   xrIndex++;
   xrActive = false;
@@ -1626,6 +1752,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     abort_reason: abortReason || "XR session ended before suite completion.",
     observed_view_count: Number.isFinite(observedViewCount) ? observedViewCount : 0,
     expected_max_views: MAX_COMPARABLE_XR_VIEWS,
+    runId,
     suiteId,
     modelUrl,
     instances: cur ? cur.instances : null,
@@ -1686,6 +1813,22 @@ function abortXRForPoseTimeout(session, elapsedMs, waitingForFirstPose=false) {
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
   }
   syncXRNoPoseDiagnosticsToEnv();
+  const cur = currentXRPlanItem();
+  traceMark("TEST_ABORT", {
+    mode: "xr",
+    testId: cur ? `instances_${cur.instances}` : "instances_-",
+    trial: cur ? cur.trial : "-",
+    index: cur ? (xrIndex + 1) : "-",
+    total: xrPlan ? xrPlan.length : "-",
+    reason: "xr_pose_unavailable_timeout"
+  });
+  xrTraceStartMark = null;
+  closeXRSuiteTrace("SUITE_ABORT", {
+    testId: "suite",
+    trial: "-",
+    index: xrIndex + 1,
+    total: xrPlan ? xrPlan.length : "-"
+  });
   resultsXR.push(buildXRAbortRecord({
     abortCode: "xr_pose_unavailable_timeout",
     abortReason: reason,
@@ -1705,6 +1848,22 @@ function abortXRForComparability(session, observedViews) {
     envInfo.xr_observed_view_count = observedViews;
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
   }
+  const cur = currentXRPlanItem();
+  traceMark("TEST_ABORT", {
+    mode: "xr",
+    testId: cur ? `instances_${cur.instances}` : "instances_-",
+    trial: cur ? cur.trial : "-",
+    index: cur ? (xrIndex + 1) : "-",
+    total: xrPlan ? xrPlan.length : "-",
+    reason: "xr_view_count_exceeded"
+  });
+  xrTraceStartMark = null;
+  closeXRSuiteTrace("SUITE_ABORT", {
+    testId: "suite",
+    trial: "-",
+    index: xrIndex + 1,
+    total: xrPlan ? xrPlan.length : "-"
+  });
   resultsXR.push(buildXRAbortRecord({
     abortCode: "xr_view_count_exceeded",
     abortReason: xrAbortReason,
@@ -1749,11 +1908,23 @@ function xrHudText() {
 function startNextXRTrial(session) {
   if (!xrSession || session !== xrSession) return;
   if (xrAbortReason) {
+    closeXRSuiteTrace("SUITE_ABORT", {
+      testId: "suite",
+      trial: "-",
+      index: xrIndex + 1,
+      total: xrPlan ? xrPlan.length : "-"
+    });
     xrActive=false;
     Promise.resolve(session.end()).catch(()=>{});
     return;
   }
   if (!xrPlan || xrIndex >= xrPlan.length) {
+    closeXRSuiteTrace("SUITE_END", {
+      testId: "suite",
+      trial: "-",
+      index: xrPlan ? xrPlan.length : 0,
+      total: xrPlan ? xrPlan.length : 0
+    });
     flushXRResults();
     xrActive=false;
     session.end();
@@ -1778,6 +1949,7 @@ function startNextXRTrial(session) {
   xrRenderProbe = createXRRenderProbeState();
   xrFinalizing = false;
   xrMinFramesWaitLogged = false;
+  xrTraceStartMark = null;
 
   xrStats = new RunStats();
   xrStats.meta = {
@@ -1809,6 +1981,7 @@ function startNextXRTrial(session) {
     perfDetail,
     condition_index: xrIndex + 1,
     condition_count: xrPlan.length,
+    runId,
     suiteId,
     startedAt: new Date().toISOString(),
     ...sceneInfo,
@@ -1850,6 +2023,21 @@ function flushUnexpectedXREnd() {
   if (xrResultFlushedForSession) return;
   const incomplete = !xrPlan || xrIndex < xrPlan.length;
   if (incomplete) {
+    closeXRSuiteTrace("SUITE_ABORT", {
+      testId: "suite",
+      trial: "-",
+      index: xrIndex + 1,
+      total: xrPlan ? xrPlan.length : "-"
+    });
+  } else {
+    closeXRSuiteTrace("SUITE_END", {
+      testId: "suite",
+      trial: "-",
+      index: xrPlan ? xrPlan.length : 0,
+      total: xrPlan ? xrPlan.length : 0
+    });
+  }
+  if (incomplete) {
     const reason = xrAbortReason || "XR session ended before suite completion.";
     if (envInfo) {
       envInfo.xr_abort_reason = envInfo.xr_abort_reason || reason;
@@ -1882,6 +2070,8 @@ async function onSessionStarted(session) {
     delete envInfo.xr_abort_reason;
     delete envInfo.xr_observed_view_count;
     delete envInfo.xr_skipped_reason;
+    delete envInfo.xr_scale_factor_fallback_used;
+    delete envInfo.xr_projection_layer_fallback;
     envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
     envInfo.xr_start_on_first_pose_requested = xrStartOnFirstPose;
     envInfo.xr_start_on_first_pose_applied = false;
@@ -1908,18 +2098,56 @@ async function onSessionStarted(session) {
   await gl.makeXRCompatible?.();
   if (!xrSession) return;
 
+  const scaleCandidates = (() => {
+    const base = [xrScaleFactor, 0.75, 0.5, 0.35, 0.25];
+    const out = [];
+    for (const v of base) {
+      if (!Number.isFinite(v) || v <= 0) continue;
+      if (v > xrScaleFactor) continue;
+      if (!out.some((x) => Math.abs(x - v) < 1e-6)) out.push(v);
+    }
+    return out.length ? out : [xrScaleFactor];
+  })();
+
+  const layerAttemptErrors = [];
   let baseLayer = null;
   let appliedScale = null;
-  try {
-    baseLayer = new XRWebGLLayer(session, gl, { framebufferScaleFactor: xrScaleFactor });
-    appliedScale = xrScaleFactor;
-  } catch (_) {
-    baseLayer = new XRWebGLLayer(session, gl);
+  let usedScaleFallback = false;
+
+  for (let i = 0; i < scaleCandidates.length; i++) {
+    const s = scaleCandidates[i];
+    try {
+      baseLayer = new XRWebGLLayer(session, gl, { framebufferScaleFactor: s });
+      appliedScale = s;
+      usedScaleFallback = i > 0;
+      break;
+    } catch (e) {
+      layerAttemptErrors.push(`scale=${s}: ${e?.message || e}`);
+    }
+  }
+
+  if (!baseLayer) {
+    try {
+      baseLayer = new XRWebGLLayer(session, gl);
+      appliedScale = null;
+      usedScaleFallback = true;
+      if (envInfo) envInfo.xr_projection_layer_fallback = "default_without_scale";
+    } catch (e) {
+      layerAttemptErrors.push(`no-scale: ${e?.message || e}`);
+      throw new Error(`Failed to create WebGL XR base layer (${layerAttemptErrors.join("; ")})`);
+    }
   }
   session.updateRenderState({ baseLayer });
   if (envInfo) {
     envInfo.xr_scale_factor_requested = xrScaleFactor;
     envInfo.xr_scale_factor_applied = appliedScale;
+    envInfo.xr_scale_factor_fallback_used = usedScaleFallback;
+    if (usedScaleFallback && !envInfo.xr_projection_layer_fallback) {
+      envInfo.xr_projection_layer_fallback = `framebufferScaleFactor=${appliedScale == null ? "default" : appliedScale}`;
+    }
+  }
+  if (usedScaleFallback) {
+    log(`XR base layer fallback applied (${envInfo?.xr_projection_layer_fallback || "unknown"}).`);
   }
   xrRefSpace = await session.requestReferenceSpace("local");
   if (!xrSession) return;
@@ -1927,6 +2155,9 @@ async function onSessionStarted(session) {
   resultsXR = [];
   xrPlan = buildPlan();
   xrIndex = 0;
+  xrSuiteTraceClosed = false;
+  traceMark("SUITE_START", { mode: "xr", testId: "suite", trial: "-", index: 1, total: xrPlan.length });
+  updateTraceOverlay(`mode=xr\nsuite=${suiteId}\nrunId=${runId}`);
 
   await sleep(warmupMs);
   if (!xrSession) return;
@@ -1941,11 +2172,13 @@ function onXRFrame(t, frame) {
 
 if (!xrActive || !xrStats) {
   if (xrBlankClearOnce) {
-    // Keep submitting clear-only frames while idle to keep XR layer/compositor active.
+    // Submit exactly one clear frame at idle boundary, then remain draw-idle.
+    let attemptedIdleClear = false;
     try {
       const pose = frame.getViewerPose(xrRefSpace);
       if (pose) {
         if (!ensureComparableXRViews(session, pose)) return;
+        attemptedIdleClear = true;
         const glLayer = session.renderState.baseLayer;
         gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
         gl.clearColor(0,0,0,1);
@@ -1953,6 +2186,7 @@ if (!xrActive || !xrStats) {
         gl.flush?.();
       }
     } catch (_) {}
+    if (attemptedIdleClear) xrBlankClearOnce = false;
 
     if (xrEnterClickedAt != null && envInfo && envInfo.xr_enter_to_first_frame_ms == null) {
       envInfo.xr_enter_to_first_frame_ms = performance.now() - xrEnterClickedAt;
@@ -2083,11 +2317,11 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. runId=${runId}, mode=${runMode}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => {
     runCanvasSuite().catch((e) => {

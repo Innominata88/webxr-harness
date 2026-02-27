@@ -110,6 +110,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `perfDetail` | boolean | all | Whether detailed longtask entries were retained |
 | `condition_index` | number or null | all | 1-based index in condition plan |
 | `condition_count` | number or null | all | Total conditions in plan |
+| `runId` | string optional | all | Trace/session identifier used for external profiler alignment (`runId` URL param or auto-generated UUID) |
 | `suiteId` | string | all | Suite/run identifier |
 | `startedAt` | string | all | ISO-8601 timestamp at record creation |
 | `asset_timing` | object | all | Loader timings; see `asset_timing` section |
@@ -294,8 +295,8 @@ Can be `null` if no matching resource timing entry is found.
 | `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
-| `xr_scale_factor_fallback_used` | boolean optional | `true` when WebGPU XR layer had to fall back to a lower/default scale factor |
-| `xr_projection_layer_fallback` | string optional | WebGPU XR layer fallback mode used at startup |
+| `xr_scale_factor_fallback_used` | boolean optional | `true` when XR layer creation had to fall back to a lower/default scale factor |
+| `xr_projection_layer_fallback` | string optional | XR layer fallback mode used at startup |
 | `xr_first_frame_seen` | boolean optional | `false` when XR session ended before first frame was rendered |
 | `harness_version` | string optional | Harness build/version identifier (query `harnessVersion`, meta tag fallback, or schema version) |
 | `harness_commit` | string or null optional | Harness commit/cache-buster identifier for reproducibility (query `harnessCommit` or `appRev`, then meta tag fallback) |
@@ -306,6 +307,9 @@ Can be `null` if no matching resource timing entry is found.
 | `error_ring_capacity` | object or null optional | Declared ring-buffer capacities used for error diagnostics (for reproducibility/reporting) |
 | `xrFrontMinZ` | number | Requested XR forward placement anchor used by XR placement transform |
 | `xrYOffset` | number | Requested XR vertical placement offset used by XR placement transform |
+| `run_id` | string optional | Trace/session identifier mirrored in env metadata |
+| `trace_markers_enabled` | boolean optional | Whether trace marker emission is enabled (`traceMarkers`) |
+| `trace_overlay_enabled` | boolean optional | Whether on-page trace overlay is enabled (`traceOverlay`) |
 | `runMode` | string |
 | `gpu_identity` | string |
 | `order_control` | object |
@@ -489,6 +493,9 @@ Declared ring sizes for diagnostic arrays. Keys vary by backend/runtime.
 - `debugColor` is controlled via URL param `debugColor=flat|abspos|instance` (default `flat`).
 - `xrStartOnFirstPose=1` starts XR trial timing on first valid pose (recommended when startup no-pose gaps are large).
 - `xrAnchorToFirstPose=1` anchors XR placement to the first viewer pose (default ON for `layout=xrwall`).
+- `runId=<id>` pins trace identity across JSONL and profiler exports; when omitted, harness auto-generates a UUID.
+- `traceMarkers=1` emits User Timing + `console.timeStamp()` markers like `TRACE|TEST_START|...` / `TRACE|TEST_END|...` / `TRACE|SUITE_START|...`.
+- `traceOverlay=1` shows `runId/suiteId/api` on-page to reduce manual export mix-ups.
 - `webgpuInitTimeoutMs` (default `15000`) can fail fast on devices where `requestAdapter`/`requestDevice` stall.
 - For paper reproducibility, also pin analyses to a git commit hash.
 
