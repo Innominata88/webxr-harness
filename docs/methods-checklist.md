@@ -60,6 +60,8 @@ Use this checklist before collecting data intended for analysis or publication.
 - [ ] Power state policy is fixed (battery/plugged, thermal state, power saver off/on).
 - [ ] Background processes policy is fixed (notifications, updates, other tabs/apps).
 - [ ] Network condition policy is fixed (offline/local asset cache or controlled network).
+- [ ] Cache policy is fixed and logged (`cacheMode`: `warm`, `cold_disable_cache`, or `cold_clear_cache`).
+- [ ] Profiler policy is fixed and logged (`profilerMode`: `baseline_untraced` or `traced_recording`), and profiler settings are recorded when traced.
 - [ ] Security context requirements are met (`https` where needed for XR).
 
 ## 4) Harness Configuration Sanity

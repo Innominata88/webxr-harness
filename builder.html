@@ -370,6 +370,8 @@
             <option value="cliff_xr">Cliff Sweep XR</option>
             <option value="regular_primary_10x10">Primary Regular (10x10)</option>
             <option value="cliff_primary_10x10">Primary Cliff (10x10 draft)</option>
+            <option value="quest2_canvas_pair_10x10">Quest 2 Canvas Pair (10x10)</option>
+            <option value="quest2_webgl_xr_only_10x10">Quest 2 WebGL XR Only (10x10)</option>
           </select>
           <button id="applyPresetBtn" type="button">Apply Preset</button>
           <button id="newRunIdBtn" type="button">New Run ID</button>
@@ -536,6 +538,13 @@
             <option value="randomized">randomized</option>
           </select>
         </label>
+        <label>manifestApiScope
+          <select id="manifestApiScope">
+            <option value="paired">paired</option>
+            <option value="webgl_only">webgl_only</option>
+            <option value="webgpu_only">webgpu_only</option>
+          </select>
+        </label>
         <label>manifestRuns
           <input id="manifestRuns" type="number" min="1" step="1" value="4" />
         </label>
@@ -548,11 +557,27 @@
             <button id="applyTargetRunsBtn" type="button">Set manifestRuns</button>
           </div>
         </label>
+        <label>cacheMode
+          <select id="manifestCacheMode">
+            <option value="warm">warm</option>
+            <option value="cold_disable_cache">cold_disable_cache</option>
+            <option value="cold_clear_cache">cold_clear_cache</option>
+          </select>
+        </label>
+        <label>profilerMode
+          <select id="manifestProfilerMode">
+            <option value="baseline_untraced">baseline_untraced</option>
+            <option value="traced_recording">traced_recording</option>
+          </select>
+        </label>
+        <label>profilerConfig
+          <input id="manifestProfilerConfig" type="text" placeholder="e.g. chrome_perf(screenshots_off,memory_off)" />
+        </label>
         <label>betweenRunsMs
           <input id="manifestCooldownMs" type="number" min="0" step="1000" value="300000" />
         </label>
       </div>
-      <div class="hint">Exports a run sheet with one URL per run in deterministic order, including naming convention columns and blank note columns for power/observer logs.</div>
+      <div class="hint">Exports a run sheet with one URL per run in deterministic order, including naming convention columns, cache/profiler protocol columns, and blank note columns for power/observer logs.</div>
       <div id="manifestPlanSummary" class="help-box"></div>
       <textarea id="manifestCsvOut" readonly></textarea>
       <div class="inline">
@@ -651,6 +676,9 @@
         shuffle: "1",
         hud: "0",
         debugColor: "flat",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
         __manifestCooldownMs: "300000",
       },
       sanity_xr: {
@@ -670,6 +698,9 @@
         xrAnchorToFirstPose: "1",
         hud: "1",
         debugColor: "instance",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
         __manifestCooldownMs: "300000",
       },
       cliff_xr: {
@@ -689,6 +720,9 @@
         xrAnchorToFirstPose: "1",
         hud: "0",
         debugColor: "flat",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
         __manifestCooldownMs: "600000",
       },
       regular_primary_10x10: {
@@ -718,6 +752,9 @@
         __manifestOrderMode: "abba_baab",
         __manifestRuns: "20",
         __targetRunsPerApi: "10",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
         __manifestCooldownMs: "300000",
       },
       cliff_primary_10x10: {
@@ -747,7 +784,73 @@
         __manifestOrderMode: "abba_baab",
         __manifestRuns: "20",
         __targetRunsPerApi: "10",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
         __manifestCooldownMs: "600000",
+      },
+      quest2_canvas_pair_10x10: {
+        runMode: "canvas",
+        suiteId: "QUEST2_CANVAS",
+        instances: "64,128,192,256,320",
+        trials: "10",
+        durationMs: "6000",
+        layout: "line",
+        spacing: "0.35",
+        seed: "12345",
+        shuffle: "1",
+        manualDownload: "1",
+        hud: "0",
+        debugColor: "flat",
+        collectPerf: "1",
+        perfDetail: "0",
+        traceMarkers: "1",
+        traceOverlay: "0",
+        manualStart: "0",
+        __manifestOrderMode: "abba_baab",
+        __manifestRuns: "20",
+        __targetRunsPerApi: "10",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
+        __manifestCooldownMs: "300000",
+        __traceDeviceTag: "quest2",
+        __traceBrowserTag: "oculus-browser"
+      },
+      quest2_webgl_xr_only_10x10: {
+        runMode: "xr",
+        suiteId: "QUEST2_WEBGL_XR",
+        instances: "64,128,192,256,320",
+        trials: "10",
+        durationMs: "6000",
+        layout: "xrwall",
+        xrFrontMinZ: "-2.5",
+        xrYOffset: "1.4",
+        xrScaleFactor: "0.25",
+        preIdleMs: "500",
+        postIdleMs: "500",
+        shuffle: "1",
+        seed: "12345",
+        xrStartOnFirstPose: "1",
+        xrAnchorToFirstPose: "1",
+        manualDownload: "1",
+        hud: "0",
+        debugColor: "flat",
+        collectPerf: "1",
+        perfDetail: "0",
+        traceMarkers: "1",
+        traceOverlay: "0",
+        manualStart: "0",
+        __manifestApiScope: "webgl_only",
+        __manifestOrderMode: "none",
+        __manifestRuns: "10",
+        __targetRunsPerApi: "10",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
+        __manifestCooldownMs: "300000",
+        __traceDeviceTag: "quest2",
+        __traceBrowserTag: "oculus-browser"
       },
     };
 
@@ -762,10 +865,14 @@
     const traceBrowserTagEl = document.getElementById("traceBrowserTag");
     const traceNamesOutEl = document.getElementById("traceNamesOut");
     const manifestOrderModeEl = document.getElementById("manifestOrderMode");
+    const manifestApiScopeEl = document.getElementById("manifestApiScope");
     const manifestRunsEl = document.getElementById("manifestRuns");
     const manifestOrderSeedEl = document.getElementById("manifestOrderSeed");
     const targetRunsPerApiEl = document.getElementById("targetRunsPerApi");
     const applyTargetRunsBtn = document.getElementById("applyTargetRunsBtn");
+    const manifestCacheModeEl = document.getElementById("manifestCacheMode");
+    const manifestProfilerModeEl = document.getElementById("manifestProfilerMode");
+    const manifestProfilerConfigEl = document.getElementById("manifestProfilerConfig");
     const manifestCooldownMsEl = document.getElementById("manifestCooldownMs");
     const manifestPlanSummaryEl = document.getElementById("manifestPlanSummary");
     const manifestCsvOutEl = document.getElementById("manifestCsvOut");
@@ -1474,10 +1581,19 @@
       return Math.min(500, n);
     }
 
-    function suggestedManifestRuns(orderMode, targetRunsPerApi) {
+    function resolveManifestApiScope() {
+      const raw = String(manifestApiScopeEl ? manifestApiScopeEl.value : "paired").toLowerCase();
+      if (raw === "webgl_only" || raw === "webgpu_only" || raw === "paired") return raw;
+      return "paired";
+    }
+
+    function suggestedManifestRuns(orderMode, targetRunsPerApi, apiScope) {
       const target = parseTargetRunsPerApi(targetRunsPerApi);
-      // Every manifest row executes one API run; balanced target is always 2 * target.
-      // ABBA/BAAB-family modes can run partial terminal blocks; warnings will report it.
+      const scope = apiScope || resolveManifestApiScope();
+      if (scope === "webgl_only" || scope === "webgpu_only") {
+        return target;
+      }
+      // Every paired manifest row executes one API run; balanced target is always 2 * target.
       if (orderMode === "none" || orderMode === "abba" || orderMode === "baab" || orderMode === "abba_baab" || orderMode === "baab_abba" || orderMode === "randomized") {
         return target * 2;
       }
@@ -1502,7 +1618,10 @@
       return out;
     }
 
-    function buildManifestApiSequence(orderMode, runCount, seedU32) {
+    function buildManifestApiSequence(orderMode, runCount, seedU32, apiScope) {
+      const scope = apiScope || "paired";
+      if (scope === "webgl_only") return repeatPattern(["webgl2"], runCount);
+      if (scope === "webgpu_only") return repeatPattern(["webgpu"], runCount);
       if (orderMode === "abba") return repeatPattern(["webgl2", "webgpu", "webgpu", "webgl2"], runCount);
       if (orderMode === "baab") return repeatPattern(["webgpu", "webgl2", "webgl2", "webgpu"], runCount);
       if (orderMode === "abba_baab") {
@@ -1574,12 +1693,16 @@
     }
 
     function buildManifestExports(values) {
+      const apiScope = resolveManifestApiScope();
       const orderMode = resolveManifestOrderMode(values);
       const runCount = parseManifestRunCount(manifestRunsEl.value, orderMode);
       const orderSeedRaw = String(manifestOrderSeedEl.value || values.orderSeed || values.seed || "12345").trim();
+      const cacheMode = String(manifestCacheModeEl ? manifestCacheModeEl.value : "warm").trim() || "warm";
+      const profilerMode = String(manifestProfilerModeEl ? manifestProfilerModeEl.value : "baseline_untraced").trim() || "baseline_untraced";
+      const profilerConfig = String(manifestProfilerConfigEl ? manifestProfilerConfigEl.value : "").trim();
       const cooldownBetweenRunsMs = parseManifestCooldownMs(manifestCooldownMsEl.value);
       const orderSeedU32 = toSeedU32(orderSeedRaw, 12345);
-      const sequence = buildManifestApiSequence(orderMode, runCount, orderSeedU32);
+      const sequence = buildManifestApiSequence(orderMode, runCount, orderSeedU32, apiScope);
       const ts = "YYYYMMDD-HHMMSS";
       const instancesList = parseInstancesList(values.instances);
       const instanceCount = instancesList.length;
@@ -1610,11 +1733,15 @@
           suite_id: rowValues.suiteId || "",
           run_id: rowValues.runId,
           order_mode: rowValues.orderMode,
+          api_scope: apiScope,
           order_index: rowValues.orderIndex,
           enforce_order: rowValues.enforceOrder,
           assigned_api: rowValues.assignedApi || "",
           order_seed: rowValues.orderSeed || "",
           session_group: rowValues.sessionGroup || "",
+          cache_mode: cacheMode,
+          profiler_mode: profilerMode,
+          profiler_config: profilerConfig,
           cooldown_after_ms: cooldownBetweenRunsMs,
           run_mode: rowValues.runMode || "",
           instances: rowValues.instances || "",
@@ -1644,11 +1771,15 @@
         "suite_id",
         "run_id",
         "order_mode",
+        "api_scope",
         "order_index",
         "enforce_order",
         "assigned_api",
         "order_seed",
         "session_group",
+        "cache_mode",
+        "profiler_mode",
+        "profiler_config",
         "cooldown_after_ms",
         "run_mode",
         "instances",
@@ -1674,15 +1805,24 @@
       const csv = rowsToCsv(rows, csvColumns);
       const webglRuns = rows.filter((r) => r.api === "webgl2").length;
       const webgpuRuns = rows.filter((r) => r.api === "webgpu").length;
-      const perApiDatapointsPerInstance = safeTrialCount * Math.min(webglRuns, webgpuRuns);
-      const perApiDatapointsTotal = perApiDatapointsPerInstance * instanceCount;
+      const pairedRunsPerApi = Math.min(webglRuns, webgpuRuns);
+      const pairedDatapointsPerInstancePerApi = safeTrialCount * pairedRunsPerApi;
+      const pairedDatapointsTotalPerApi = pairedDatapointsPerInstancePerApi * instanceCount;
+      const webglDatapointsPerInstance = safeTrialCount * webglRuns;
+      const webgpuDatapointsPerInstance = safeTrialCount * webgpuRuns;
+      const webglDatapointsTotal = webglDatapointsPerInstance * instanceCount;
+      const webgpuDatapointsTotal = webgpuDatapointsPerInstance * instanceCount;
       const json = JSON.stringify({
         schema: "webxr-harness-manifest/v1",
         generatedAt: new Date().toISOString(),
         source: {
           manifestOrderMode: orderMode,
+          manifestApiScope: apiScope,
           manifestRuns: runCount,
           manifestOrderSeed: orderSeedRaw,
+          cacheMode,
+          profilerMode,
+          profilerConfig,
           cooldownBetweenRunsMs
         },
         rows
@@ -1693,15 +1833,23 @@
         json,
         meta: {
           orderMode,
+          apiScope,
           runCount,
           orderSeedRaw,
+          cacheMode,
+          profilerMode,
+          profilerConfig,
           cooldownBetweenRunsMs,
           webglRuns,
           webgpuRuns,
           instanceCount,
           safeTrialCount,
-          perApiDatapointsPerInstance,
-          perApiDatapointsTotal
+          pairedDatapointsPerInstancePerApi,
+          pairedDatapointsTotalPerApi,
+          webglDatapointsPerInstance,
+          webgpuDatapointsPerInstance,
+          webglDatapointsTotal,
+          webgpuDatapointsTotal
         }
       };
     }
@@ -1728,9 +1876,13 @@
           },
           manifest: {
             orderMode: manifestOrderModeEl.value,
+            apiScope: manifestApiScopeEl ? manifestApiScopeEl.value : "paired",
             runs: manifestRunsEl.value,
             orderSeed: manifestOrderSeedEl.value.trim(),
             targetRunsPerApi: targetRunsPerApiEl ? String(parseTargetRunsPerApi(targetRunsPerApiEl.value)) : "10",
+            cacheMode: manifestCacheModeEl ? String(manifestCacheModeEl.value || "warm") : "warm",
+            profilerMode: manifestProfilerModeEl ? String(manifestProfilerModeEl.value || "baseline_untraced") : "baseline_untraced",
+            profilerConfig: manifestProfilerConfigEl ? String(manifestProfilerConfigEl.value || "").trim() : "",
             cooldownMs: String(parseManifestCooldownMs(manifestCooldownMsEl.value))
           }
         },
@@ -1771,9 +1923,13 @@
       }
       if (builder && builder.manifest && typeof builder.manifest === "object") {
         if (typeof builder.manifest.orderMode === "string") manifestOrderModeEl.value = builder.manifest.orderMode;
+        if (typeof builder.manifest.apiScope === "string" && manifestApiScopeEl) manifestApiScopeEl.value = builder.manifest.apiScope;
         if (builder.manifest.runs != null) manifestRunsEl.value = String(builder.manifest.runs);
         if (builder.manifest.orderSeed != null) manifestOrderSeedEl.value = String(builder.manifest.orderSeed);
         if (builder.manifest.targetRunsPerApi != null && targetRunsPerApiEl) targetRunsPerApiEl.value = String(builder.manifest.targetRunsPerApi);
+        if (typeof builder.manifest.cacheMode === "string" && manifestCacheModeEl) manifestCacheModeEl.value = builder.manifest.cacheMode;
+        if (typeof builder.manifest.profilerMode === "string" && manifestProfilerModeEl) manifestProfilerModeEl.value = builder.manifest.profilerMode;
+        if (builder.manifest.profilerConfig != null && manifestProfilerConfigEl) manifestProfilerConfigEl.value = String(builder.manifest.profilerConfig);
         if (builder.manifest.cooldownMs != null) manifestCooldownMsEl.value = String(builder.manifest.cooldownMs);
       }
 
@@ -1849,9 +2005,19 @@
       if (!traceDeviceTagEl.value.trim() || !traceBrowserTagEl.value.trim()) {
         notes.push("Set deviceTag/browserTag for cleaner cross-tool trace filename joins.");
       }
+      const deviceTag = String(traceDeviceTagEl.value || "").trim().toLowerCase();
+      const isQuest2 = deviceTag === "quest2" || deviceTag === "quest-2" || deviceTag === "meta-quest-2";
+      const apiScope = resolveManifestApiScope();
+      const includesWebgpu = apiScope === "paired" || apiScope === "webgpu_only";
+      if (isQuest2 && includesWebgpu && values.runMode !== "canvas") {
+        warnings.push("Quest 2 does not currently support WebGPU XR in your test environment. Use runMode=canvas for paired WebGL/WebGPU runs.");
+      }
       const manifestMode = resolveManifestOrderMode(values);
       const manifestRuns = parseManifestRunCount(manifestRunsEl.value, manifestMode);
       const targetRunsPerApi = parseTargetRunsPerApi(targetRunsPerApiEl ? targetRunsPerApiEl.value : "10");
+      const cacheMode = String(manifestCacheModeEl ? manifestCacheModeEl.value : "warm");
+      const profilerMode = String(manifestProfilerModeEl ? manifestProfilerModeEl.value : "baseline_untraced");
+      const profilerConfig = String(manifestProfilerConfigEl ? manifestProfilerConfigEl.value : "").trim();
       const manifestCooldownMs = parseManifestCooldownMs(manifestCooldownMsEl.value);
       if (values.enforceOrder === "1" && String(values.orderMode || "").toLowerCase() === "none") {
         warnings.push("enforceOrder=1 with orderMode=none is invalid. Use abba/baab/abba_baab/baab_abba/randomized, or set enforceOrder=0.");
@@ -1872,8 +2038,29 @@
       if (manifestCooldownMs === 0) {
         notes.push("betweenRunsMs is 0 in launcher manifest. Use a nonzero value if your protocol requires cooldown between runs.");
       }
-      if (manifestRuns !== targetRunsPerApi * 2) {
-        notes.push(`targetRunsPerApi=${targetRunsPerApi} implies manifestRuns=${targetRunsPerApi * 2} for balanced counts.`);
+      const expectedRuns = (apiScope === "paired") ? targetRunsPerApi * 2 : targetRunsPerApi;
+      if (manifestRuns !== expectedRuns) {
+        notes.push(`targetRunsPerApi=${targetRunsPerApi} implies manifestRuns=${expectedRuns} for apiScope=${apiScope}.`);
+      }
+      if ((apiScope === "webgl_only" || apiScope === "webgpu_only") && manifestMode !== "none") {
+        notes.push(`apiScope=${apiScope} ignores paired ordering; use manifestOrderMode=none for clarity.`);
+      }
+      if (profilerMode === "traced_recording") {
+        if (values.manualStart !== "1") {
+          notes.push("profilerMode=traced_recording: consider manualStart=1 so recording starts before suite execution.");
+        }
+        if (values.traceMarkers !== "1") {
+          warnings.push("profilerMode=traced_recording but traceMarkers=0. Enable traceMarkers for reliable alignment.");
+        }
+        if (!profilerConfig) {
+          notes.push("profilerMode=traced_recording with empty profilerConfig. Record tooling settings (e.g., screenshots/memory on/off).");
+        }
+      }
+      if (profilerMode === "baseline_untraced" && values.manualStart === "1") {
+        notes.push("baseline_untraced with manualStart=1 is valid, but adds operator latency variance.");
+      }
+      if (cacheMode !== "warm") {
+        notes.push(`cacheMode=${cacheMode}: ensure this policy is applied consistently across both APIs/devices in the same campaign.`);
       }
 
       if (!warnings.length && !notes.length) {
@@ -1903,21 +2090,37 @@
       const wgpu = Number(meta.webgpuRuns || 0);
       const instN = Number(meta.instanceCount || 0);
       const trials = Number(meta.safeTrialCount || 0);
-      const perInst = Number(meta.perApiDatapointsPerInstance || 0);
-      const perApiTotal = Number(meta.perApiDatapointsTotal || 0);
+      const pairedPerInst = Number(meta.pairedDatapointsPerInstancePerApi || 0);
+      const pairedPerApiTotal = Number(meta.pairedDatapointsTotalPerApi || 0);
+      const wglPerInst = Number(meta.webglDatapointsPerInstance || 0);
+      const wgpuPerInst = Number(meta.webgpuDatapointsPerInstance || 0);
+      const wglTotal = Number(meta.webglDatapointsTotal || 0);
+      const wgpuTotal = Number(meta.webgpuDatapointsTotal || 0);
       const mode = String(meta.orderMode || resolveManifestOrderMode(values));
+      const apiScope = String(meta.apiScope || resolveManifestApiScope());
+      const cacheMode = String(meta.cacheMode || (manifestCacheModeEl ? manifestCacheModeEl.value : "warm"));
+      const profilerMode = String(meta.profilerMode || (manifestProfilerModeEl ? manifestProfilerModeEl.value : "baseline_untraced"));
+      const profilerConfig = String(meta.profilerConfig || (manifestProfilerConfigEl ? manifestProfilerConfigEl.value : "")).trim();
       const targetRuns = parseTargetRunsPerApi(targetRunsPerApiEl ? targetRunsPerApiEl.value : "10");
       const balanced = wgl === wgpu && wgl > 0;
       const planLines = [
         `<strong>Collection Plan Summary</strong>`,
-        `orderMode=<span class="mono">${escapeHtml(mode)}</span>, total runs=<span class="mono">${runs}</span>, webgl runs=<span class="mono">${wgl}</span>, webgpu runs=<span class="mono">${wgpu}</span>.`,
-        `targetRunsPerApi=<span class="mono">${targetRuns}</span> (balanced target total runs=<span class="mono">${targetRuns * 2}</span>).`,
+        `apiScope=<span class="mono">${escapeHtml(apiScope)}</span>, orderMode=<span class="mono">${escapeHtml(mode)}</span>, total runs=<span class="mono">${runs}</span>, webgl runs=<span class="mono">${wgl}</span>, webgpu runs=<span class="mono">${wgpu}</span>.`,
+        `targetRunsPerApi=<span class="mono">${targetRuns}</span> (target total runs=<span class="mono">${apiScope === "paired" ? targetRuns * 2 : targetRuns}</span>).`,
+        `cacheMode=<span class="mono">${escapeHtml(cacheMode)}</span>, profilerMode=<span class="mono">${escapeHtml(profilerMode)}</span>.`,
+        `profilerConfig=<span class="mono">${escapeHtml(profilerConfig || "(none)")}</span>.`,
         `instances per run=<span class="mono">${instN}</span>, trials per instance per run=<span class="mono">${trials}</span>.`,
-        `effective paired datapoints per instance per API=<span class="mono">${perInst}</span>, per API total across instances=<span class="mono">${perApiTotal}</span>.`,
-        balanced
-          ? `API run counts are balanced for pairing.`
-          : `API run counts are not balanced; adjust manifestRuns/orderMode before formal collection.`,
-        `For your 10x10 plan: set <span class="mono">trials=10</span> and produce <span class="mono">20 total runs</span> (10 per API).`
+        apiScope === "paired"
+          ? `effective paired datapoints per instance per API=<span class="mono">${pairedPerInst}</span>, per API total across instances=<span class="mono">${pairedPerApiTotal}</span>.`
+          : `datapoints per instance: webgl=<span class="mono">${wglPerInst}</span>, webgpu=<span class="mono">${wgpuPerInst}</span>; totals across instances: webgl=<span class="mono">${wglTotal}</span>, webgpu=<span class="mono">${wgpuTotal}</span>.`,
+        apiScope === "paired"
+          ? (balanced
+            ? `API run counts are balanced for pairing.`
+            : `API run counts are not balanced; adjust manifestRuns/orderMode before formal collection.`)
+          : `Single-API scope selected; cross-API pairing is intentionally disabled for this manifest.`,
+        apiScope === "paired"
+          ? `For your 10x10 paired plan: set <span class="mono">trials=10</span> and produce <span class="mono">20 total runs</span> (10 per API).`
+          : `For 10x10 single-API plan: set <span class="mono">trials=10</span> and produce <span class="mono">10 total runs</span> for the selected API.`
       ];
       manifestPlanSummaryEl.innerHTML = planLines.map((line) => `<div>${line}</div>`).join("");
     }
@@ -1993,11 +2196,29 @@
       if (Object.prototype.hasOwnProperty.call(p, "__manifestOrderMode")) {
         manifestOrderModeEl.value = String(p.__manifestOrderMode);
       }
+      if (Object.prototype.hasOwnProperty.call(p, "__manifestApiScope") && manifestApiScopeEl) {
+        manifestApiScopeEl.value = String(p.__manifestApiScope);
+      }
       if (Object.prototype.hasOwnProperty.call(p, "__manifestRuns")) {
         manifestRunsEl.value = String(p.__manifestRuns);
       }
       if (Object.prototype.hasOwnProperty.call(p, "__targetRunsPerApi") && targetRunsPerApiEl) {
         targetRunsPerApiEl.value = String(p.__targetRunsPerApi);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__traceDeviceTag") && traceDeviceTagEl) {
+        traceDeviceTagEl.value = String(p.__traceDeviceTag);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__traceBrowserTag") && traceBrowserTagEl) {
+        traceBrowserTagEl.value = String(p.__traceBrowserTag);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__manifestCacheMode") && manifestCacheModeEl) {
+        manifestCacheModeEl.value = String(p.__manifestCacheMode);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__manifestProfilerMode") && manifestProfilerModeEl) {
+        manifestProfilerModeEl.value = String(p.__manifestProfilerMode);
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "__manifestProfilerConfig") && manifestProfilerConfigEl) {
+        manifestProfilerConfigEl.value = String(p.__manifestProfilerConfig);
       }
       if (Object.prototype.hasOwnProperty.call(p, "__manifestCooldownMs")) {
         manifestCooldownMsEl.value = String(p.__manifestCooldownMs);
@@ -2023,9 +2244,13 @@
       if (qs.has("deviceTag")) traceDeviceTagEl.value = qs.get("deviceTag");
       if (qs.has("browserTag")) traceBrowserTagEl.value = qs.get("browserTag");
       if (qs.has("manifestOrderMode")) manifestOrderModeEl.value = qs.get("manifestOrderMode");
+      if (qs.has("manifestApiScope") && manifestApiScopeEl) manifestApiScopeEl.value = qs.get("manifestApiScope");
       if (qs.has("manifestRuns")) manifestRunsEl.value = qs.get("manifestRuns");
       if (qs.has("manifestOrderSeed")) manifestOrderSeedEl.value = qs.get("manifestOrderSeed");
       if (qs.has("targetRunsPerApi") && targetRunsPerApiEl) targetRunsPerApiEl.value = qs.get("targetRunsPerApi");
+      if (qs.has("cacheMode") && manifestCacheModeEl) manifestCacheModeEl.value = qs.get("cacheMode");
+      if (qs.has("profilerMode") && manifestProfilerModeEl) manifestProfilerModeEl.value = qs.get("profilerMode");
+      if (qs.has("profilerConfig") && manifestProfilerConfigEl) manifestProfilerConfigEl.value = qs.get("profilerConfig");
       if (qs.has("betweenRunsMs")) manifestCooldownMsEl.value = qs.get("betweenRunsMs");
     }
 
@@ -2040,6 +2265,7 @@
       traceDeviceTagEl.addEventListener("input", updateOutputs);
       traceBrowserTagEl.addEventListener("input", updateOutputs);
       manifestOrderModeEl.addEventListener("change", updateOutputs);
+      if (manifestApiScopeEl) manifestApiScopeEl.addEventListener("change", updateOutputs);
       manifestRunsEl.addEventListener("input", updateOutputs);
       manifestRunsEl.addEventListener("change", updateOutputs);
       manifestOrderSeedEl.addEventListener("input", updateOutputs);
@@ -2047,6 +2273,9 @@
         targetRunsPerApiEl.addEventListener("input", updateOutputs);
         targetRunsPerApiEl.addEventListener("change", updateOutputs);
       }
+      if (manifestCacheModeEl) manifestCacheModeEl.addEventListener("change", updateOutputs);
+      if (manifestProfilerModeEl) manifestProfilerModeEl.addEventListener("change", updateOutputs);
+      if (manifestProfilerConfigEl) manifestProfilerConfigEl.addEventListener("input", updateOutputs);
       manifestCooldownMsEl.addEventListener("input", updateOutputs);
       manifestCooldownMsEl.addEventListener("change", updateOutputs);
       jumpToSectionEl.addEventListener("change", () => {
@@ -2066,7 +2295,7 @@
         applyTargetRunsBtn.addEventListener("click", () => {
           const values = collectValues();
           const mode = resolveManifestOrderMode(values);
-          manifestRunsEl.value = String(suggestedManifestRuns(mode, targetRunsPerApiEl ? targetRunsPerApiEl.value : "10"));
+          manifestRunsEl.value = String(suggestedManifestRuns(mode, targetRunsPerApiEl ? targetRunsPerApiEl.value : "10", resolveManifestApiScope()));
           updateOutputs();
         });
       }
