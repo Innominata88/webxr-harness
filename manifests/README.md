@@ -25,6 +25,18 @@ Example:
 
 - `https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=manifests/avp_xr_primary_regular_paired_5sets.json`
 
+Generate fully encoded launcher links for all manifests:
+
+```bash
+LAUNCHER_VERSION="r2026-03-01-a" node tools/generate-launcher-links.mjs
+```
+
+Output:
+
+- `manifests/launcher-links.csv`
+  - Includes `manifest_url` and fully encoded `launcher_url` for each manifest.
+  - `LAUNCHER_VERSION` is added as `?v=...` to both launcher and manifest URLs for cache-busting.
+
 ## Required Baseline Manifests
 
 1. `manifests/avp_canvas_primary_regular_paired_5sets.json`
