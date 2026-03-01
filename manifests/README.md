@@ -75,5 +75,7 @@ node tools/generate-baseline-manifests.mjs
 Optional overrides:
 
 ```bash
-HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-01-a" HARNESS_COMMIT="ea58bb8" HARNESS_VERSION="r2026-03-01-a" ASSET_REVISION="spiderman_2002_movie_version_sam_raimi_0" node tools/generate-baseline-manifests.mjs
+HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-01-a" HARNESS_VERSION="r2026-03-01-a" ASSET_REVISION="spiderman_2002_movie_version_sam_raimi_0" node tools/generate-baseline-manifests.mjs
 ```
+
+When `HARNESS_RELEASE_TAG` is set, `tools/generate-baseline-manifests.mjs` auto-reads `releases/<tag>/RELEASE_INFO.json` and stamps `harnessCommit` from `commitShort`.

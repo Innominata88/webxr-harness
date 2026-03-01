@@ -26,7 +26,6 @@ This creates:
 ```bash
 HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" \
 HARNESS_RELEASE_TAG="r2026-03-01-a" \
-HARNESS_COMMIT="$(git rev-parse --short HEAD)" \
 HARNESS_VERSION="r2026-03-01-a" \
 node tools/generate-baseline-manifests.mjs
 ```
@@ -34,6 +33,9 @@ node tools/generate-baseline-manifests.mjs
 This makes row URLs point to:
 
 - `https://innominata88.github.io/webxr-harness/releases/r2026-03-01-a/...`
+
+The generator auto-reads `releases/<tag>/RELEASE_INFO.json` and stamps
+`harnessCommit` from `commitShort` to avoid provenance drift.
 
 ## 3) Run via launcher
 

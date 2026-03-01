@@ -10,7 +10,14 @@ const rootBaseUrl = process.env.HARNESS_BASE_URL || "https://innominata88.github
 const releaseTag = process.env.HARNESS_RELEASE_TAG || "";
 const baseUrl = deriveEffectiveBaseUrl(rootBaseUrl, releaseTag);
 const modelUrl = "./assets/spiderman_2002_movie_version_sam_raimi_0.glb";
-const harnessCommit = process.env.HARNESS_COMMIT || safeGitShortHash() || "";
+const releaseCommitShort = readReleaseCommitShort(releaseTag);
+const explicitHarnessCommit = String(process.env.HARNESS_COMMIT || "").trim();
+if (explicitHarnessCommit && releaseCommitShort && explicitHarnessCommit !== releaseCommitShort) {
+  throw new Error(
+    `HARNESS_COMMIT (${explicitHarnessCommit}) does not match releases/${releaseTag}/RELEASE_INFO.json commitShort (${releaseCommitShort}).`
+  );
+}
+const harnessCommit = explicitHarnessCommit || releaseCommitShort || safeGitShortHash() || "";
 const harnessVersion = process.env.HARNESS_VERSION || releaseTag || "";
 const assetRevision = process.env.ASSET_REVISION || "spiderman_2002_movie_version_sam_raimi_0";
 const generatedAt = new Date().toISOString();
@@ -18,6 +25,20 @@ const generatedAt = new Date().toISOString();
 function safeGitShortHash() {
   try {
     return String(execSync("git rev-parse --short HEAD", { cwd: repoRoot, stdio: ["ignore", "pipe", "ignore"] })).trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+function readReleaseCommitShort(tag) {
+  const trimmed = String(tag || "").trim();
+  if (!trimmed) return "";
+  const infoPath = path.join(repoRoot, "releases", trimmed, "RELEASE_INFO.json");
+  try {
+    const raw = fs.readFileSync(infoPath, "utf8");
+    const obj = JSON.parse(raw);
+    const short = String(obj?.commitShort || "").trim();
+    return short || "";
   } catch (_) {
     return "";
   }
@@ -305,7 +326,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -362,7 +383,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -400,7 +421,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -419,7 +440,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -476,7 +497,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -495,7 +516,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -514,7 +535,7 @@ const defs = [
     runMode: "canvas",
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
-    layout: "line",
+    layout: "xrwall",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
