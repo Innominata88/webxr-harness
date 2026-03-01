@@ -12,9 +12,12 @@ export class RunStats {
   addFrame(dt) { this.frameTimes.push(dt); }
   summarize() {
     const a=[...this.frameTimes].sort((x,y)=>x-y);
-    const n=a.length || 1;
-    const q=(p)=>a[Math.min(n-1, Math.floor(p*(n-1)))];
-    const mean=this.frameTimes.reduce((s,v)=>s+v,0)/n;
+    const n=a.length;
+    const q=(p)=> {
+      if (!n) return null;
+      return a[Math.min(n-1, Math.floor(p*(n-1)))];
+    };
+    const mean=n ? (this.frameTimes.reduce((s,v)=>s+v,0)/n) : 0;
     return {
       frames: this.frameTimes.length,
       duration_ms: this.endWall - this.startWall,

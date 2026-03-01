@@ -505,9 +505,9 @@ function validateSummary(record, loc, errors) {
   checkNumber(summary, "frames", `${loc}.summary`, errors);
   checkNumber(summary, "duration_ms", `${loc}.summary`, errors);
   checkNumber(summary, "mean_ms", `${loc}.summary`, errors);
-  checkNumber(summary, "p50_ms", `${loc}.summary`, errors);
-  checkNumber(summary, "p95_ms", `${loc}.summary`, errors);
-  checkNumber(summary, "p99_ms", `${loc}.summary`, errors);
+  checkNumberOrNull(summary, "p50_ms", `${loc}.summary`, errors);
+  checkNumberOrNull(summary, "p95_ms", `${loc}.summary`, errors);
+  checkNumberOrNull(summary, "p99_ms", `${loc}.summary`, errors);
 }
 
 function validateExtras(record, loc, errors) {

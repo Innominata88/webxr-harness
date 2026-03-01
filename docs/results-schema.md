@@ -150,9 +150,9 @@ From `RunStats.summarize()` in `src/common/metrics.js`.
 | `frames` | number | Number of measured frames |
 | `duration_ms` | number | Measured wall duration in ms |
 | `mean_ms` | number | Mean frame time in ms |
-| `p50_ms` | number | Median frame time in ms |
-| `p95_ms` | number | 95th percentile frame time in ms |
-| `p99_ms` | number | 99th percentile frame time in ms |
+| `p50_ms` | number or null | Median frame time in ms (`null` when no frames were collected) |
+| `p95_ms` | number or null | 95th percentile frame time in ms (`null` when no frames were collected) |
+| `p99_ms` | number or null | 99th percentile frame time in ms (`null` when no frames were collected) |
 
 ## `extras` object (trial records)
 
@@ -387,9 +387,9 @@ Explicit run provenance for reproducibility and paper reporting.
 |---|---|---|
 | `frames` | number | Sample count |
 | `mean_ms` | number | Mean frame delta |
-| `p50_ms` | number | Median frame delta |
-| `p95_ms` | number | 95th percentile frame delta |
-| `p99_ms` | number | 99th percentile frame delta |
+| `p50_ms` | number or null | Median frame delta (`null` when no frames were collected) |
+| `p95_ms` | number or null | 95th percentile frame delta (`null` when no frames were collected) |
+| `p99_ms` | number or null | 99th percentile frame delta (`null` when no frames were collected) |
 
 ## `xr_effective_pixels` object (XR records)
 

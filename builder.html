@@ -394,7 +394,23 @@
           <label for="baseUrl">Base URL</label>
           <div>
             <input id="baseUrl" type="text" />
-            <div class="hint">Used as origin/path base when building page URLs.</div>
+            <div class="hint">Used as origin/path base when building page URLs. For immutable releases, keep this at repo root (for example <span class="mono">.../webxr-harness/</span>).</div>
+          </div>
+        </div>
+        <div class="row">
+          <label for="releaseTag">releaseTag</label>
+          <div>
+            <input id="releaseTag" type="text" placeholder="e.g. r2026-03-01-a" />
+            <div class="hint">When set, generated run URLs use <span class="mono">.../releases/&lt;releaseTag&gt;/</span> as base so experiment runs are immutable.</div>
+          </div>
+        </div>
+        <div class="row">
+          <label for="autoHarnessVersionFromReleaseTag">Release Provenance</label>
+          <div class="inline">
+            <label class="mono" for="autoHarnessVersionFromReleaseTag">
+              <input id="autoHarnessVersionFromReleaseTag" type="checkbox" checked />
+              Auto-fill <span class="mono">harnessVersion</span> from <span class="mono">releaseTag</span>
+            </label>
           </div>
         </div>
         <div class="row">
@@ -576,6 +592,19 @@
         <label>betweenRunsMs
           <input id="manifestCooldownMs" type="number" min="0" step="1000" value="300000" />
         </label>
+      </div>
+      <div class="inline" style="margin-top: 6px;">
+        <label class="mono" for="manifestInjectOutputNames">
+          <input id="manifestInjectOutputNames" type="checkbox" checked />
+          Inject per-row <span class="mono">results_name</span> into URL as <span class="mono">out/outxr</span>
+        </label>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <label for="launcherManifestUrl">launcherManifestUrl</label>
+        <div>
+          <input id="launcherManifestUrl" type="text" placeholder="manifests/avp_xr_primary_regular.json or https://..." />
+          <div class="hint">If set, <span class="mono">Open Run Launcher</span> opens <span class="mono">run-launcher.html?manifest=...</span> so devices can load the manifest directly without file import or localStorage staging.</div>
+        </div>
       </div>
       <div class="hint">Exports a run sheet with one URL per run in deterministic order, including naming convention columns, cache/profiler protocol columns, and blank note columns for power/observer logs.</div>
       <div id="manifestPlanSummary" class="help-box"></div>
@@ -882,6 +911,8 @@
     const manifestProfilerModeEl = document.getElementById("manifestProfilerMode");
     const manifestProfilerConfigEl = document.getElementById("manifestProfilerConfig");
     const manifestCooldownMsEl = document.getElementById("manifestCooldownMs");
+    const manifestInjectOutputNamesEl = document.getElementById("manifestInjectOutputNames");
+    const launcherManifestUrlEl = document.getElementById("launcherManifestUrl");
     const manifestPlanSummaryEl = document.getElementById("manifestPlanSummary");
     const manifestCsvOutEl = document.getElementById("manifestCsvOut");
     const manifestJsonOutEl = document.getElementById("manifestJsonOut");
@@ -889,6 +920,8 @@
     const layoutPreviewEl = document.getElementById("layoutPreview");
     const layoutPreviewCaptionEl = document.getElementById("layoutPreviewCaption");
     const baseUrlEl = document.getElementById("baseUrl");
+    const releaseTagEl = document.getElementById("releaseTag");
+    const autoHarnessVersionFromReleaseTagEl = document.getElementById("autoHarnessVersionFromReleaseTag");
     const webglPathEl = document.getElementById("webglPath");
     const webgpuPathEl = document.getElementById("webgpuPath");
     const compactParamsEl = document.getElementById("compactParams");
@@ -1036,6 +1069,37 @@
 
     function defaultBaseUrl() {
       return new URL("./", location.href).href;
+    }
+
+    function normalizeBaseDirPath(pathname) {
+      let dir = String(pathname || "/");
+      if (!dir.endsWith("/")) {
+        const idx = dir.lastIndexOf("/");
+        dir = idx >= 0 ? dir.slice(0, idx + 1) : "/";
+      }
+      dir = dir.replace(/\/releases\/[^/]+\/?$/, "/");
+      if (!dir.endsWith("/")) dir += "/";
+      return dir;
+    }
+
+    function effectiveBaseUrl() {
+      const rawBase = baseUrlEl.value.trim() || defaultBaseUrl();
+      let base;
+      try {
+        base = new URL(rawBase, defaultBaseUrl());
+      } catch (_) {
+        base = new URL(defaultBaseUrl());
+      }
+
+      const releaseTag = releaseTagEl ? String(releaseTagEl.value || "").trim() : "";
+      if (!releaseTag) return base.toString();
+
+      const dir = normalizeBaseDirPath(base.pathname);
+      const tag = encodeURIComponent(releaseTag);
+      base.pathname = `${dir}releases/${tag}/`.replace(/\/+/g, "/");
+      base.search = "";
+      base.hash = "";
+      return base.toString();
     }
 
     function buildJumpTargets() {
@@ -1277,28 +1341,29 @@
       return String(v) === "1" || String(v).toLowerCase() === "true";
     }
 
-    function includeField(def, value, api, compact, includeOutputFiles) {
+    function includeField(def, value, api, compact, includeOutputFiles, forceOutputFields = false) {
       if (def.applies && def.applies !== api) return false;
-      if (def.outputField && !includeOutputFiles) return false;
+      if (def.outputField && !includeOutputFiles && !forceOutputFields) return false;
       if (value === "") return false;
       if (def.always) return true;
       if (!compact) return true;
       return String(value) !== String(def.def ?? "");
     }
 
-    function makeUrlForApi(api, values) {
-      const base = baseUrlEl.value.trim() || defaultBaseUrl();
+    function makeUrlForApi(api, values, opts = {}) {
+      const base = effectiveBaseUrl();
       const path = (api === "webgpu" ? webgpuPathEl.value : webglPathEl.value).trim() || (api === "webgpu" ? "webgpu.html" : "webgl.html");
       let target;
       try {
         target = new URL(path, base);
       } catch (_) {
-        target = new URL(api === "webgpu" ? "webgpu.html" : "webgl.html", defaultBaseUrl());
+        target = new URL(api === "webgpu" ? "webgpu.html" : "webgl.html", effectiveBaseUrl());
       }
 
       const compact = compactParamsEl.checked;
       const includeOutputs = includeOutputFilesEl.checked;
       const autoAssignedApi = autoAssignedApiEl.checked;
+      const forceOutputFields = Boolean(opts.forceOutputFields);
 
       for (const def of FIELD_DEFS) {
         let value = values[def.key];
@@ -1307,7 +1372,7 @@
           value = api === "webgpu" ? "webgpu" : "webgl2";
         }
 
-        if (!includeField(def, value, api, compact, includeOutputs)) continue;
+        if (!includeField(def, value, api, compact, includeOutputs, forceOutputFields)) continue;
         target.searchParams.set(def.key, value);
       }
 
@@ -1709,6 +1774,35 @@
       return lines.join("\n");
     }
 
+    function appendSuffixBeforeJsonl(name, suffix) {
+      const value = String(name || "");
+      if (value.toLowerCase().endsWith(".jsonl")) {
+        return `${value.slice(0, -6)}${suffix}.jsonl`;
+      }
+      return `${value}${suffix}`;
+    }
+
+    function applyManifestOutputNames(rowValues, resultFile) {
+      const mode = String(rowValues.runMode || "").toLowerCase();
+      if (mode === "xr") {
+        rowValues.out = "";
+        rowValues.outxr = resultFile;
+        return;
+      }
+      if (mode === "canvas") {
+        rowValues.out = resultFile;
+        rowValues.outxr = "";
+        return;
+      }
+      if (mode === "both") {
+        rowValues.out = appendSuffixBeforeJsonl(resultFile, "__canvas");
+        rowValues.outxr = appendSuffixBeforeJsonl(resultFile, "__xr");
+        return;
+      }
+      rowValues.out = resultFile;
+      rowValues.outxr = "";
+    }
+
     function buildManifestExports(values) {
       const apiScope = resolveManifestApiScope();
       const orderMode = resolveManifestOrderMode(values);
@@ -1718,6 +1812,9 @@
       const profilerMode = String(manifestProfilerModeEl ? manifestProfilerModeEl.value : "baseline_untraced").trim() || "baseline_untraced";
       const profilerConfig = String(manifestProfilerConfigEl ? manifestProfilerConfigEl.value : "").trim();
       const cooldownBetweenRunsMs = parseManifestCooldownMs(manifestCooldownMsEl.value);
+      const injectOutputNames = Boolean(manifestInjectOutputNamesEl && manifestInjectOutputNamesEl.checked);
+      const effectiveBase = effectiveBaseUrl();
+      const releaseTag = releaseTagEl ? String(releaseTagEl.value || "").trim() : "";
       const orderSeedU32 = toSeedU32(orderSeedRaw, 12345);
       const sequence = buildManifestApiSequence(orderMode, runCount, orderSeedU32, apiScope);
       const ts = "YYYYMMDD-HHMMSS";
@@ -1737,12 +1834,14 @@
         rowValues.orderSeed = orderSeedRaw;
         rowValues.assignedApi = orderMode === "randomized" ? api : "";
         rowValues.runId = makeManifestRunId(values.runId, runNumber, api);
-
-        const url = makeUrlForApi(api, rowValues);
         const core = buildTraceCoreForManifest(rowValues, api, runNumber);
         const chromeTrace = `chrome_trace__${core}__ts=${ts}.json`;
         const safariTrace = `safari_timeline__${core}__ts=${ts}.json`;
         const resultFile = `results__${core}__ts=${ts}.jsonl`;
+        if (injectOutputNames) {
+          applyManifestOutputNames(rowValues, resultFile);
+        }
+        const url = makeUrlForApi(api, rowValues, { forceOutputFields: injectOutputNames });
 
         rows.push({
           run_number: runNumber,
@@ -1769,6 +1868,7 @@
           shuffle: rowValues.shuffle || "",
           debug_color: rowValues.debugColor || "",
           harness_commit: rowValues.harnessCommit || "",
+          harness_version: rowValues.harnessVersion || "",
           asset_revision: rowValues.assetRevision || "",
           url,
           chrome_trace_name: chromeTrace,
@@ -1807,6 +1907,7 @@
         "shuffle",
         "debug_color",
         "harness_commit",
+        "harness_version",
         "asset_revision",
         "url",
         "chrome_trace_name",
@@ -1840,6 +1941,9 @@
           cacheMode,
           profilerMode,
           profilerConfig,
+          effectiveBaseUrl: effectiveBase,
+          releaseTag,
+          injectOutputNames,
           cooldownBetweenRunsMs
         },
         rows
@@ -1856,6 +1960,9 @@
           cacheMode,
           profilerMode,
           profilerConfig,
+          effectiveBaseUrl: effectiveBase,
+          releaseTag,
+          injectOutputNames,
           cooldownBetweenRunsMs,
           webglRuns,
           webgpuRuns,
@@ -1877,6 +1984,9 @@
         exportedAt: new Date().toISOString(),
         builder: {
           baseUrl: baseUrlEl.value.trim(),
+          effectiveBaseUrl: effectiveBaseUrl(),
+          releaseTag: releaseTagEl ? releaseTagEl.value.trim() : "",
+          autoHarnessVersionFromReleaseTag: Boolean(autoHarnessVersionFromReleaseTagEl && autoHarnessVersionFromReleaseTagEl.checked),
           webglPath: webglPathEl.value.trim(),
           webgpuPath: webgpuPathEl.value.trim(),
           traceNaming: {
@@ -1900,6 +2010,8 @@
             cacheMode: manifestCacheModeEl ? String(manifestCacheModeEl.value || "warm") : "warm",
             profilerMode: manifestProfilerModeEl ? String(manifestProfilerModeEl.value || "baseline_untraced") : "baseline_untraced",
             profilerConfig: manifestProfilerConfigEl ? String(manifestProfilerConfigEl.value || "").trim() : "",
+            injectOutputNames: Boolean(manifestInjectOutputNamesEl && manifestInjectOutputNamesEl.checked),
+            launcherManifestUrl: launcherManifestUrlEl ? String(launcherManifestUrlEl.value || "").trim() : "",
             cooldownMs: String(parseManifestCooldownMs(manifestCooldownMsEl.value))
           }
         },
@@ -1932,6 +2044,10 @@
         : configObj;
 
       if (builder && typeof builder.baseUrl === "string") baseUrlEl.value = builder.baseUrl;
+      if (builder && typeof builder.releaseTag === "string" && releaseTagEl) releaseTagEl.value = builder.releaseTag;
+      if (builder && typeof builder.autoHarnessVersionFromReleaseTag === "boolean" && autoHarnessVersionFromReleaseTagEl) {
+        autoHarnessVersionFromReleaseTagEl.checked = builder.autoHarnessVersionFromReleaseTag;
+      }
       if (builder && typeof builder.webglPath === "string") webglPathEl.value = builder.webglPath;
       if (builder && typeof builder.webgpuPath === "string") webgpuPathEl.value = builder.webgpuPath;
       if (builder && builder.traceNaming && typeof builder.traceNaming === "object") {
@@ -1947,6 +2063,8 @@
         if (typeof builder.manifest.cacheMode === "string" && manifestCacheModeEl) manifestCacheModeEl.value = builder.manifest.cacheMode;
         if (typeof builder.manifest.profilerMode === "string" && manifestProfilerModeEl) manifestProfilerModeEl.value = builder.manifest.profilerMode;
         if (builder.manifest.profilerConfig != null && manifestProfilerConfigEl) manifestProfilerConfigEl.value = String(builder.manifest.profilerConfig);
+        if (typeof builder.manifest.injectOutputNames === "boolean" && manifestInjectOutputNamesEl) manifestInjectOutputNamesEl.checked = builder.manifest.injectOutputNames;
+        if (builder.manifest.launcherManifestUrl != null && launcherManifestUrlEl) launcherManifestUrlEl.value = String(builder.manifest.launcherManifestUrl);
         if (builder.manifest.cooldownMs != null) manifestCooldownMsEl.value = String(builder.manifest.cooldownMs);
       }
 
@@ -2000,6 +2118,19 @@
       }
       if (includeOutputFilesEl.checked) {
         warnings.push("Compatibility toggle enabled: fixed out/outxr filenames are ON. Keep OFF for primary experiments to avoid file collisions.");
+      }
+      if (manifestInjectOutputNamesEl && manifestInjectOutputNamesEl.checked) {
+        notes.push("Manifest URLs include per-row out/outxr from results_name for consistent downloaded JSONL filenames.");
+      }
+      if (launcherManifestUrlEl && launcherManifestUrlEl.value.trim()) {
+        notes.push("Open Run Launcher will use launcherManifestUrl (run-launcher.html?manifest=...) instead of localStorage staged manifest.");
+      }
+      const releaseTag = releaseTagEl ? releaseTagEl.value.trim() : "";
+      if (releaseTag) {
+        notes.push(`releaseTag=${releaseTag}: generated run URLs target immutable releases/<tag>/ paths.`);
+        if (!values.harnessVersion) {
+          warnings.push("releaseTag is set but harnessVersion is empty. For paper provenance, set harnessVersion to the release tag.");
+        }
       }
       if (values.manualDownload === "0") {
         notes.push("manualDownload=0 can be less reliable on some Safari/visionOS setups.");
@@ -2130,14 +2261,21 @@
       const cacheMode = String(meta.cacheMode || (manifestCacheModeEl ? manifestCacheModeEl.value : "warm"));
       const profilerMode = String(meta.profilerMode || (manifestProfilerModeEl ? manifestProfilerModeEl.value : "baseline_untraced"));
       const profilerConfig = String(meta.profilerConfig || (manifestProfilerConfigEl ? manifestProfilerConfigEl.value : "")).trim();
+      const injectOutputNames = (typeof meta.injectOutputNames === "boolean")
+        ? meta.injectOutputNames
+        : Boolean(manifestInjectOutputNamesEl && manifestInjectOutputNamesEl.checked);
+      const effectiveBase = String(meta.effectiveBaseUrl || effectiveBaseUrl());
+      const releaseTag = String(meta.releaseTag || (releaseTagEl ? releaseTagEl.value : "")).trim();
       const targetRuns = parseTargetRunsPerApi(targetRunsPerApiEl ? targetRunsPerApiEl.value : "10");
       const balanced = wgl === wgpu && wgl > 0;
       const planLines = [
         `<strong>Collection Plan Summary</strong>`,
         `apiScope=<span class="mono">${escapeHtml(apiScope)}</span>, orderMode=<span class="mono">${escapeHtml(mode)}</span>, total runs=<span class="mono">${runs}</span>, webgl runs=<span class="mono">${wgl}</span>, webgpu runs=<span class="mono">${wgpu}</span>.`,
+        `effectiveBaseUrl=<span class="mono">${escapeHtml(effectiveBase)}</span>${releaseTag ? ` (releaseTag=<span class="mono">${escapeHtml(releaseTag)}</span>)` : ""}.`,
         `targetRunsPerApi=<span class="mono">${targetRuns}</span> (target total runs=<span class="mono">${apiScope === "paired" ? targetRuns * 2 : targetRuns}</span>).`,
         `cacheMode=<span class="mono">${escapeHtml(cacheMode)}</span>, profilerMode=<span class="mono">${escapeHtml(profilerMode)}</span>.`,
         `profilerConfig=<span class="mono">${escapeHtml(profilerConfig || "(none)")}</span>.`,
+        `manifest out/outxr injection=<span class="mono">${injectOutputNames ? "on" : "off"}</span>.`,
         `instances per run=<span class="mono">${instN}</span>, trials per instance per run=<span class="mono">${trials}</span>.`,
         apiScope === "paired"
           ? `effective paired datapoints per instance per API=<span class="mono">${pairedPerInst}</span>, per API total across instances=<span class="mono">${pairedPerApiTotal}</span>.`
@@ -2162,7 +2300,14 @@
     }
 
     function updateOutputs() {
-      const values = collectValues();
+      let values = collectValues();
+      const releaseTag = releaseTagEl ? String(releaseTagEl.value || "").trim() : "";
+      const autoHarnessVersion = Boolean(autoHarnessVersionFromReleaseTagEl && autoHarnessVersionFromReleaseTagEl.checked);
+      if (releaseTag && autoHarnessVersion) {
+        values = { ...values, harnessVersion: releaseTag };
+        const harnessVersionDef = defByKey.get("harnessVersion");
+        if (harnessVersionDef) setFieldValue(harnessVersionDef, releaseTag, { force: true });
+      }
       const webglUrl = makeUrlForApi("webgl2", values);
       const webgpuUrl = makeUrlForApi("webgpu", values);
       const config = buildConfigExport(values);
@@ -2193,6 +2338,16 @@
 
     function openUrl(url) {
       window.open(url, "_blank", "noopener");
+    }
+
+    function resolveLauncherManifestUrl(raw) {
+      const value = String(raw || "").trim();
+      if (!value) return "";
+      try {
+        return new URL(value, location.href).toString();
+      } catch (_) {
+        return "";
+      }
     }
 
     function downloadTextFile(fileName, text, mimeType = "text/plain;charset=utf-8") {
@@ -2270,6 +2425,10 @@
       if (!qs.has("harnessCommit") && qs.has("appRev")) {
         setFieldValue(defByKey.get("harnessCommit"), qs.get("appRev"));
       }
+      if (qs.has("releaseTag") && releaseTagEl) releaseTagEl.value = qs.get("releaseTag");
+      if (qs.has("autoHarnessVersionFromReleaseTag") && autoHarnessVersionFromReleaseTagEl) {
+        autoHarnessVersionFromReleaseTagEl.checked = boolIsTrue(qs.get("autoHarnessVersionFromReleaseTag"));
+      }
       if (qs.has("deviceTag")) traceDeviceTagEl.value = qs.get("deviceTag");
       if (qs.has("browserTag")) traceBrowserTagEl.value = qs.get("browserTag");
       if (qs.has("manifestOrderMode")) manifestOrderModeEl.value = qs.get("manifestOrderMode");
@@ -2280,6 +2439,8 @@
       if (qs.has("cacheMode") && manifestCacheModeEl) manifestCacheModeEl.value = qs.get("cacheMode");
       if (qs.has("profilerMode") && manifestProfilerModeEl) manifestProfilerModeEl.value = qs.get("profilerMode");
       if (qs.has("profilerConfig") && manifestProfilerConfigEl) manifestProfilerConfigEl.value = qs.get("profilerConfig");
+      if (qs.has("manifestInjectOutputNames") && manifestInjectOutputNamesEl) manifestInjectOutputNamesEl.checked = boolIsTrue(qs.get("manifestInjectOutputNames"));
+      if (qs.has("launcherManifestUrl") && launcherManifestUrlEl) launcherManifestUrlEl.value = qs.get("launcherManifestUrl");
       if (qs.has("betweenRunsMs")) manifestCooldownMsEl.value = qs.get("betweenRunsMs");
     }
 
@@ -2291,6 +2452,8 @@
       webglPathEl.addEventListener("input", updateOutputs);
       webgpuPathEl.addEventListener("input", updateOutputs);
       baseUrlEl.addEventListener("input", updateOutputs);
+      if (releaseTagEl) releaseTagEl.addEventListener("input", updateOutputs);
+      if (autoHarnessVersionFromReleaseTagEl) autoHarnessVersionFromReleaseTagEl.addEventListener("change", updateOutputs);
       traceDeviceTagEl.addEventListener("input", updateOutputs);
       traceBrowserTagEl.addEventListener("input", updateOutputs);
       manifestOrderModeEl.addEventListener("change", updateOutputs);
@@ -2307,6 +2470,8 @@
       if (manifestProfilerConfigEl) manifestProfilerConfigEl.addEventListener("input", updateOutputs);
       manifestCooldownMsEl.addEventListener("input", updateOutputs);
       manifestCooldownMsEl.addEventListener("change", updateOutputs);
+      if (manifestInjectOutputNamesEl) manifestInjectOutputNamesEl.addEventListener("change", updateOutputs);
+      if (launcherManifestUrlEl) launcherManifestUrlEl.addEventListener("input", updateOutputs);
       jumpToSectionEl.addEventListener("change", () => {
         const id = jumpToSectionEl.value;
         jumpToSectionById(id);
@@ -2380,6 +2545,18 @@
         const manifestJson = manifestJsonOutEl.value.trim();
         if (!manifestJson) {
           statusLine.textContent = "Manifest JSON is empty.";
+          return;
+        }
+        const directManifestUrl = resolveLauncherManifestUrl(launcherManifestUrlEl ? launcherManifestUrlEl.value : "");
+        if (launcherManifestUrlEl && launcherManifestUrlEl.value.trim() && !directManifestUrl) {
+          statusLine.textContent = "launcherManifestUrl is invalid.";
+          return;
+        }
+        if (directManifestUrl) {
+          const launcherUrl = new URL("./run-launcher.html", location.href);
+          launcherUrl.searchParams.set("manifest", directManifestUrl);
+          openUrl(launcherUrl.toString());
+          statusLine.textContent = "Opened run-launcher with manifest URL query parameter.";
           return;
         }
         const staged = stageManifestForLauncher(manifestJson);

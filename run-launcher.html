@@ -158,6 +158,16 @@
         </div>
       </div>
       <div class="row">
+        <label for="manifestUrlInput">Manifest URL</label>
+        <div>
+          <div class="inline">
+            <input id="manifestUrlInput" type="text" placeholder="manifests/my-manifest.json or https://..." />
+            <button id="loadManifestUrlBtn" type="button">Load Manifest URL</button>
+          </div>
+          <div class="muted">Tip: launch with <span class="mono">run-launcher.html?manifest=manifests/my-manifest.json</span> for one-click loading on devices.</div>
+        </div>
+      </div>
+      <div class="row">
         <label for="manifestText">Paste JSON</label>
         <div>
           <textarea id="manifestText" placeholder='Paste manifest JSON here if file import is inconvenient.'></textarea>
@@ -278,6 +288,7 @@
     const MAX_PROGRESS_ROWS = 40;
 
     const manifestFileEl = document.getElementById("manifestFile");
+    const manifestUrlInputEl = document.getElementById("manifestUrlInput");
     const manifestTextEl = document.getElementById("manifestText");
     const statusLineEl = document.getElementById("statusLine");
     const manifestSummaryEl = document.getElementById("manifestSummary");
@@ -832,6 +843,39 @@
       applyManifest(parsed, file.name);
     }
 
+    function normalizeManifestUrl(raw) {
+      const trimmed = String(raw || "").trim();
+      if (!trimmed) return "";
+      let url;
+      try {
+        url = new URL(trimmed, location.href);
+      } catch (_) {
+        throw new Error("Invalid manifest URL.");
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error(`Unsupported manifest URL protocol: ${url.protocol}`);
+      }
+      return url.toString();
+    }
+
+    async function loadManifestUrl(rawUrl, sourceLabel = "manifest URL") {
+      const manifestUrl = normalizeManifestUrl(rawUrl);
+      if (!manifestUrl) {
+        statusLineEl.textContent = "Enter a manifest URL first.";
+        return false;
+      }
+      manifestUrlInputEl.value = manifestUrl;
+      statusLineEl.textContent = `Loading manifest URL: ${manifestUrl}`;
+      const resp = await fetch(manifestUrl, { cache: "no-store" });
+      if (!resp.ok) {
+        throw new Error(`Manifest URL fetch failed (${resp.status} ${resp.statusText || ""})`.trim());
+      }
+      const text = await resp.text();
+      const parsed = JSON.parse(text);
+      applyManifest(parsed, sourceLabel);
+      return true;
+    }
+
     function loadManifestText() {
       const text = manifestTextEl.value.trim();
       if (!text) {
@@ -989,6 +1033,22 @@
           statusLineEl.textContent = `Staged manifest parse failed: ${e?.message || e}`;
         }
       });
+      document.getElementById("loadManifestUrlBtn").addEventListener("click", async () => {
+        try {
+          await loadManifestUrl(manifestUrlInputEl.value, "manifest URL");
+        } catch (e) {
+          statusLineEl.textContent = `Manifest URL load failed: ${e?.message || e}`;
+        }
+      });
+      manifestUrlInputEl.addEventListener("keydown", async (ev) => {
+        if (ev.key !== "Enter") return;
+        ev.preventDefault();
+        try {
+          await loadManifestUrl(manifestUrlInputEl.value, "manifest URL");
+        } catch (e) {
+          statusLineEl.textContent = `Manifest URL load failed: ${e?.message || e}`;
+        }
+      });
 
       cooldownMsInputEl.addEventListener("input", () => {
         if (!progress) return;
@@ -1075,10 +1135,28 @@
       }
     }
 
-    function init() {
+    async function tryAutoLoadFromQuery() {
+      const qs = new URLSearchParams(location.search);
+      const rawManifest = String(qs.get("manifest") || "").trim();
+      if (!rawManifest) return false;
+      manifestUrlInputEl.value = rawManifest;
+      try {
+        const source = `query manifest (${rawManifest})`;
+        await loadManifestUrl(rawManifest, source);
+        return true;
+      } catch (e) {
+        statusLineEl.textContent = `Failed to auto-load manifest URL: ${e?.message || e}`;
+        return false;
+      }
+    }
+
+    async function init() {
       bindEvents();
       render();
-      tryAutoLoadFromHash();
+      const loadedFromQuery = await tryAutoLoadFromQuery();
+      if (!loadedFromQuery) {
+        tryAutoLoadFromHash();
+      }
     }
 
     init();
