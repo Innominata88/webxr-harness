@@ -39,6 +39,8 @@ Use this checklist before collecting data intended for analysis or publication.
   - `canvasAutoDelayMs` (trace/profiling runs when `manualStart=0`)
   - `collectPerf`
   - `perfDetail`
+  - `batteryTelemetry`
+  - `connectionTelemetry`
   - `hud`
   - `hudHz`
   - `renderProbe`

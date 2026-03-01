@@ -644,6 +644,8 @@
       { key: "xrProbeReadback", label: "xrProbeReadback", group: "diagnostics", type: "bool", def: "0" },
       { key: "traceMarkers", label: "traceMarkers", group: "diagnostics", type: "bool", def: "1", always: true },
       { key: "traceOverlay", label: "traceOverlay", group: "diagnostics", type: "bool", def: "0", always: true },
+      { key: "batteryTelemetry", label: "batteryTelemetry", group: "diagnostics", type: "bool", def: "1", always: true },
+      { key: "connectionTelemetry", label: "connectionTelemetry", group: "diagnostics", type: "bool", def: "1", always: true },
       { key: "runId", label: "runId", group: "diagnostics", type: "text", def: "" },
 
       { key: "harnessCommit", label: "harnessCommit", group: "provenance", type: "text", def: "", hint: "Use a git hash for reproducibility." },
@@ -939,6 +941,8 @@
       "renderProbe",
       "traceMarkers",
       "traceOverlay",
+      "batteryTelemetry",
+      "connectionTelemetry",
       "harnessVersion",
       "harnessCommit",
       "assetRevision"
@@ -994,6 +998,8 @@
       xrProbeReadback: "XR readback probe for pixel diff diagnostics.",
       traceMarkers: "Emit User Timing and console timestamp markers.",
       traceOverlay: "Show run/suite overlay text on page.",
+      batteryTelemetry: "Capture Battery Status API snapshots into env metadata when browser support exists.",
+      connectionTelemetry: "Capture Network Information API snapshots into env metadata when browser support exists.",
       runId: "Session trace identifier shared with JSONL and traces.",
       harnessCommit: "Harness git/hash provenance tag.",
       harnessVersion: "Harness version provenance field.",
@@ -1017,6 +1023,8 @@
       debugColor: "Primary: keep FLAT. Use abspos/instance only for diagnostics or screenshots.",
       hud: "Primary: keep OFF (or fixed ON for all paired runs).",
       traceOverlay: "Primary: keep OFF to avoid overlay/UI overhead drift.",
+      batteryTelemetry: "Recommended ON for reproducibility metadata; keep fixed across paired runs.",
+      connectionTelemetry: "Recommended ON for reproducibility metadata; keep fixed across paired runs.",
       xrProbeReadback: "Primary: keep OFF; use only for diagnostics.",
       perfDetail: "Primary: keep OFF; increases data volume and instrumentation overhead.",
       storeFrames: "Primary: keep OFF unless you need per-frame appendix data.",
@@ -2013,6 +2021,12 @@
       }
       if (!traceDeviceTagEl.value.trim() || !traceBrowserTagEl.value.trim()) {
         notes.push("Set deviceTag/browserTag for cleaner cross-tool trace filename joins.");
+      }
+      if (values.batteryTelemetry === "0") {
+        notes.push("batteryTelemetry=0 disables battery metadata capture. Keep ON unless browser/platform issues require disabling.");
+      }
+      if (values.connectionTelemetry === "0") {
+        notes.push("connectionTelemetry=0 disables network metadata capture. Keep ON unless browser/platform issues require disabling.");
       }
       const deviceTag = String(traceDeviceTagEl.value || "").trim().toLowerCase();
       const isQuest2 = deviceTag === "quest2" || deviceTag === "quest-2" || deviceTag === "meta-quest-2";

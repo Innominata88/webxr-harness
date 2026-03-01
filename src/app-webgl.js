@@ -207,6 +207,8 @@ const xrSessionModeLabel = xrSessionMode === "immersive-ar" ? "AR" : "VR";
 const xrSessionModeShort = xrSessionMode === "immersive-ar" ? "ar" : "vr";
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
 const manualStart = (params.get("manualStart") || "0") === "1";
+const batteryTelemetry = (params.get("batteryTelemetry") || "1") !== "0";
+const connectionTelemetry = (params.get("connectionTelemetry") || "1") !== "0";
 const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
   return (Number.isFinite(v) && v > 0) ? Math.min(2.0, Math.max(0.25, v)) : 1.0;
@@ -346,6 +348,14 @@ const ERROR_RING_CAPACITY = {
   webgl_context_lost_events: WEBGL_CONTEXT_LOST_RING
 };
 let globalErrorListenersInstalled = false;
+let batteryManager = null;
+let batteryListenerInstalled = false;
+let batteryStartSnapshot = null;
+let batteryLatestSnapshot = null;
+let batteryError = null;
+let connectionInfo = null;
+let connectionListenerInstalled = false;
+let connectionChangeCount = 0;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
 
@@ -449,8 +459,115 @@ function updateTraceOverlay(extra="") {
 
 updateTraceOverlay();
 
+function getConnectionObject() {
+  return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+}
+
+function snapshotBatteryState(manager) {
+  if (!manager) return null;
+  return {
+    level_pct: Number.isFinite(manager.level) ? Number((manager.level * 100).toFixed(2)) : null,
+    charging: (typeof manager.charging === "boolean") ? manager.charging : null,
+    charging_time_s: Number.isFinite(manager.chargingTime) ? manager.chargingTime : null,
+    discharging_time_s: Number.isFinite(manager.dischargingTime) ? manager.dischargingTime : null,
+    at_iso: new Date().toISOString(),
+    at_perf_ms: performance.now()
+  };
+}
+
+function refreshConnectionInfo() {
+  if (!connectionTelemetry) {
+    connectionInfo = null;
+    return;
+  }
+  const c = getConnectionObject();
+  if (!c) {
+    connectionInfo = null;
+    return;
+  }
+  connectionInfo = {
+    effective_type: (typeof c.effectiveType === "string") ? c.effectiveType : null,
+    rtt_ms: Number.isFinite(c.rtt) ? c.rtt : null,
+    downlink_mbps: Number.isFinite(c.downlink) ? c.downlink : null,
+    save_data: (typeof c.saveData === "boolean") ? c.saveData : null,
+    type: (typeof c.type === "string") ? c.type : null,
+    at_iso: new Date().toISOString(),
+    at_perf_ms: performance.now()
+  };
+}
+
+function refreshBatteryInfo() {
+  if (!batteryManager) return;
+  batteryLatestSnapshot = snapshotBatteryState(batteryManager);
+  if (!batteryStartSnapshot) batteryStartSnapshot = batteryLatestSnapshot;
+}
+
+function updateRuntimeTelemetryEnvDiagnostics() {
+  if (!envInfo) return;
+  envInfo.battery_telemetry_requested = batteryTelemetry;
+  envInfo.connection_telemetry_requested = connectionTelemetry;
+  envInfo.battery_api_available = !!batteryManager;
+  envInfo.connection_api_available = !!getConnectionObject();
+  envInfo.online = navigator.onLine;
+  envInfo.connection = connectionInfo;
+  envInfo.connection_change_count = connectionChangeCount;
+  envInfo.battery = {
+    start: batteryStartSnapshot,
+    latest: batteryLatestSnapshot,
+    error: batteryError
+  };
+}
+
+async function initRuntimeTelemetry() {
+  refreshConnectionInfo();
+  if (connectionTelemetry && !connectionListenerInstalled) {
+    const c = getConnectionObject();
+    if (c && typeof c.addEventListener === "function") {
+      c.addEventListener("change", () => {
+        connectionChangeCount++;
+        refreshConnectionInfo();
+        updateRuntimeTelemetryEnvDiagnostics();
+      });
+      connectionListenerInstalled = true;
+    }
+  }
+
+  if (!batteryTelemetry) {
+    updateRuntimeTelemetryEnvDiagnostics();
+    return;
+  }
+  if (!navigator.getBattery || typeof navigator.getBattery !== "function") {
+    batteryError = "battery_api_unavailable";
+    updateRuntimeTelemetryEnvDiagnostics();
+    return;
+  }
+  try {
+    batteryManager = await navigator.getBattery();
+    refreshBatteryInfo();
+    if (!batteryListenerInstalled && batteryManager && typeof batteryManager.addEventListener === "function") {
+      const onBatteryChange = () => {
+        refreshBatteryInfo();
+        updateRuntimeTelemetryEnvDiagnostics();
+      };
+      batteryManager.addEventListener("chargingchange", onBatteryChange);
+      batteryManager.addEventListener("levelchange", onBatteryChange);
+      batteryManager.addEventListener("chargingtimechange", onBatteryChange);
+      batteryManager.addEventListener("dischargingtimechange", onBatteryChange);
+      batteryListenerInstalled = true;
+    }
+  } catch (e) {
+    batteryError = String(e?.message || e);
+  }
+  updateRuntimeTelemetryEnvDiagnostics();
+}
+
 function snapshotEnvInfo() {
   if (!envInfo) return null;
+  try {
+    refreshConnectionInfo();
+    refreshBatteryInfo();
+    updateRuntimeTelemetryEnvDiagnostics();
+  } catch (_) {}
   try {
     if (typeof structuredClone === "function") return structuredClone(envInfo);
   } catch (_) {}
@@ -1012,6 +1129,18 @@ async function initGL() {
     xr_session_mode_requested: xrSessionMode,
     xr_session_mode_active: null,
     xr_session_mode_supported: null,
+    battery_telemetry_requested: batteryTelemetry,
+    connection_telemetry_requested: connectionTelemetry,
+    battery_api_available: false,
+    connection_api_available: false,
+    online: navigator.onLine,
+    connection: null,
+    connection_change_count: 0,
+    battery: {
+      start: null,
+      latest: null,
+      error: null
+    },
     manualDownload,
     manualStart,
     canvasAutoDelayMs,
@@ -1053,6 +1182,7 @@ async function initGL() {
   envInfo.gpu_identity = gpuIdentity;
   updateWebGLEnvDiagnostics();
   enforcePinnedGpuIdentity(gpuIdentity);
+  await initRuntimeTelemetry();
 
   renderer.setInstances(instancesList[0], spacing, { layout, seed });
 }
@@ -1128,6 +1258,8 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     xrYOffset,
     collectPerf,
     perfDetail,
+    batteryTelemetry,
+    connectionTelemetry,
     condition_index: Number.isFinite(planIdx) ? (planIdx + 1) : null,
     condition_count: Number.isFinite(planLen) ? planLen : null,
     startedAt: new Date().toISOString(),
@@ -1203,6 +1335,8 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       xrYOffset,
       collectPerf,
       perfDetail,
+      batteryTelemetry,
+      connectionTelemetry,
       condition_index: planIdx + 1,
       condition_count: planLen,
       runId,
@@ -1878,6 +2012,8 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     xrYOffset,
     collectPerf,
     perfDetail,
+    batteryTelemetry,
+    connectionTelemetry,
     condition_index: cur ? (xrIndex + 1) : null,
     condition_count: xrPlan ? xrPlan.length : null,
     startedAt: new Date().toISOString(),
@@ -2083,6 +2219,8 @@ function startNextXRTrial(session) {
     xrYOffset,
     collectPerf,
     perfDetail,
+    batteryTelemetry,
+    connectionTelemetry,
     condition_index: xrIndex + 1,
     condition_count: xrPlan.length,
     runId,

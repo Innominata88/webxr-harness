@@ -111,6 +111,8 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
 | `collectPerf` | boolean | all | Whether perf block was collected |
 | `perfDetail` | boolean | all | Whether detailed longtask entries were retained |
+| `batteryTelemetry` | boolean | all | Whether battery metadata capture was requested (`batteryTelemetry`) |
+| `connectionTelemetry` | boolean | all | Whether network metadata capture was requested (`connectionTelemetry`) |
 | `condition_index` | number or null | all | 1-based index in condition plan |
 | `condition_count` | number or null | all | Total conditions in plan |
 | `runId` | string optional | all | Trace/session identifier used for external profiler alignment (`runId` URL param or auto-generated UUID) |
@@ -317,6 +319,14 @@ Can be `null` if no matching resource timing entry is found.
 | `trace_markers_enabled` | boolean optional | Whether trace marker emission is enabled (`traceMarkers`) |
 | `trace_overlay_enabled` | boolean optional | Whether on-page trace overlay is enabled (`traceOverlay`) |
 | `runMode` | string |
+| `battery_telemetry_requested` | boolean optional | Whether battery telemetry capture was requested |
+| `connection_telemetry_requested` | boolean optional | Whether network telemetry capture was requested |
+| `battery_api_available` | boolean optional | Whether Battery Status API was available |
+| `connection_api_available` | boolean optional | Whether Network Information API was available |
+| `online` | boolean optional | Value of `navigator.onLine` at latest env snapshot |
+| `connection` | object or null optional | Latest network snapshot (`effective_type`, `rtt_ms`, `downlink_mbps`, `save_data`, `type`) |
+| `connection_change_count` | number optional | Count of observed connection change events |
+| `battery` | object or null optional | Battery snapshots (`start`, `latest`, `error`) |
 | `gpu_identity` | string |
 | `order_control` | object |
 | `url` | string (1.1.0+) |
