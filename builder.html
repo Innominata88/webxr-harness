@@ -626,6 +626,7 @@
       { key: "manualStart", label: "manualStart", group: "timing", type: "bool", def: "0", always: true },
 
       { key: "runMode", label: "runMode", group: "xr", type: "select", def: "xr", always: true, options: ["xr", "canvas", "both"] },
+      { key: "xrSessionMode", label: "xrSessionMode", group: "xr", type: "select", def: "immersive-vr", always: true, options: ["immersive-vr", "immersive-ar"] },
       { key: "minFrames", label: "minFrames", group: "xr", type: "number", def: "30", min: "0", step: "1", always: true },
       { key: "xrNoPoseGraceMs", label: "xrNoPoseGraceMs", group: "xr", type: "number", def: "3000", min: "0", step: "1", always: true },
       { key: "xrScaleFactor", label: "xrScaleFactor", group: "xr", type: "number", def: "0.25", step: "0.01", always: true },
@@ -683,6 +684,7 @@
       },
       sanity_xr: {
         runMode: "xr",
+        xrSessionMode: "immersive-vr",
         suiteId: "SANITY_XR",
         instances: "64",
         trials: "1",
@@ -705,6 +707,7 @@
       },
       cliff_xr: {
         runMode: "xr",
+        xrSessionMode: "immersive-vr",
         suiteId: "CLIFF_SWEEP_XR",
         instances: "340,345,350",
         trials: "1",
@@ -727,6 +730,7 @@
       },
       regular_primary_10x10: {
         runMode: "xr",
+        xrSessionMode: "immersive-vr",
         suiteId: "PRIMARY_REGULAR",
         instances: "64,128,192,256,320",
         trials: "10",
@@ -759,6 +763,7 @@
       },
       cliff_primary_10x10: {
         runMode: "xr",
+        xrSessionMode: "immersive-vr",
         suiteId: "PRIMARY_CLIFF",
         instances: "340,345,350",
         trials: "10",
@@ -819,6 +824,7 @@
       },
       quest2_webgl_xr_only_10x10: {
         runMode: "xr",
+        xrSessionMode: "immersive-vr",
         suiteId: "QUEST2_WEBGL_XR",
         instances: "64,128,192,256,320",
         trials: "10",
@@ -919,6 +925,7 @@
       "collectPerf",
       "perfDetail",
       "runMode",
+      "xrSessionMode",
       "xrScaleFactor",
       "xrFrontMinZ",
       "xrYOffset",
@@ -970,6 +977,7 @@
       canvasAutoDelayMs: "Delay before auto-starting canvas suite.",
       manualStart: "When enabled, canvas suite is armed but does not start until operator clicks Start Canvas Suite.",
       runMode: "Which phase runs on page load: canvas, xr, or both.",
+      xrSessionMode: "XR session type requested from WebXR: immersive-vr or immersive-ar.",
       minFrames: "XR minimum frame count gate before a trial can finish.",
       xrNoPoseGraceMs: "Extra wait for missing XR poses before timeout abort.",
       xrScaleFactor: "Requested XR framebuffer scale factor.",
@@ -1013,6 +1021,7 @@
       perfDetail: "Primary: keep OFF; increases data volume and instrumentation overhead.",
       storeFrames: "Primary: keep OFF unless you need per-frame appendix data.",
       manualStart: "Primary metrics: keep OFF. Profiling/tracing runs: turn ON so you can start profiler first, and keep it matched across APIs.",
+      xrSessionMode: "Keep fixed within a campaign. Analyze immersive-vr and immersive-ar as separate cohorts.",
       includeModeAlias: "Canonical parameter is runMode; keep mode alias OFF unless needed for compatibility.",
       includeAppRevAlias: "Prefer harnessCommit as single provenance key to avoid duplicate semantics."
     });
@@ -2009,6 +2018,12 @@
       const isQuest2 = deviceTag === "quest2" || deviceTag === "quest-2" || deviceTag === "meta-quest-2";
       const apiScope = resolveManifestApiScope();
       const includesWebgpu = apiScope === "paired" || apiScope === "webgpu_only";
+      if (values.runMode === "canvas" && values.xrSessionMode !== "immersive-vr") {
+        notes.push(`runMode=canvas ignores xrSessionMode=${values.xrSessionMode}; this setting only affects XR sessions.`);
+      }
+      if (values.runMode !== "canvas" && values.xrSessionMode === "immersive-ar") {
+        notes.push("xrSessionMode=immersive-ar should be analyzed as a separate cohort from immersive-vr.");
+      }
       if (isQuest2 && includesWebgpu && values.runMode !== "canvas") {
         warnings.push("Quest 2 does not currently support WebGPU XR in your test environment. Use runMode=canvas for paired WebGL/WebGPU runs.");
       }

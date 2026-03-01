@@ -97,6 +97,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `postIdleMs` | number | canvas, abort | Optional post-idle window used by canvas and carried into abort metadata |
 | `canvasAutoDelayMs` | number | all | Canvas auto-start delay parameter (informational when `manualStart=true`) |
 | `manualStart` | boolean | all | When `true`, canvas suite required explicit operator start click |
+| `xrSessionMode` | string | all | Requested XR session type parameter (`"immersive-vr"` or `"immersive-ar"`) |
 | `betweenInstancesMs` | number | all | Delay when switching instance blocks |
 | `layout` | string | all | `"line"`, `"grid"`, `"spiral"`, `"random"`, `"xrwall"` |
 | `seed` | number | all | Seed used for deterministic layout/shuffle |
@@ -261,6 +262,9 @@ Can be `null` if no matching resource timing entry is found.
 | `hudEnabled` | boolean |
 | `hudHz` | number |
 | `xr_expected_max_views` | number |
+| `xr_session_mode_requested` | string optional | Requested WebXR session mode (`immersive-vr` or `immersive-ar`) |
+| `xr_session_mode_active` | string or null optional | Active session mode returned by WebXR session once started |
+| `xr_session_mode_supported` | boolean or null optional | Result of `isSessionSupported(xrSessionMode)` check when XR path is initialized |
 | `ua` | string |
 | `uaData` | object or null |
 | `platform` | string or null |

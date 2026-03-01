@@ -18,6 +18,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `trials`
   - `durationMs`
   - `runMode` (canonical URL param; avoid mixing `mode=both` and `runMode=xr` in primary comparisons)
+  - `xrSessionMode` (for XR runs; keep `immersive-vr` and `immersive-ar` in separate analysis cohorts)
   - `minFrames` (XR)
   - `xrNoPoseGraceMs` (XR)
   - `xrStartOnFirstPose` (XR timing policy)

@@ -196,6 +196,15 @@ const runMode = (() => {
   const v = String(raw).toLowerCase();
   return (v === "canvas" || v === "xr" || v === "both") ? v : "both";
 })();
+const xrSessionMode = (() => {
+  // Canonical XR session mode parameter for immersive session type.
+  // Accept legacy alias ?sessionMode= for compatibility.
+  const raw = (params.get("xrSessionMode") || params.get("sessionMode") || "immersive-vr");
+  const v = String(raw).toLowerCase();
+  return v === "immersive-ar" ? "immersive-ar" : "immersive-vr";
+})();
+const xrSessionModeLabel = xrSessionMode === "immersive-ar" ? "AR" : "VR";
+const xrSessionModeShort = xrSessionMode === "immersive-ar" ? "ar" : "vr";
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
 const manualStart = (params.get("manualStart") || "0") === "1";
 const xrScaleFactor = (() => {
@@ -990,6 +999,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     betweenInstancesMs,
     canvasAutoDelayMs,
     manualStart,
+    xrSessionMode,
     layout,
     seed,
     shuffle,
@@ -1179,6 +1189,9 @@ const device_limits = copyLimits(device.limits || {});
     trace_markers_enabled: traceMarkers,
     trace_overlay_enabled: traceOverlay,
     runMode,
+    xr_session_mode_requested: xrSessionMode,
+    xr_session_mode_active: null,
+    xr_session_mode_supported: null,
     manualDownload,
     manualStart,
     canvasAutoDelayMs,
@@ -1279,6 +1292,7 @@ function runCanvasTrial(item, planIdx, planLen) {
       betweenInstancesMs,
       canvasAutoDelayMs,
       manualStart,
+      xrSessionMode,
       layout,
       seed,
       shuffle,
@@ -1552,16 +1566,19 @@ async function initXR() {
     log("WebXR/WebGPU interop not supported on this browser/device (missing XRGPUBinding). WebGL XR may still work.");
     return;
   }
-  const supported = await navigator.xr.isSessionSupported("immersive-vr").catch(()=>false);
+  const supported = await navigator.xr.isSessionSupported(xrSessionMode).catch(()=>false);
+  if (envInfo) {
+    envInfo.xr_session_mode_supported = supported;
+  }
   if (!supported) {
-    if (envInfo) envInfo.xr_skipped_reason = "immersive_vr_unsupported";
-    setXRButtonDisabled("Immersive VR unavailable");
-    log("Immersive VR not supported here (canvas-only).");
+    if (envInfo) envInfo.xr_skipped_reason = `${xrSessionModeShort}_unsupported`;
+    setXRButtonDisabled(`${xrSessionMode} unavailable`);
+    log(`${xrSessionMode} not supported here (canvas-only).`);
     return;
   }
 
   btn.disabled=false;
-  btn.textContent="Enter VR";
+  btn.textContent = `Enter ${xrSessionModeLabel}`;
   btn.addEventListener("click", async ()=>{
     if (xrRequesting) {
       log("XR session request already in progress.");
@@ -1581,9 +1598,10 @@ async function initXR() {
         xrAbortReason = null;
         xrEnterClickedAt = performance.now();
         xrRequesting = true;
-        const session = await navigator.xr.requestSession("immersive-vr", opts);
+        const session = await navigator.xr.requestSession(xrSessionMode, opts);
         xrRequesting = false;
         xrSession = session;
+        if (envInfo) envInfo.xr_session_mode_active = session.mode || xrSessionMode;
         await onSessionStarted(session);
       } catch (e) {
         xrRequesting = false;
@@ -1593,7 +1611,7 @@ async function initXR() {
         if (failedSession) {
           try { await failedSession.end(); } catch (_) {}
         }
-        const reason = `XR session failed before suite completion: ${e?.message || e}`;
+        const reason = `${xrSessionMode} session failed before suite completion: ${e?.message || e}`;
         if (envInfo) {
           envInfo.xr_abort_reason = reason;
           envInfo.xr_observed_view_count = 0;
@@ -1623,7 +1641,7 @@ async function initXR() {
 // XR multi-run state
 // XR startup / idle helpers
 let xrBlankClearOnce = false;      // when true, onXRFrame will render a single blank frame then stop work
-let xrEnterClickedAt = null;       // performance.now() when user clicked Enter VR
+let xrEnterClickedAt = null;       // performance.now() when user clicked Enter XR
 let xrPlan=null;
 let xrIndex=0;
 let xrActive=false;
@@ -1980,6 +1998,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     betweenInstancesMs,
     canvasAutoDelayMs,
     manualStart,
+    xrSessionMode,
     layout,
     seed,
     shuffle,
@@ -2185,6 +2204,7 @@ function startNextXRTrial(session) {
     betweenInstancesMs,
     canvasAutoDelayMs,
     manualStart,
+    xrSessionMode,
     layout,
     seed,
     shuffle,
@@ -2307,14 +2327,16 @@ async function onSessionStarted(session) {
     envInfo.xr_measurement_waiting_for_first_pose = false;
     envInfo.xr_no_pose_frames = 0;
     envInfo.xr_no_pose_ms_total = 0;
+    envInfo.xr_session_mode_requested = xrSessionMode;
+    envInfo.xr_session_mode_active = session.mode || xrSessionMode;
   }
-  btn.textContent="Exit VR";
+  btn.textContent = `Exit ${xrSessionModeLabel}`;
   hudStartAuto(xrHudText);
   session.addEventListener("end", ()=> {
     hudStopAuto();
     xrRequesting = false;
     xrSession=null;
-    btn.textContent="Enter VR";
+    btn.textContent = `Enter ${xrSessionModeLabel}`;
     xrActive=false;
     flushUnexpectedXREnd();
   });
@@ -2598,7 +2620,7 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter VR to start XR suite. runId=${runId}, mode=${runMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
@@ -2609,11 +2631,11 @@ async function main() {
       enabled: true,
       text: "Start Canvas Suite"
     });
-    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => startCanvasSuiteNow("auto_delay"), canvasAutoDelayMs);
 }
