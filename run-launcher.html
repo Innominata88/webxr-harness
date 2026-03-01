@@ -843,37 +843,108 @@
       applyManifest(parsed, file.name);
     }
 
-    function normalizeManifestUrl(raw) {
-      const trimmed = String(raw || "").trim();
-      if (!trimmed) return "";
-      let url;
-      try {
-        url = new URL(trimmed, location.href);
-      } catch (_) {
-        throw new Error("Invalid manifest URL.");
-      }
+    function validateHttpUrl(url) {
       if (url.protocol !== "http:" && url.protocol !== "https:") {
         throw new Error(`Unsupported manifest URL protocol: ${url.protocol}`);
       }
       return url.toString();
     }
 
+    function repoBaseFromPathname() {
+      const parts = location.pathname.split("/").filter(Boolean);
+      if (!parts.length) return `${location.origin}/`;
+      return `${location.origin}/${parts[0]}/`;
+    }
+
+    function rootBeforeReleases() {
+      const m = location.pathname.match(/^\/(.+?)\/releases\/[^/]+\/?/);
+      if (!m || !m[1]) return null;
+      return `${location.origin}/${m[1]}/`;
+    }
+
+    function normalizeManifestUrlCandidates(raw) {
+      const trimmed = String(raw || "").trim();
+      if (!trimmed) return [];
+
+      const candidates = [];
+      const addCandidate = (value, base = location.href) => {
+        try {
+          const url = new URL(value, base);
+          candidates.push(validateHttpUrl(url));
+        } catch (_) {
+          // Ignore invalid candidate forms.
+        }
+      };
+
+      addCandidate(trimmed, location.href);
+
+      // If caller passed encoded query value directly, try decoded form too.
+      try {
+        const decoded = decodeURIComponent(trimmed);
+        if (decoded && decoded !== trimmed) {
+          addCandidate(decoded, location.href);
+        }
+      } catch (_) {
+        // Ignore decode failures.
+      }
+
+      // GitHub Pages repo root fallback.
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+        addCandidate(trimmed, repoBaseFromPathname());
+      }
+
+      // If launcher is opened from releases/<tag>/..., allow manifest at repo root.
+      const preReleaseRoot = rootBeforeReleases();
+      if (preReleaseRoot) {
+        addCandidate(trimmed, preReleaseRoot);
+      }
+
+      // Deduplicate while preserving order.
+      const seen = new Set();
+      const unique = [];
+      for (const c of candidates) {
+        if (seen.has(c)) continue;
+        seen.add(c);
+        unique.push(c);
+      }
+      if (!unique.length) {
+        throw new Error("Invalid manifest URL.");
+      }
+      return unique;
+    }
+
     async function loadManifestUrl(rawUrl, sourceLabel = "manifest URL") {
-      const manifestUrl = normalizeManifestUrl(rawUrl);
-      if (!manifestUrl) {
+      const manifestUrls = normalizeManifestUrlCandidates(rawUrl);
+      if (!manifestUrls.length) {
         statusLineEl.textContent = "Enter a manifest URL first.";
         return false;
       }
-      manifestUrlInputEl.value = manifestUrl;
-      statusLineEl.textContent = `Loading manifest URL: ${manifestUrl}`;
-      const resp = await fetch(manifestUrl, { cache: "no-store" });
-      if (!resp.ok) {
-        throw new Error(`Manifest URL fetch failed (${resp.status} ${resp.statusText || ""})`.trim());
+
+      const attempted = [];
+      let lastErr = null;
+      for (const manifestUrl of manifestUrls) {
+        manifestUrlInputEl.value = manifestUrl;
+        statusLineEl.textContent = `Loading manifest URL: ${manifestUrl}`;
+        try {
+          const resp = await fetch(manifestUrl, { cache: "no-store" });
+          if (!resp.ok) {
+            const msg = `Manifest URL fetch failed (${resp.status} ${resp.statusText || ""})`.trim();
+            attempted.push(`${manifestUrl} -> ${msg}`);
+            continue;
+          }
+          const text = await resp.text();
+          const parsed = JSON.parse(text);
+          applyManifest(parsed, sourceLabel);
+          return true;
+        } catch (e) {
+          const msg = e?.message || String(e);
+          attempted.push(`${manifestUrl} -> ${msg}`);
+          lastErr = e;
+        }
       }
-      const text = await resp.text();
-      const parsed = JSON.parse(text);
-      applyManifest(parsed, sourceLabel);
-      return true;
+      const attempts = attempted.length ? ` Attempts: ${attempted.join(" | ")}` : "";
+      const fallback = lastErr?.message || "Unknown manifest URL fetch error.";
+      throw new Error(`${fallback}${attempts}`);
     }
 
     function loadManifestText() {
