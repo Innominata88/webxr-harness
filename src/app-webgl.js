@@ -231,29 +231,35 @@ const xrAnchorToFirstPose = (() => {
 
 // Session-order control for ABBA/BAAB/randomized protocols
 const enforceOrder = (params.get("enforceOrder") || "0") === "1";
-const orderMode = (params.get("orderMode") || "none").toLowerCase(); // none|abba|baab|randomized
+const orderMode = (params.get("orderMode") || "none").toLowerCase(); // none|abba|baab|abba_baab|baab_abba|randomized
 const orderIndex = parseInt(params.get("orderIndex") || "0", 10);
 const assignedApi = (params.get("assignedApi") || "").toLowerCase();
 const orderSeed = params.get("orderSeed") || null;
 const pinGpu = (params.get("pinGpu") || "0") === "1";
 const sessionGroup = params.get("sessionGroup") || "default";
 
-function expectedApiForOrder(mode, index) {
-  if (!Number.isFinite(index) || index < 1) return null;
-  if (mode === "abba") {
-    const seq = ["webgl2", "webgpu", "webgpu", "webgl2"];
-    return seq[index - 1] || null;
+function orderPatternForMode(mode) {
+  if (mode === "abba") return ["webgl2", "webgpu", "webgpu", "webgl2"];
+  if (mode === "baab") return ["webgpu", "webgl2", "webgl2", "webgpu"];
+  if (mode === "abba_baab") {
+    return ["webgl2", "webgpu", "webgpu", "webgl2", "webgpu", "webgl2", "webgl2", "webgpu"];
   }
-  if (mode === "baab") {
-    const seq = ["webgpu", "webgl2", "webgl2", "webgpu"];
-    return seq[index - 1] || null;
+  if (mode === "baab_abba") {
+    return ["webgpu", "webgl2", "webgl2", "webgpu", "webgl2", "webgpu", "webgpu", "webgl2"];
   }
   return null;
 }
 
+function expectedApiForOrder(mode, index) {
+  if (!Number.isFinite(index) || index < 1) return null;
+  const pattern = orderPatternForMode(mode);
+  if (!pattern || !pattern.length) return null;
+  return pattern[(index - 1) % pattern.length] || null;
+}
+
 function enforceOrderControls(apiName) {
   if (!enforceOrder) return;
-  if (orderMode === "abba" || orderMode === "baab") {
+  if (orderMode === "abba" || orderMode === "baab" || orderMode === "abba_baab" || orderMode === "baab_abba") {
     const expected = expectedApiForOrder(orderMode, orderIndex);
     if (!expected) {
       throw new Error(`Invalid order controls: orderMode=${orderMode}, orderIndex=${orderIndex}`);
