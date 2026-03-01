@@ -54,3 +54,17 @@ Builder can also do this automatically:
 Never edit an existing `releases/<tag>/` directory after data collection starts.
 
 If you need changes, create a new tag (for example `r2026-03-05-b`) and a new manifest set.
+
+## 5) GitHub Releases page (optional but recommended)
+
+The harness "release tag" used in URLs (for example `releases/r2026-03-01-a/...`) is a repo path/version convention.
+By itself, it does **not** create a GitHub Release entry.
+
+If you want this version to appear under GitHub **Releases**, create and push a git tag, then publish a release:
+
+```bash
+git tag -a r2026-03-01-a -m "Immutable harness release r2026-03-01-a"
+git push origin r2026-03-01-a
+```
+
+Then create a release in GitHub UI (or via `gh release create ...`) for that tag.

@@ -14,6 +14,7 @@ For immutable releases, generate with `HARNESS_RELEASE_TAG` so URLs point to:
 
 - `https://innominata88.github.io/webxr-harness/releases/<tag>/...`
 - Full workflow: `docs/immutable-release-workflow.md`
+- Important: `releases/<tag>/` is a hosted immutable snapshot path. It does not create a GitHub Releases entry unless you also create/push a git tag and publish a release (see `docs/immutable-release-workflow.md` section "GitHub Releases page").
 
 ## Use With Run Launcher
 
