@@ -713,7 +713,7 @@ function downloadTextAuto(text, filename, mime="application/jsonl") {
   setTimeout(()=>URL.revokeObjectURL(url), 2500);
 }
 
-const _pendingDownloads = []; // {label, filename, text, mime}
+const _pendingDownloads = []; // {label, filename, text, mime, summary}
 let _resultsPanelEl = null;
 
 async function copyToClipboard(text) {
@@ -761,6 +761,7 @@ function ensureResultsPanel() {
       <div style="font-weight:600;">Results ready</div>
       <button id="rpClose" style="padding:6px 8px; border-radius:10px;">Close</button>
     </div>
+    <div id="rpSummary" style="margin-bottom:8px; font-size:12px; opacity:0.92;">Session: no files queued.</div>
     <div id="rpBody" style="display:flex; flex-direction:column; gap:10px;"></div>
     <div id="rpFooter" style="margin-top:10px; opacity:0.85;"></div>
   `;
@@ -774,13 +775,100 @@ function ensureResultsPanel() {
   return panel;
 }
 
+function summarizeQueuedJsonl(text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let parsed = 0;
+  let parseErrors = 0;
+  let completed = 0;
+  let aborted = 0;
+  let expected = 0;
+  let maxConditionIndex = 0;
+  let firstAbortReason = "";
+  const abortCodes = new Set();
+
+  for (const line of lines) {
+    let rec = null;
+    try {
+      rec = JSON.parse(line);
+      parsed++;
+    } catch (_) {
+      parseErrors++;
+      continue;
+    }
+    if (!rec || typeof rec !== "object") continue;
+
+    const cc = Number(rec.condition_count);
+    if (Number.isFinite(cc) && cc > expected) expected = cc;
+    const ci = Number(rec.condition_index);
+    if (Number.isFinite(ci) && ci > maxConditionIndex) maxConditionIndex = ci;
+
+    const abortCode = (typeof rec.abort_code === "string") ? rec.abort_code.trim() : "";
+    const isAborted = rec.aborted === true || !!abortCode;
+    if (isAborted) {
+      aborted++;
+      if (abortCode) abortCodes.add(abortCode);
+      if (!firstAbortReason && typeof rec.abort_reason === "string" && rec.abort_reason.trim()) {
+        firstAbortReason = rec.abort_reason.trim();
+      }
+    } else {
+      completed++;
+    }
+  }
+
+  if (expected < 1 && maxConditionIndex > 0) expected = maxConditionIndex;
+  const codeList = Array.from(abortCodes);
+
+  let status = "UNKNOWN";
+  let details = "";
+  if (parseErrors > 0) {
+    status = "FAIL";
+    details = `JSON parse errors=${parseErrors}, parsed=${parsed}`;
+  } else if (aborted > 0) {
+    status = "FAIL";
+    const codeText = codeList.length ? ` codes=${codeList.join("|")}` : "";
+    details = `aborts=${aborted}${codeText}, completed=${completed}${expected > 0 ? `/${expected}` : ""}`;
+    if (firstAbortReason) details += ` (${firstAbortReason})`;
+  } else if (parsed === 0) {
+    status = "INCOMPLETE";
+    details = "No JSON records found.";
+  } else if (expected > 0 && completed < expected) {
+    status = "INCOMPLETE";
+    details = `completed=${completed}/${expected}, no explicit abort record`;
+  } else {
+    status = "PASS";
+    details = `completed=${completed}${expected > 0 ? `/${expected}` : ""}, aborts=0`;
+  }
+
+  return {
+    status,
+    details,
+    parsed,
+    parseErrors,
+    completed,
+    expected: expected > 0 ? expected : null,
+    aborted,
+    abortCodes: codeList
+  };
+}
+
 function renderResultsPanel() {
   const panel = ensureResultsPanel();
   const body = panel.querySelector("#rpBody");
   const footer = panel.querySelector("#rpFooter");
+  const summaryEl = panel.querySelector("#rpSummary");
   body.innerHTML = "";
 
+  const counts = { PASS: 0, FAIL: 0, INCOMPLETE: 0, UNKNOWN: 0 };
+
   for (const item of _pendingDownloads) {
+    const status = item.summary?.status || "UNKNOWN";
+    if (status === "PASS" || status === "FAIL" || status === "INCOMPLETE") counts[status]++;
+    else counts.UNKNOWN++;
+
     const row = document.createElement("div");
     row.style.display = "grid";
     row.style.gridTemplateColumns = "1fr auto auto";
@@ -788,8 +876,51 @@ function renderResultsPanel() {
     row.style.alignItems = "center";
 
     const label = document.createElement("div");
-    label.textContent = `${item.label} — ${item.filename}`;
+    label.style.display = "flex";
+    label.style.flexDirection = "column";
+    label.style.gap = "4px";
     label.style.opacity = "0.95";
+
+    const top = document.createElement("div");
+    top.style.display = "flex";
+    top.style.alignItems = "center";
+    top.style.justifyContent = "space-between";
+    top.style.gap = "8px";
+
+    const name = document.createElement("div");
+    name.textContent = `${item.label} — ${item.filename}`;
+
+    const badge = document.createElement("span");
+    const status = item.summary?.status || "UNKNOWN";
+    badge.textContent = status;
+    badge.style.fontSize = "11px";
+    badge.style.fontWeight = "700";
+    badge.style.padding = "2px 8px";
+    badge.style.borderRadius = "999px";
+    badge.style.border = "1px solid rgba(255,255,255,0.25)";
+    if (status === "PASS") {
+      badge.style.background = "rgba(72, 188, 120, 0.30)";
+      badge.style.color = "#d7ffe5";
+    } else if (status === "FAIL") {
+      badge.style.background = "rgba(214, 80, 80, 0.30)";
+      badge.style.color = "#ffdede";
+    } else if (status === "INCOMPLETE") {
+      badge.style.background = "rgba(232, 177, 52, 0.30)";
+      badge.style.color = "#fff0cc";
+    } else {
+      badge.style.background = "rgba(180, 180, 180, 0.25)";
+      badge.style.color = "#e6e6e6";
+    }
+
+    const details = document.createElement("div");
+    details.style.opacity = "0.82";
+    details.style.fontSize = "12px";
+    details.textContent = item.summary?.details || "No run summary.";
+
+    top.appendChild(name);
+    top.appendChild(badge);
+    label.appendChild(top);
+    label.appendChild(details);
 
     const btnDl = document.createElement("button");
     btnDl.textContent = "Download";
@@ -816,6 +947,22 @@ function renderResultsPanel() {
     body.appendChild(row);
   }
 
+  const total = _pendingDownloads.length;
+  if (summaryEl) {
+    summaryEl.textContent =
+      `Session: ${total} file(s)  PASS ${counts.PASS}  FAIL ${counts.FAIL}  INCOMPLETE ${counts.INCOMPLETE}` +
+      (counts.UNKNOWN ? `  UNKNOWN ${counts.UNKNOWN}` : "");
+    if (counts.FAIL > 0) {
+      summaryEl.style.color = "#ffdede";
+    } else if (counts.INCOMPLETE > 0) {
+      summaryEl.style.color = "#fff0cc";
+    } else if (counts.PASS > 0) {
+      summaryEl.style.color = "#d7ffe5";
+    } else {
+      summaryEl.style.color = "#ffffff";
+    }
+  }
+
   footer.textContent = manualDownload
     ? "Manual download is enabled. Use the buttons above to Download or Copy results."
     : "Automatic downloads are enabled. If you don’t see the file, re-run with manualDownload=1 to force manual downloads.";
@@ -824,7 +971,13 @@ function renderResultsPanel() {
 }
 
 function queueDownload(text, filename, label="Results", mime="application/jsonl") {
-  _pendingDownloads.push({ label, filename, text, mime });
+  _pendingDownloads.push({
+    label,
+    filename,
+    text,
+    mime,
+    summary: summarizeQueuedJsonl(text)
+  });
   renderResultsPanel();
 }
 
