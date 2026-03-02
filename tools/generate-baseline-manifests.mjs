@@ -20,6 +20,8 @@ if (explicitHarnessCommit && releaseCommitShort && explicitHarnessCommit !== rel
 const harnessCommit = explicitHarnessCommit || releaseCommitShort || safeGitShortHash() || "";
 const harnessVersion = process.env.HARNESS_VERSION || releaseTag || "";
 const assetRevision = process.env.ASSET_REVISION || "spiderman_2002_movie_version_sam_raimi_0";
+const requiredFlagsProfileId = process.env.FEATURE_FLAGS_PROFILE_ID || "webxr-webgpu-flags-v1";
+const requiredFlagsExact = process.env.FEATURE_FLAGS_EXACT || "webxr_projection_layers=1;webxr_webgpu_binding=1;webgpu=1";
 const generatedAt = new Date().toISOString();
 
 function safeGitShortHash() {
@@ -219,6 +221,7 @@ function buildRowUrl(api, values) {
     "trials",
     "layout",
     "spacing",
+    "canvasScaleFactor",
     "seed",
     "shuffle",
     "debugColor",
@@ -254,6 +257,8 @@ function buildRowUrl(api, values) {
     "harnessCommit",
     "harnessVersion",
     "assetRevision",
+    "featureFlagsProfile",
+    "featureFlagsExact",
     "enforceOrder",
     "orderMode",
     "orderIndex",
@@ -282,6 +287,7 @@ const baseValues = {
   trials: "10",
   durationMs: "6000",
   spacing: "0.35",
+  canvasScaleFactor: "1",
   seed: "12345",
   debugColor: "flat",
   warmupMs: "500",
@@ -313,7 +319,9 @@ const baseValues = {
   webgpuInitTimeoutMs: "15000",
   harnessCommit,
   harnessVersion,
-  assetRevision
+  assetRevision,
+  featureFlagsProfile: requiredFlagsProfileId,
+  featureFlagsExact: requiredFlagsExact
 };
 
 const defs = [
@@ -422,6 +430,7 @@ const defs = [
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
     layout: "xrwall",
+    canvasScaleFactor: "0.75",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -441,6 +450,7 @@ const defs = [
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
     layout: "xrwall",
+    canvasScaleFactor: "0.75",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -451,7 +461,7 @@ const defs = [
     cooldownBetweenRunsMs: 300000
   },
   {
-    file: "pixel8a_xr_ar_primary_regular_webgl_only_5sets.json",
+    file: "pixel8a_xr_ar_primary_regular_paired_5sets.json",
     suiteId: "PIXEL8A_XR_AR_PRIMARY_REGULAR",
     runIdBase: "pixel8a_xr_ar_primary_regular",
     deviceTag: "pixel8a",
@@ -463,14 +473,14 @@ const defs = [
     shuffle: "1",
     preIdleMs: "500",
     postIdleMs: "500",
-    apiScope: "webgl_only",
-    orderMode: "none",
-    runCount: 5,
+    apiScope: "paired",
+    orderMode: "abba_baab",
+    runCount: 10,
     orderSeed: "12345",
     cooldownBetweenRunsMs: 300000
   },
   {
-    file: "samsung_fe5g_xr_ar_primary_regular_webgl_only_5sets.json",
+    file: "samsung_fe5g_xr_ar_primary_regular_paired_5sets.json",
     suiteId: "SAMSUNG_FE5G_XR_AR_PRIMARY_REGULAR",
     runIdBase: "samsung_fe5g_xr_ar_primary_regular",
     deviceTag: "samsung-fe5g",
@@ -482,9 +492,9 @@ const defs = [
     shuffle: "1",
     preIdleMs: "500",
     postIdleMs: "500",
-    apiScope: "webgl_only",
-    orderMode: "none",
-    runCount: 5,
+    apiScope: "paired",
+    orderMode: "abba_baab",
+    runCount: 10,
     orderSeed: "12345",
     cooldownBetweenRunsMs: 300000
   },
@@ -560,6 +570,7 @@ function buildManifest(def) {
       runMode: def.runMode,
       xrSessionMode: def.xrSessionMode,
       layout: def.layout,
+      canvasScaleFactor: def.canvasScaleFactor || baseValues.canvasScaleFactor,
       shuffle: def.shuffle,
       preIdleMs: def.preIdleMs,
       postIdleMs: def.postIdleMs,
@@ -632,8 +643,12 @@ function buildManifest(def) {
       profilerMode: "baseline_untraced",
       profilerConfig: "",
       injectOutputNames: true,
-      cooldownBetweenRunsMs: def.cooldownBetweenRunsMs
+      cooldownBetweenRunsMs: def.cooldownBetweenRunsMs,
+      required_flags_profile_id: requiredFlagsProfileId,
+      required_flags_exact: requiredFlagsExact
     },
+    required_flags_profile_id: requiredFlagsProfileId,
+    required_flags_exact: requiredFlagsExact,
     rows
   };
 }

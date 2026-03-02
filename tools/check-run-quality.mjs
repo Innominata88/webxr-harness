@@ -19,9 +19,11 @@ const ROOT_FAIRNESS_FIELDS = [
   { name: "cooldownMs" },
   { name: "betweenInstancesMs" },
   { name: "layout" },
+  { name: "xrSessionMode" },
   { name: "seed" },
   { name: "shuffle" },
   { name: "spacing", tol: 1e-9 },
+  { name: "canvasScaleFactor", tol: 1e-9 },
   { name: "debugColor" },
   { name: "preIdleMs" },
   { name: "postIdleMs" },
@@ -32,10 +34,14 @@ const ROOT_FAIRNESS_FIELDS = [
 
 const ENV_FAIRNESS_FIELDS = [
   { name: "runMode" },
+  { name: "xr_session_mode_requested" },
+  { name: "xr_session_mode_supported" },
   { name: "xrFrontMinZ", tol: 1e-9 },
   { name: "xrYOffset", tol: 1e-9 },
   { name: "xr_scale_factor_requested", tol: 1e-9 },
   { name: "xr_scale_factor_applied", tol: 1e-9 },
+  { name: "canvas_scale_factor_requested", tol: 1e-9 },
+  { name: "canvas_scale_factor_applied", tol: 1e-9 },
   { name: "xr_no_pose_grace_ms" },
   { name: "xr_start_on_first_pose_requested" },
   { name: "xr_anchor_to_first_pose_requested" },
@@ -50,6 +56,8 @@ const ENV_FAIRNESS_FIELDS = [
   { name: "harness_version" },
   { name: "harness_commit" },
   { name: "asset_revision" },
+  { name: "feature_flags_profile" },
+  { name: "feature_flags_exact" },
 ];
 
 function usage() {
@@ -234,6 +242,9 @@ function assessRecord(entry) {
   }
 
   if (entry.api === "webgpu") {
+    if (entry.mode === "xr" && env.xr_webgpu_binding_available !== true) {
+      exclude.push("webgpu_xr_binding_unavailable");
+    }
     if (isObject(env.device_lost)) {
       exclude.push("webgpu_device_lost");
     }

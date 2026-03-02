@@ -213,7 +213,10 @@
             <button id="copyNextUrlBtn" type="button">Copy Next URL</button>
             <button id="startNextBtn" type="button">Start Next Run (Same Tab)</button>
             <button id="forceStartNextBtn" type="button">Force Start (Ignore Cooldown)</button>
+            <button id="startNextNewTabBtn" type="button">Start Next Run (New Tab)</button>
+            <button id="forceStartNextNewTabBtn" type="button">Force Start New Tab</button>
           </div>
+          <div class="muted" style="margin-top: 6px;">Recommended on mobile: launch in a new tab and return here to mark complete/failed. This avoids back-navigation lifecycle issues.</div>
         </div>
       </div>
       <div class="row">
@@ -782,6 +785,8 @@
       const hasSafariTemplate = Boolean(nextSafariTraceNameEl.value.trim());
       document.getElementById("startNextBtn").disabled = !hasManifest || !hasNext || isCooldownActive();
       document.getElementById("forceStartNextBtn").disabled = !hasManifest || !hasNext;
+      document.getElementById("startNextNewTabBtn").disabled = !hasManifest || !hasNext || isCooldownActive();
+      document.getElementById("forceStartNextNewTabBtn").disabled = !hasManifest || !hasNext;
       document.getElementById("copyNextUrlBtn").disabled = !hasManifest || !hasNext;
       document.getElementById("copyChromeTraceTemplateBtn").disabled = !hasManifest || !hasTraceFocus || !hasChromeTemplate;
       document.getElementById("copyChromeTraceStampedBtn").disabled = !hasManifest || !hasTraceFocus || !hasChromeTemplate;
@@ -998,7 +1003,7 @@
       copyTextToClipboard(row.url, "Next run URL copied.");
     }
 
-    function startNextRun(force) {
+    function startNextRun(force, openInNewTab = false) {
       if (!manifest || !progress) return;
       if (!force && isCooldownActive()) {
         statusLineEl.textContent = "Cooldown is active. Wait or use Force Start.";
@@ -1022,6 +1027,16 @@
       if (!progress.traceNameSnapshotByRun || typeof progress.traceNameSnapshotByRun !== "object") {
         progress.traceNameSnapshotByRun = {};
       }
+
+      if (openInNewTab) {
+        const child = window.open(row.url, "_blank", "noopener,noreferrer");
+        if (!child) {
+          statusLineEl.textContent = "Could not open new tab. Check popup blocking and try again.";
+          return;
+        }
+        try { child.focus(); } catch (_) {}
+      }
+
       progress.traceNameSnapshotByRun[String(row.run_number)] = snapshot;
       progress.startedRunNumber = row.run_number;
       progress.startedAtIso = nowIso();
@@ -1029,6 +1044,11 @@
       progress.cooldownMs = currentCooldownMs();
       pushEvent("run_start", { run_number: row.run_number, api: row.api, run_id: row.run_id });
       saveProgress();
+      if (openInNewTab) {
+        statusLineEl.textContent = `Opened run ${row.run_number} in a new tab. Mark it complete/failed here when done.`;
+        render();
+        return;
+      }
       location.href = row.url;
     }
 
@@ -1160,8 +1180,10 @@
           : "Safari trace name copied with current timestamp.";
         copyTextToClipboard(stamped, label);
       });
-      document.getElementById("startNextBtn").addEventListener("click", () => startNextRun(false));
-      document.getElementById("forceStartNextBtn").addEventListener("click", () => startNextRun(true));
+      document.getElementById("startNextBtn").addEventListener("click", () => startNextRun(false, false));
+      document.getElementById("forceStartNextBtn").addEventListener("click", () => startNextRun(true, false));
+      document.getElementById("startNextNewTabBtn").addEventListener("click", () => startNextRun(false, true));
+      document.getElementById("forceStartNextNewTabBtn").addEventListener("click", () => startNextRun(true, true));
       document.getElementById("markCompleteBtn").addEventListener("click", () => markStartedRun("completed"));
       document.getElementById("markFailedBtn").addEventListener("click", () => markStartedRun("failed"));
       document.getElementById("skipNextBtn").addEventListener("click", skipNextRun);

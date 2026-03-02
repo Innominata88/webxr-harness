@@ -42,6 +42,7 @@ node tools/check-run-quality.mjs --pair-by suiteId --out-base reports/run_qualit
 - Produces `reports/run_quality.json` and `reports/run_quality.csv`.
 - In strict mode (default), exits with code `2` if any pair is excluded for primary analysis.
 - Use `--pair-by suiteId` for formal data collection so trials only pair within the same run suite.
+- For primary WebGPU XR inclusion, require `env.xr_webgpu_binding_available === true` (the checker excludes otherwise).
 
 Failure-rate curve generator (stability analysis):
 
@@ -103,6 +104,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `seed` | number | all | Seed used for deterministic layout/shuffle |
 | `shuffle` | boolean | all | Whether condition order was shuffled |
 | `spacing` | number | all | Inter-instance spacing parameter |
+| `canvasScaleFactor` | number | all | Requested canvas scale-factor parameter captured at record level for reproducibility |
 | `debugColor` | string | all | Debug fragment coloring mode: `"flat"`, `"abspos"`, or `"instance"` |
 | `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
 | `xrStartOnFirstPose` | boolean | all | Requested XR timing mode; when `true`, measured XR window starts on first valid pose |
@@ -279,6 +281,7 @@ Can be `null` if no matching resource timing entry is found.
 | `crossOriginIsolated` | boolean |
 | `visibilityState` | string |
 | `dpr` | number |
+| `dpr_canvas` | number optional |
 | `canvas_css` | object (`w`,`h`) |
 | `canvas_px` | object (`w`,`h`) |
 | `xr_enter_to_first_frame_ms` | number optional |
@@ -303,12 +306,17 @@ Can be `null` if no matching resource timing entry is found.
 | `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
 | `xr_scale_factor_requested` | number |
 | `xr_scale_factor_applied` | number or null |
+| `canvasScaleFactor` | number optional | Requested canvas scale-factor parameter (camelCase mirror for parser compatibility) |
+| `canvas_scale_factor_requested` | number optional |
+| `canvas_scale_factor_applied` | number or null optional |
 | `xr_scale_factor_fallback_used` | boolean optional | `true` when XR layer creation had to fall back to a lower/default scale factor |
 | `xr_projection_layer_fallback` | string optional | XR layer fallback mode used at startup |
 | `xr_first_frame_seen` | boolean optional | `false` when XR session ended before first frame was rendered |
 | `harness_version` | string optional | Harness build/version identifier (query `harnessVersion`, meta tag fallback, or schema version) |
 | `harness_commit` | string or null optional | Harness commit/cache-buster identifier for reproducibility (query `harnessCommit` or `appRev`, then meta tag fallback) |
 | `asset_revision` | string or null optional | Asset revision/hash identifier (query `assetRevision`/`assetHash` or meta tag fallback) |
+| `feature_flags_profile` | string or null optional | Feature-flag profile ID recorded for this run (query `featureFlagsProfile` or meta tag fallback; operator-provided) |
+| `feature_flags_exact` | string or null optional | Exact feature-flag state string recorded for this run (query `featureFlagsExact` or meta tag fallback; operator-provided because browser flag toggles are not readable from page JS) |
 | `provenance` | object or null optional | Grouped provenance block (see `env.provenance` section) |
 | `js_errors` | object[] or null optional | Ring buffer of global JS runtime `error` events captured by `window.onerror` listener |
 | `js_unhandled_rejections` | object[] or null optional | Ring buffer of global Promise rejection events captured by `window.unhandledrejection` listener |
@@ -355,6 +363,7 @@ Legacy note:
 | `device_features` | string[] |
 | `device_limits` | object |
 | `colorFormat` | string |
+| `xr_webgpu_binding_available` | boolean |
 | `device_lost` | object or null optional |
 | `device_lost_info` | object or null optional | Alias of `device_lost` for parser compatibility |
 | `device_lost_count` | number optional | Number of observed `device.lost` events since page load |
@@ -370,7 +379,11 @@ Explicit run provenance for reproducibility and paper reporting.
 | `harness_version` | string | Harness version identifier |
 | `harness_commit` | string or null | Commit identifier when available |
 | `asset_revision` | string or null | Asset revision/hash identifier when available |
+| `feature_flags_profile` | string or null | Feature-flag profile ID when available |
+| `feature_flags_exact` | string or null | Exact feature-flag state string when available |
 | `asset_url` | string | Model URL used by the run |
+
+Note: `feature_flags_profile` / `feature_flags_exact` are provenance fields supplied by the operator or deployment metadata. They are not a browser-reported dump of active flag toggles.
 
 ## `partial_trial` object (abort records)
 

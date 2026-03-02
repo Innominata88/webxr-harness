@@ -30,6 +30,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `seed`
   - `shuffle`
   - `spacing`
+  - `canvasScaleFactor`
   - `debugColor`
   - `xrFrontMinZ`
   - `xrYOffset`
@@ -41,6 +42,8 @@ Use this checklist before collecting data intended for analysis or publication.
   - `perfDetail`
   - `batteryTelemetry`
   - `connectionTelemetry`
+  - `featureFlagsProfile`
+  - `featureFlagsExact`
   - `hud`
   - `hudHz`
   - `renderProbe`
@@ -60,6 +63,10 @@ Use this checklist before collecting data intended for analysis or publication.
 - [ ] Browser/channel and exact version are recorded.
 - [ ] OS version is recorded.
 - [ ] Device model and headset model are recorded.
+- [ ] Feature-flag profile is fixed and recorded for the campaign (for example `feature_flags_profile_id=webxr-webgpu-flags-v1`).
+- [ ] Exact flag state string is recorded (`feature_flags_exact`) and kept identical across paired runs.
+- [ ] Flag verification timestamp and operator are recorded (`flags_verified_at_iso`, `flags_verified_by`).
+- [ ] Operator verifies flag state manually from browser settings/flags UI (these toggles are not introspectable from page JavaScript).
 - [ ] Power state policy is fixed (battery/plugged, thermal state, power saver off/on).
 - [ ] Background processes policy is fixed (notifications, updates, other tabs/apps).
 - [ ] Network condition policy is fixed (offline/local asset cache or controlled network).

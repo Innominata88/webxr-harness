@@ -7,6 +7,7 @@ These manifests were generated for baseline collection using:
 - Base URL in run links: `https://innominata88.github.io/webxr-harness/`
 - Model: `./assets/spiderman_2002_movie_version_sam_raimi_0.glb`
 - `debugColor=flat`, `manualDownload=1`, `traceMarkers=1`, `traceOverlay=0`
+- Required flags profile metadata is embedded in each manifest (`required_flags_profile_id`, `required_flags_exact`)
 
 All manifests include per-row `out/outxr` output naming so downloaded JSONL names match `results_name`.
 
@@ -47,11 +48,13 @@ Output:
 5. `manifests/quest2_xr_primary_regular_webgl_only_5sets.json`
 6. `manifests/pixel8a_canvas_primary_regular_paired_5sets.json`
 7. `manifests/samsung_fe5g_canvas_primary_regular_paired_5sets.json`
-8. `manifests/ipadairm3_canvas_primary_regular_paired_5sets.json`
-9. `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
-10. `manifests/windows_hp_canvas_primary_regular_paired_5sets.json`
+8. `manifests/pixel8a_xr_ar_primary_regular_paired_5sets.json`
+9. `manifests/samsung_fe5g_xr_ar_primary_regular_paired_5sets.json`
+10. `manifests/ipadairm3_canvas_primary_regular_paired_5sets.json`
+11. `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
+12. `manifests/windows_hp_canvas_primary_regular_paired_5sets.json`
 
-## Optional Phone AR Manifests
+## Legacy Phone AR Manifests (Not Primary)
 
 1. `manifests/pixel8a_xr_ar_primary_regular_webgl_only_5sets.json`
 2. `manifests/samsung_fe5g_xr_ar_primary_regular_webgl_only_5sets.json`
@@ -63,6 +66,8 @@ Output:
 - Regular manifests use cooldown `300000` ms (5 min) between runs.
 - AVP cliff manifest uses cooldown `600000` ms (10 min) between runs.
 - AVP cliff instance band is `340,345,348,350`.
+- Phone canvas baseline manifests lock `canvasScaleFactor=0.75`.
+- Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
 
 ## Regenerate
 
@@ -75,7 +80,7 @@ node tools/generate-baseline-manifests.mjs
 Optional overrides:
 
 ```bash
-HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-01-a" HARNESS_VERSION="r2026-03-01-a" ASSET_REVISION="spiderman_2002_movie_version_sam_raimi_0" node tools/generate-baseline-manifests.mjs
+HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-01-a" HARNESS_VERSION="r2026-03-01-a" ASSET_REVISION="spiderman_2002_movie_version_sam_raimi_0" FEATURE_FLAGS_PROFILE_ID="webxr-webgpu-flags-v1" FEATURE_FLAGS_EXACT="webxr_projection_layers=1;webxr_webgpu_binding=1;webgpu=1" node tools/generate-baseline-manifests.mjs
 ```
 
 When `HARNESS_RELEASE_TAG` is set, `tools/generate-baseline-manifests.mjs` auto-reads `releases/<tag>/RELEASE_INFO.json` and stamps `harnessCommit` from `commitShort`.

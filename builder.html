@@ -641,6 +641,7 @@
       { key: "trials", label: "trials", group: "core", type: "number", def: "1", min: "1", step: "1", always: true },
       { key: "layout", label: "layout", group: "core", type: "select", def: "xrwall", always: true, options: ["line", "grid", "spiral", "random", "xrwall"] },
       { key: "spacing", label: "spacing", group: "core", type: "number", def: "0.35", step: "0.01", always: true },
+      { key: "canvasScaleFactor", label: "canvasScaleFactor", group: "core", type: "number", def: "1", step: "0.01", always: true, hint: "Canvas-only resolution scale. Keep fixed across paired APIs (for phones, 0.75 recommended)." },
       { key: "seed", label: "seed", group: "core", type: "number", def: "12345", step: "1", always: true },
       { key: "shuffle", label: "shuffle", group: "core", type: "bool", def: "0", always: true },
       { key: "debugColor", label: "debugColor", group: "core", type: "select", def: "flat", always: true, options: ["flat", "abspos", "instance"] },
@@ -680,6 +681,8 @@
       { key: "harnessCommit", label: "harnessCommit", group: "provenance", type: "text", def: "", hint: "Use a git hash for reproducibility." },
       { key: "harnessVersion", label: "harnessVersion", group: "provenance", type: "text", def: "" },
       { key: "assetRevision", label: "assetRevision", group: "provenance", type: "text", def: "" },
+      { key: "featureFlagsProfile", label: "featureFlagsProfile", group: "provenance", type: "text", def: "", hint: "Short ID for browser-flag profile, e.g. webxr-webgpu-flags-v1 (operator-entered)." },
+      { key: "featureFlagsExact", label: "featureFlagsExact", group: "provenance", type: "text", def: "", hint: "Exact required flag state string (operator-entered; page JS cannot read browser flag toggles)." },
 
       { key: "enforceOrder", label: "enforceOrder", group: "order", type: "bool", def: "0" },
       { key: "orderMode", label: "orderMode", group: "order", type: "select", def: "none", options: ["none", "abba", "baab", "abba_baab", "baab_abba", "randomized"] },
@@ -952,6 +955,7 @@
       "seed",
       "shuffle",
       "spacing",
+      "canvasScaleFactor",
       "canvasAutoDelayMs",
       "manualStart",
       "debugColor",
@@ -978,7 +982,9 @@
       "connectionTelemetry",
       "harnessVersion",
       "harnessCommit",
-      "assetRevision"
+      "assetRevision",
+      "featureFlagsProfile",
+      "featureFlagsExact"
     ]);
     const AVOID_PRIMARY_KEYS = new Set([
       "hud",
@@ -993,6 +999,8 @@
       "harnessCommit",
       "harnessVersion",
       "assetRevision",
+      "featureFlagsProfile",
+      "featureFlagsExact",
       "model"
     ]);
     const FIELD_DESC = Object.freeze({
@@ -1002,6 +1010,7 @@
       trials: "Trial repetitions per instance count.",
       layout: "Instance arrangement policy (line/grid/spiral/random/xrwall).",
       spacing: "Distance between generated instances.",
+      canvasScaleFactor: "Canvas render-resolution scale multiplier relative to device DPR.",
       seed: "Deterministic seed for randomized layouts/order.",
       shuffle: "Shuffles trial order within the suite.",
       debugColor: "Fragment color mode used by both renderers.",
@@ -1037,6 +1046,8 @@
       harnessCommit: "Harness git/hash provenance tag.",
       harnessVersion: "Harness version provenance field.",
       assetRevision: "Asset provenance/revision tag.",
+      featureFlagsProfile: "Short feature-flag profile ID recorded in URLs/results for reproducibility (operator-entered).",
+      featureFlagsExact: "Exact browser flag configuration string recorded for audit/provenance (operator-entered; not auto-detected by page JS).",
       enforceOrder: "Enable strict ABBA/BAAB/randomized order controls.",
       orderMode: "Order-control policy when enforceOrder is enabled.",
       orderIndex: "Expected index in ordered sequence.",
@@ -1052,6 +1063,7 @@
     const FIELD_REC = Object.freeze({
       suiteId: "Change once per campaign/device session. Keep fixed across all paired runs in that manifest.",
       runId: "Use as campaign base ID. Manifest rows auto-generate unique runId suffixes per run.",
+      canvasScaleFactor: "For phone canvas baselines, lock to 0.75 across both APIs; keep fixed within a campaign.",
       shuffle: "Regular runs: keep ON with fixed/logged seed. Cliff runs: keep OFF for monotonic stepping.",
       debugColor: "Primary: keep FLAT. Use abspos/instance only for diagnostics or screenshots.",
       hud: "Primary: keep OFF (or fixed ON for all paired runs).",
@@ -1063,6 +1075,8 @@
       storeFrames: "Primary: keep OFF unless you need per-frame appendix data.",
       manualStart: "Primary metrics: keep OFF. Profiling/tracing runs: turn ON so you can start profiler first, and keep it matched across APIs.",
       xrSessionMode: "Keep fixed within a campaign. Analyze immersive-vr and immersive-ar as separate cohorts.",
+      featureFlagsProfile: "Set once per campaign (for example webxr-webgpu-flags-v1) and keep fixed across all paired runs.",
+      featureFlagsExact: "Copy from browser flags/settings once per campaign and keep fixed across all paired runs.",
       includeModeAlias: "Canonical parameter is runMode; keep mode alias OFF unless needed for compatibility.",
       includeAppRevAlias: "Prefer harnessCommit as single provenance key to avoid duplicate semantics."
     });
@@ -2163,6 +2177,12 @@
       const isQuest2 = deviceTag === "quest2" || deviceTag === "quest-2" || deviceTag === "meta-quest-2";
       const apiScope = resolveManifestApiScope();
       const includesWebgpu = apiScope === "paired" || apiScope === "webgpu_only";
+      if (values.runMode !== "canvas" && includesWebgpu && !String(values.featureFlagsProfile || "").trim()) {
+        warnings.push("WebGPU XR is included but featureFlagsProfile is empty. Set a fixed profile ID for reproducible flag-locked runs.");
+      }
+      if (values.runMode !== "canvas" && includesWebgpu && !String(values.featureFlagsExact || "").trim()) {
+        notes.push("WebGPU XR is included and featureFlagsExact is empty. For strict provenance, record the exact required flags string.");
+      }
       if (values.runMode === "canvas" && values.xrSessionMode !== "immersive-vr") {
         notes.push(`runMode=canvas ignores xrSessionMode=${values.xrSessionMode}; this setting only affects XR sessions.`);
       }

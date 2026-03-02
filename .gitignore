@@ -1,0 +1,8 @@
+# macOS filesystem metadata
+.DS_Store
+
+# Generated quality report outputs
+reports/*.csv
+reports/*.json
+quality_report_*.csv
+quality_report_*.json

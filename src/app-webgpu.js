@@ -39,10 +39,16 @@ const harnessCommit = normalizeOptionalString(params.get("harnessCommit"))
 const assetRevision = normalizeOptionalString(params.get("assetRevision"))
   || normalizeOptionalString(params.get("assetHash"))
   || normalizeOptionalString(readMetaContent("webxr-asset-revision"));
+const featureFlagsProfile = normalizeOptionalString(params.get("featureFlagsProfile"))
+  || normalizeOptionalString(readMetaContent("webxr-feature-flags-profile"));
+const featureFlagsExact = normalizeOptionalString(params.get("featureFlagsExact"))
+  || normalizeOptionalString(readMetaContent("webxr-feature-flags-exact"));
 const provenanceInfo = {
   harness_version: harnessVersion,
   harness_commit: harnessCommit,
   asset_revision: assetRevision,
+  feature_flags_profile: featureFlagsProfile,
+  feature_flags_exact: featureFlagsExact,
   asset_url: modelUrl
 };
 
@@ -213,6 +219,10 @@ const xrScaleFactor = (() => {
   const v = parseFloat(params.get("xrScaleFactor") || "1");
   return (Number.isFinite(v) && v > 0) ? Math.min(2.0, Math.max(0.25, v)) : 1.0;
 })();
+const canvasScaleFactor = (() => {
+  const v = parseFloat(params.get("canvasScaleFactor") || "1");
+  return (Number.isFinite(v) && v > 0) ? Math.min(1.0, Math.max(0.25, v)) : 1.0;
+})();
 const xrProbeReadback = (params.get("xrProbeReadback") || "0") === "1";
 const minFrames = (() => {
   const v = parseInt(params.get("minFrames") || "30", 10);
@@ -364,6 +374,22 @@ let connectionListenerInstalled = false;
 let connectionChangeCount = 0;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
+
+function getNativeDevicePixelRatio() {
+  const dpr = Number(window.devicePixelRatio || 1);
+  return (Number.isFinite(dpr) && dpr > 0) ? dpr : 1;
+}
+
+function getAppliedCanvasDpr() {
+  return getNativeDevicePixelRatio() * canvasScaleFactor;
+}
+
+function applyCanvasResolutionScale() {
+  const appliedDpr = getAppliedCanvasDpr();
+  canvas.width = Math.max(1, Math.floor(canvas.clientWidth * appliedDpr));
+  canvas.height = Math.max(1, Math.floor(canvas.clientHeight * appliedDpr));
+  return appliedDpr;
+}
 
 function ensureManualCanvasStartButton() {
   if (manualCanvasStartButton) return manualCanvasStartButton;
@@ -1282,6 +1308,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     shuffle,
     spacing,
     debugColor,
+    canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
     xrAnchorToFirstPose,
@@ -1422,6 +1449,9 @@ const device_limits = copyLimits(device.limits || {});
   renderer.setCamera(proj, view);
 
   renderer.setInstances(instancesList[0], spacing, { layout, seed });
+  const nativeDpr = getNativeDevicePixelRatio();
+  const canvasAppliedDpr = canvas.width / Math.max(1, canvas.clientWidth);
+  const canvasAppliedScaleFactor = canvasAppliedDpr / nativeDpr;
 
   sceneInfo = { asset_timing: scene.timing, asset_meta: scene.meta };
   envInfo = {
@@ -1440,6 +1470,9 @@ const device_limits = copyLimits(device.limits || {});
     xr_scale_factor_fallback_used: false,
     xr_projection_layer_fallback: null,
     xr_probe_readback_requested: xrProbeReadback,
+    canvasScaleFactor,
+    canvas_scale_factor_requested: canvasScaleFactor,
+    canvas_scale_factor_applied: canvasAppliedScaleFactor,
     xr_min_frames: minFrames,
     xr_no_pose_grace_ms: xrNoPoseGraceMs,
     xr_start_on_first_pose_requested: xrStartOnFirstPose,
@@ -1463,6 +1496,8 @@ const device_limits = copyLimits(device.limits || {});
     harness_version: harnessVersion,
     harness_commit: harnessCommit,
     asset_revision: assetRevision,
+    feature_flags_profile: featureFlagsProfile,
+    feature_flags_exact: featureFlagsExact,
     provenance: provenanceInfo,
     run_id: runId,
     trace_markers_enabled: traceMarkers,
@@ -1512,7 +1547,8 @@ const device_limits = copyLimits(device.limits || {});
     isSecureContext,
     crossOriginIsolated,
     visibilityState: document.visibilityState,
-    dpr: devicePixelRatio,
+    dpr: nativeDpr,
+    dpr_canvas: canvasAppliedDpr,
     canvas_css: { w: canvas.clientWidth, h: canvas.clientHeight },
     canvas_px: { w: canvas.width, h: canvas.height },
     adapter: adapterInfo || null,
@@ -1590,6 +1626,7 @@ function runCanvasTrial(item, planIdx, planLen) {
       shuffle,
       spacing,
       debugColor,
+      canvasScaleFactor,
       xrScaleFactor,
       xrStartOnFirstPose,
       xrAnchorToFirstPose,
@@ -2298,6 +2335,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     shuffle,
     spacing,
     debugColor,
+    canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
     xrAnchorToFirstPose,
@@ -2506,6 +2544,7 @@ function startNextXRTrial(session) {
     shuffle,
     spacing,
     debugColor,
+    canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
     xrAnchorToFirstPose,
@@ -2902,8 +2941,7 @@ async function main() {
   installGlobalErrorListeners();
   setXRButtonDisabled("Checking WebGPU…");
 
-  canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
-  canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
+  const appliedCanvasDpr = applyCanvasResolutionScale();
 
   enforceOrderControls(apiLabel);
 
@@ -2918,7 +2956,7 @@ async function main() {
   }
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
@@ -2929,11 +2967,11 @@ async function main() {
       enabled: true,
       text: "Start Canvas Suite"
     });
-    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => startCanvasSuiteNow("auto_delay"), canvasAutoDelayMs);
 }
