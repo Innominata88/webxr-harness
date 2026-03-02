@@ -28,6 +28,9 @@ if (fs.existsSync(releaseDir)) {
 const includes = [
   "assets",
   "src",
+  "manifests",
+  "builder.html",
+  "run-launcher.html",
   "webgl.html",
   "webgpu.html",
   "vr-webgl.html",
@@ -76,6 +79,7 @@ process.stdout.write("1) git add releases/<tag>\n");
 process.stdout.write("2) git commit -m \"Add immutable release <tag>\"\n");
 process.stdout.write("3) git push\n");
 process.stdout.write(`4) Use base URL: https://innominata88.github.io/webxr-harness/releases/${tag}/\n`);
+process.stdout.write(`5) Launcher URL example: https://innominata88.github.io/webxr-harness/releases/${tag}/run-launcher.html?manifest=manifests/<manifest>.json\n`);
 
 function safeGit(cmd) {
   try {
