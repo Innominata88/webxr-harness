@@ -9,6 +9,7 @@ const outDir = path.join(repoRoot, "manifests");
 const rootBaseUrl = process.env.HARNESS_BASE_URL || "https://innominata88.github.io/webxr-harness/";
 const releaseTag = process.env.HARNESS_RELEASE_TAG || "";
 const baseUrl = deriveEffectiveBaseUrl(rootBaseUrl, releaseTag);
+const manifestProfile = String(process.env.MANIFEST_PROFILE || "baseline").trim().toLowerCase();
 const modelUrl = "./assets/spiderman_2002_movie_version_sam_raimi_0.glb";
 const releaseCommitShort = readReleaseCommitShort(releaseTag);
 const explicitHarnessCommit = String(process.env.HARNESS_COMMIT || "").trim();
@@ -23,6 +24,12 @@ const assetRevision = process.env.ASSET_REVISION || "spiderman_2002_movie_versio
 const requiredFlagsProfileId = process.env.FEATURE_FLAGS_PROFILE_ID || "webxr-webgpu-flags-v1";
 const requiredFlagsExact = process.env.FEATURE_FLAGS_EXACT || "webxr_projection_layers=1;webxr_webgpu_binding=1;webgpu=1";
 const generatedAt = new Date().toISOString();
+const sanityRunsPerApi = parsePositiveInt(process.env.SANITY_RUNS_PER_API, 2);
+const sanityCooldownMs = parseNonNegativeInt(process.env.SANITY_COOLDOWN_MS, 120000);
+
+if (manifestProfile !== "baseline" && manifestProfile !== "sanity") {
+  throw new Error(`Unsupported MANIFEST_PROFILE=${manifestProfile}. Use baseline or sanity.`);
+}
 
 function safeGitShortHash() {
   try {
@@ -30,6 +37,18 @@ function safeGitShortHash() {
   } catch (_) {
     return "";
   }
+}
+
+function parsePositiveInt(raw, fallback) {
+  const v = Number.parseInt(String(raw || "").trim(), 10);
+  if (!Number.isFinite(v) || v < 1) return fallback;
+  return v;
+}
+
+function parseNonNegativeInt(raw, fallback) {
+  const v = Number.parseInt(String(raw || "").trim(), 10);
+  if (!Number.isFinite(v) || v < 0) return fallback;
+  return v;
 }
 
 function readReleaseCommitShort(tag) {
@@ -324,7 +343,7 @@ const baseValues = {
   featureFlagsExact: requiredFlagsExact
 };
 
-const defs = [
+const baselineDefs = [
   {
     file: "avp_canvas_primary_regular_paired_5sets.json",
     suiteId: "AVP_CANVAS_PRIMARY_REGULAR",
@@ -557,6 +576,26 @@ const defs = [
   }
 ];
 
+function sanityFileName(file) {
+  const base = String(file || "").replace(/\.json$/i, "");
+  const stripped = base.replace(/_5sets$/i, "");
+  return `${stripped}_sanity_2sets.json`;
+}
+
+function toSanityDef(def) {
+  const runCount = def.apiScope === "paired" ? sanityRunsPerApi * 2 : sanityRunsPerApi;
+  return {
+    ...def,
+    file: sanityFileName(def.file),
+    suiteId: `${def.suiteId}_SANITY`,
+    runIdBase: `${def.runIdBase}_sanity`,
+    runCount,
+    cooldownBetweenRunsMs: sanityCooldownMs
+  };
+}
+
+const defs = manifestProfile === "sanity" ? baselineDefs.map(toSanityDef) : baselineDefs;
+
 function buildManifest(def) {
   const sequence = buildManifestApiSequence(def.orderMode, def.runCount, toSeedU32(def.orderSeed, 12345), def.apiScope);
   const rows = [];
@@ -662,8 +701,11 @@ function main() {
     fs.writeFileSync(outPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     written.push(def.file);
   }
-  process.stdout.write(`Generated ${written.length} manifests in ${outDir}\n`);
+  process.stdout.write(`Generated ${written.length} manifests in ${outDir} (profile=${manifestProfile})\n`);
   process.stdout.write(`Base URL: ${baseUrl}\n`);
+  if (manifestProfile === "sanity") {
+    process.stdout.write(`sanityRunsPerApi=${sanityRunsPerApi} sanityCooldownMs=${sanityCooldownMs}\n`);
+  }
   process.stdout.write(`harnessCommit=${harnessCommit || "(empty)"} harnessVersion=${harnessVersion || "(empty)"} releaseTag=${releaseTag || "(none)"}\n`);
   for (const f of written) process.stdout.write(`- ${f}\n`);
 }

@@ -77,10 +77,30 @@ Run from repo root:
 node tools/generate-baseline-manifests.mjs
 ```
 
+Generate sanity preflight manifests (two sets per API for paired cohorts, two runs for single-API cohorts):
+
+```bash
+MANIFEST_PROFILE="sanity" HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-02-rc1" HARNESS_VERSION="r2026-03-02-rc1" node tools/generate-baseline-manifests.mjs
+```
+
+Sanity manifests are written as `*_sanity_2sets.json` and keep the same core workload params as baseline manifests, while reducing run count for fast preflight.
+
 Optional overrides:
 
 ```bash
 HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-01-a" HARNESS_VERSION="r2026-03-01-a" ASSET_REVISION="spiderman_2002_movie_version_sam_raimi_0" FEATURE_FLAGS_PROFILE_ID="webxr-webgpu-flags-v1" FEATURE_FLAGS_EXACT="webxr_projection_layers=1;webxr_webgpu_binding=1;webgpu=1" node tools/generate-baseline-manifests.mjs
+```
+
+Generate sanity-only launcher links:
+
+```bash
+LAUNCHER_VERSION="r2026-03-02-rc1" MANIFEST_FILTER="_sanity_2sets" LAUNCHER_LINKS_OUT="launcher-links-sanity.csv" node tools/generate-launcher-links.mjs
+```
+
+Validate downloaded sanity runs (PASS/FAIL per suite):
+
+```bash
+node tools/check-sanity-batch.mjs --strict 0 ~/Downloads/Performance\ Study
 ```
 
 When `HARNESS_RELEASE_TAG` is set, `tools/generate-baseline-manifests.mjs` auto-reads `releases/<tag>/RELEASE_INFO.json` and stamps `harnessCommit` from `commitShort`.
