@@ -917,7 +917,6 @@ function renderResultsPanel() {
     name.textContent = `${item.label} — ${item.filename}`;
 
     const badge = document.createElement("span");
-    const status = item.summary?.status || "UNKNOWN";
     badge.textContent = status;
     badge.style.fontSize = "11px";
     badge.style.fontWeight = "700";

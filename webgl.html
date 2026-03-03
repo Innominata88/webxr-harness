@@ -24,9 +24,47 @@ a { color: #9ad; }
 <script type="module">
   const params = new URLSearchParams(location.search);
   const rev = params.get("appRev") || params.get("harnessCommit");
+  const statusEl = document.getElementById("status");
+  function setStatus(msg) {
+    if (statusEl) statusEl.textContent = msg;
+  }
   const src = new URL("./src/app-webgl.js", location.href);
   if (rev) src.searchParams.set("v", rev);
-  import(src.href);
+  const srcFallback = new URL("./src/app-webgl.js", location.href);
+  window.addEventListener("error", (e) => {
+    setStatus(`Boot error: ${e?.message || "unknown"}`);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e?.reason;
+    setStatus(`Boot rejection: ${reason?.message || String(reason || "unknown")}`);
+  });
+  (async () => {
+    try {
+      await import(src.href);
+      return;
+    } catch (err) {
+      console.error("Failed to import WebGL harness module:", err);
+      if (!rev) {
+        setStatus(`Module load failed: ${err?.message || String(err)}`);
+        return;
+      }
+      try {
+        await import(srcFallback.href);
+        setStatus("Loaded module without cache-buster fallback.");
+        return;
+      } catch (fallbackErr) {
+        console.error("Fallback import failed:", fallbackErr);
+        setStatus(`Module load failed: ${fallbackErr?.message || String(fallbackErr)}`);
+      }
+    }
+  })();
+  setTimeout(() => {
+    if (!statusEl) return;
+    const text = statusEl.textContent || "";
+    if (text === "Loading…" || text === "Loading...") {
+      setStatus("Still loading module… (check console for boot errors)");
+    }
+  }, 8000);
 </script>
 </body>
 </html>
