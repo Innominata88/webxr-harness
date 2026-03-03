@@ -102,6 +102,24 @@ function slugSegment(value, fallback = "na") {
   return cleaned || fallback;
 }
 
+function fnv1a32(text) {
+  let h = 0x811c9dc5 >>> 0;
+  const s = String(text || "");
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function compactToken(value, fallback = "na", maxLen = 24) {
+  const seg = slugSegment(value, fallback);
+  if (seg.length <= maxLen) return seg;
+  const hash = fnv1a32(seg).toString(16).padStart(8, "0");
+  const headLen = Math.max(1, maxLen - 9);
+  return `${seg.slice(0, headLen)}-${hash}`;
+}
+
 function modelToken(rawModelPath) {
   const raw = String(rawModelPath || "").trim();
   if (!raw) return "model";
@@ -188,16 +206,14 @@ function makeManifestRunId(baseRunId, runNumber, api) {
 }
 
 function buildTraceCoreForManifest(values, api, runNumber, deviceTag, browserTag) {
-  const run = slugSegment(values.runId || "auto");
-  const suite = slugSegment(values.suiteId || "suite");
-  const mode = slugSegment(values.runMode || "mode");
-  const inst = instancesToken(values.instances);
-  const trials = slugSegment(values.trials || "1");
-  const model = modelToken(values.model);
-  const device = slugSegment(deviceTag || "device");
-  const browser = slugSegment(browserTag || "browser");
+  const run = compactToken(values.runId || "auto", "auto", 30);
+  const mode = compactToken(values.runMode || "mode", "mode", 10);
+  const inst = compactToken(instancesToken(values.instances), "inst", 20);
+  const trials = compactToken(values.trials || "1", "1", 8);
+  const device = compactToken(deviceTag || "device", "device", 16);
+  const browser = compactToken(browserTag || "browser", "browser", 16);
   const idx = String(runNumber).padStart(2, "0");
-  return `run=${run}__suite=${suite}__r=${idx}__api=${api}__mode=${mode}__inst=${inst}__trials=${trials}__model=${model}__device=${device}__browser=${browser}`;
+  return `run=${run}__r=${idx}__a=${api}__m=${mode}__i=${inst}__t=${trials}__d=${device}__b=${browser}`;
 }
 
 function appendSuffixBeforeJsonl(name, suffix) {

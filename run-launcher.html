@@ -488,6 +488,22 @@
       return null;
     }
 
+    function markableRunNumber() {
+      if (!progress) return null;
+      if (progress.startedRunNumber != null) {
+        const started = Number.parseInt(String(progress.startedRunNumber), 10);
+        if (Number.isFinite(started) && manifestRowByRunNumber(started)) return started;
+      }
+      if (progress.lastRunNumber != null) {
+        const last = Number.parseInt(String(progress.lastRunNumber), 10);
+        if (Number.isFinite(last) && manifestRowByRunNumber(last)) {
+          const state = progress.statuses[String(last)] || "pending";
+          if (state === "pending") return last;
+        }
+      }
+      return null;
+    }
+
     function traceRowForControls() {
       if (!progress) return null;
       if (progress.startedRunNumber != null) {
@@ -780,7 +796,7 @@
 
     function setButtonState(hasNext, hasTraceFocus) {
       const hasManifest = Boolean(manifest);
-      const hasStarted = hasManifest && progress && progress.startedRunNumber != null;
+      const hasStarted = hasManifest && markableRunNumber() != null;
       const hasChromeTemplate = Boolean(nextChromeTraceNameEl.value.trim());
       const hasSafariTemplate = Boolean(nextSafariTraceNameEl.value.trim());
       document.getElementById("startNextBtn").disabled = !hasManifest || !hasNext || isCooldownActive();
@@ -1053,11 +1069,12 @@
     }
 
     function markStartedRun(status) {
-      if (!progress || progress.startedRunNumber == null) {
+      const runNumber = markableRunNumber();
+      if (!progress || runNumber == null) {
         statusLineEl.textContent = "No started run to mark.";
         return;
       }
-      const runNumber = progress.startedRunNumber;
+      const usedFallback = progress.startedRunNumber == null && progress.lastRunNumber === runNumber;
       const key = String(runNumber);
       progress.statuses[key] = status;
       progress.lastRunNumber = runNumber;
@@ -1066,7 +1083,9 @@
       progress.startedAtIso = null;
       setCooldownNow(currentCooldownMs());
       saveProgress();
-      statusLineEl.textContent = `Run ${runNumber} marked ${status}.`;
+      statusLineEl.textContent = usedFallback
+        ? `Run ${runNumber} marked ${status} (recovered from last launched run).`
+        : `Run ${runNumber} marked ${status}.`;
       render();
     }
 

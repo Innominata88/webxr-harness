@@ -803,6 +803,8 @@ function ensureResultsPanel() {
   panel.style.backdropFilter = "blur(10px)";
   panel.style.color = "#fff";
   panel.style.fontSize = "13px";
+  panel.style.maxHeight = "calc(100vh - 24px)";
+  panel.style.overflow = "hidden";
   panel.style.display = "none";
 
   panel.innerHTML = `
@@ -811,7 +813,7 @@ function ensureResultsPanel() {
       <button id="rpClose" style="padding:6px 8px; border-radius:10px;">Close</button>
     </div>
     <div id="rpSummary" style="margin-bottom:8px; font-size:12px; opacity:0.92;">Session: no files queued.</div>
-    <div id="rpBody" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <div id="rpBody" style="display:flex; flex-direction:column; gap:10px; overflow:auto; max-height:55vh;"></div>
     <div id="rpFooter" style="margin-top:10px; opacity:0.85;"></div>
   `;
   document.body.appendChild(panel);
@@ -920,24 +922,34 @@ function renderResultsPanel() {
 
     const row = document.createElement("div");
     row.style.display = "grid";
-    row.style.gridTemplateColumns = "1fr auto auto";
+    row.style.gridTemplateColumns = "minmax(0,1fr) auto";
     row.style.gap = "8px";
-    row.style.alignItems = "center";
+    row.style.alignItems = "start";
+    if ((panel.clientWidth || window.innerWidth || 0) < 560) {
+      row.style.gridTemplateColumns = "1fr";
+    }
 
     const label = document.createElement("div");
     label.style.display = "flex";
     label.style.flexDirection = "column";
     label.style.gap = "4px";
     label.style.opacity = "0.95";
+    label.style.minWidth = "0";
 
     const top = document.createElement("div");
     top.style.display = "flex";
     top.style.alignItems = "center";
-    top.style.justifyContent = "space-between";
+    top.style.justifyContent = "flex-start";
+    top.style.flexWrap = "wrap";
     top.style.gap = "8px";
 
     const name = document.createElement("div");
     name.textContent = `${item.label} — ${item.filename}`;
+    name.style.minWidth = "0";
+    name.style.overflowWrap = "anywhere";
+    name.style.wordBreak = "break-word";
+    name.style.lineHeight = "1.25";
+    name.style.flex = "1 1 260px";
 
     const badge = document.createElement("span");
     badge.textContent = status;
@@ -970,10 +982,17 @@ function renderResultsPanel() {
     label.appendChild(top);
     label.appendChild(details);
 
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.flexDirection = "column";
+    actions.style.gap = "6px";
+    actions.style.alignSelf = "start";
+
     const btnDl = document.createElement("button");
     btnDl.textContent = "Download";
     btnDl.style.padding = "6px 10px";
     btnDl.style.borderRadius = "10px";
+    btnDl.style.whiteSpace = "nowrap";
     btnDl.addEventListener("click", () => {
       downloadTextAuto(item.text, item.filename, item.mime);
     });
@@ -982,15 +1001,17 @@ function renderResultsPanel() {
     btnCopy.textContent = "Copy";
     btnCopy.style.padding = "6px 10px";
     btnCopy.style.borderRadius = "10px";
+    btnCopy.style.whiteSpace = "nowrap";
     btnCopy.addEventListener("click", async () => {
       const ok = await copyToClipboard(item.text);
       btnCopy.textContent = ok ? "Copied" : "Copy failed";
       setTimeout(()=>btnCopy.textContent="Copy", 1200);
     });
 
+    actions.appendChild(btnDl);
+    actions.appendChild(btnCopy);
     row.appendChild(label);
-    row.appendChild(btnDl);
-    row.appendChild(btnCopy);
+    row.appendChild(actions);
     body.appendChild(row);
   }
 

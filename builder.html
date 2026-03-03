@@ -1577,6 +1577,14 @@
       return cleaned || fallback;
     }
 
+    function compactToken(value, fallback = "na", maxLen = 24) {
+      const seg = slugSegment(value, fallback);
+      if (seg.length <= maxLen) return seg;
+      const hash = fnv1a32(seg).toString(16).padStart(8, "0");
+      const headLen = Math.max(1, maxLen - 9);
+      return `${seg.slice(0, headLen)}-${hash}`;
+    }
+
     function modelToken(modelPath) {
       const raw = String(modelPath || "").trim();
       if (!raw) return "model";
@@ -1593,31 +1601,29 @@
     }
 
     function buildTraceNamingText(values) {
-      const run = slugSegment(values.runId || "auto");
-      const suite = slugSegment(values.suiteId || "suite");
-      const mode = slugSegment(values.runMode || "mode");
-      const inst = instancesToken(values.instances);
-      const trials = slugSegment(values.trials || "1");
-      const model = modelToken(values.model);
-      const device = slugSegment(traceDeviceTagEl.value || "device");
-      const browser = slugSegment(traceBrowserTagEl.value || "browser");
+      const run = compactToken(values.runId || "auto", "auto", 30);
+      const mode = compactToken(values.runMode || "mode", "mode", 10);
+      const inst = compactToken(instancesToken(values.instances), "inst", 20);
+      const trials = compactToken(values.trials || "1", "1", 8);
+      const device = compactToken(traceDeviceTagEl.value || "device", "device", 16);
+      const browser = compactToken(traceBrowserTagEl.value || "browser", "browser", 16);
       const ts = "YYYYMMDD-HHMMSS";
-
-      const core = `run=${run}__suite=${suite}__mode=${mode}__inst=${inst}__trials=${trials}__model=${model}__device=${device}__browser=${browser}__ts=${ts}`;
+      const baseCore = `run=${run}__m=${mode}__i=${inst}__t=${trials}__d=${device}__b=${browser}__ts=${ts}`;
+      const withApi = (api) => `run=${run}__a=${api}__m=${mode}__i=${inst}__t=${trials}__d=${device}__b=${browser}__ts=${ts}`;
 
       return [
         "# Suggested trace export names",
-        `chrome_trace__api=webgl2__${core}.json`,
-        `chrome_trace__api=webgpu__${core}.json`,
-        `safari_timeline__api=webgl2__${core}.json`,
-        `safari_timeline__api=webgpu__${core}.json`,
+        `chrome_trace__${withApi("webgl2")}.json`,
+        `chrome_trace__${withApi("webgpu")}.json`,
+        `safari_timeline__${withApi("webgl2")}.json`,
+        `safari_timeline__${withApi("webgpu")}.json`,
         "",
         "# Suggested result file names after download",
-        `results__api=webgl2__${core}.jsonl`,
-        `results__api=webgpu__${core}.jsonl`,
+        `results__${withApi("webgl2")}.jsonl`,
+        `results__${withApi("webgpu")}.jsonl`,
         "",
         "# Optional notes/manifest",
-        `manifest__${core}.txt`
+        `manifest__${baseCore}.txt`
       ].join("\n");
     }
 
@@ -1760,16 +1766,14 @@
     }
 
     function buildTraceCoreForManifest(values, api, runNumber) {
-      const run = slugSegment(values.runId || "auto");
-      const suite = slugSegment(values.suiteId || "suite");
-      const mode = slugSegment(values.runMode || "mode");
-      const inst = instancesToken(values.instances);
-      const trials = slugSegment(values.trials || "1");
-      const model = modelToken(values.model);
-      const device = slugSegment(traceDeviceTagEl.value || "device");
-      const browser = slugSegment(traceBrowserTagEl.value || "browser");
+      const run = compactToken(values.runId || "auto", "auto", 30);
+      const mode = compactToken(values.runMode || "mode", "mode", 10);
+      const inst = compactToken(instancesToken(values.instances), "inst", 20);
+      const trials = compactToken(values.trials || "1", "1", 8);
+      const device = compactToken(traceDeviceTagEl.value || "device", "device", 16);
+      const browser = compactToken(traceBrowserTagEl.value || "browser", "browser", 16);
       const idx = String(runNumber).padStart(2, "0");
-      return `run=${run}__suite=${suite}__r=${idx}__api=${api}__mode=${mode}__inst=${inst}__trials=${trials}__model=${model}__device=${device}__browser=${browser}`;
+      return `run=${run}__r=${idx}__a=${api}__m=${mode}__i=${inst}__t=${trials}__d=${device}__b=${browser}`;
     }
 
     function csvCell(value) {
