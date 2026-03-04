@@ -12,7 +12,7 @@ const trials = parseInt(params.get("trials") || "1", 10);
 const warmupMs = parseInt(params.get("warmupMs") || "500", 10);
 const cooldownMs = parseInt(params.get("cooldownMs") || "250", 10);
 const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 10);
-const outFile = params.get("out") || `results_webgpu_${Date.now()}.jsonl`;
+const outFileTemplate = params.get("out") || "";
 const SCHEMA_VERSION = "1.1.0";
 
 function readMetaContent(name) {
@@ -28,6 +28,26 @@ function normalizeOptionalString(v) {
   if (typeof v !== "string") return null;
   const trimmed = v.trim();
   return trimmed ? trimmed : null;
+}
+
+function timestampTokenNowUtc() {
+  const d = new Date();
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(d.getUTCDate()).padStart(2, "0");
+  const h = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  const s = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${y}${mo}${da}-${h}${mi}${s}`;
+}
+
+function resolveOutputFilename(template, fallbackPrefix) {
+  const fallback = `${fallbackPrefix}_${Date.now()}.jsonl`;
+  let raw = (typeof template === "string" ? template.trim() : "");
+  if (!raw) raw = fallback;
+  const token = timestampTokenNowUtc();
+  raw = raw.replaceAll("YYYYMMDD-HHMMSS", token).replaceAll("{ts}", token);
+  return raw;
 }
 
 const harnessVersion = normalizeOptionalString(params.get("harnessVersion"))
@@ -1117,7 +1137,7 @@ function downloadText(text, filename, label="Results") {
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
 function xrOutFilename() {
-  return params.get("outxr") || `results_webgpu_xr_${Date.now()}.jsonl`;
+  return resolveOutputFilename(params.get("outxr") || "", "results_webgpu_xr");
 }
 
 function flushXRResults(filename=xrOutFilename(), label="Done (XR)") {
@@ -1918,8 +1938,9 @@ async function runCanvasSuite() {
     }
 
     const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
-    downloadText(jsonl, outFile, "Canvas results");
-    log(`Done (canvas). ${manualDownload ? "Queued" : "Downloaded"} ${outFile}`);
+    const canvasOutFile = resolveOutputFilename(outFileTemplate, "results_webgpu");
+    downloadText(jsonl, canvasOutFile, "Canvas results");
+    log(`Done (canvas). ${manualDownload ? "Queued" : "Downloaded"} ${canvasOutFile}`);
     traceMark("SUITE_END", { mode: "canvas", testId: "suite", trial: "-", index: plan.length, total: plan.length });
     clearCanvasBlankOnce();
   } finally {

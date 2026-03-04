@@ -288,6 +288,7 @@
   <script>
     const STAGED_MANIFEST_KEY = "webxr_harness_launcher_staged_manifest";
     const PROGRESS_PREFIX = "webxr_harness_launcher_progress_";
+    const SESSION_PROGRESS_PREFIX = "webxr_harness_launcher_session_progress_";
     const MAX_PROGRESS_ROWS = 40;
 
     const manifestFileEl = document.getElementById("manifestFile");
@@ -386,13 +387,25 @@
       return `${PROGRESS_PREFIX}${manifestKey}`;
     }
 
+    function progressSessionKey() {
+      return `${SESSION_PROGRESS_PREFIX}${manifestKey}`;
+    }
+
     function loadProgress() {
       const key = progressStorageKey();
+      const sessionKey = progressSessionKey();
       let existing = null;
       try {
         existing = localStorage.getItem(key);
       } catch (_) {
         existing = null;
+      }
+      if (!existing) {
+        try {
+          existing = sessionStorage.getItem(sessionKey);
+        } catch (_) {
+          existing = null;
+        }
       }
       if (!existing) return buildInitialProgress();
 
@@ -502,6 +515,13 @@
         existing = null;
       }
       if (!existing) {
+        try {
+          existing = sessionStorage.getItem(progressSessionKey());
+        } catch (_) {
+          existing = null;
+        }
+      }
+      if (!existing) {
         render();
         return false;
       }
@@ -514,10 +534,16 @@
 
     function saveProgress() {
       if (!manifestKey || !progress) return;
+      const text = JSON.stringify(progress);
       try {
-        localStorage.setItem(progressStorageKey(), JSON.stringify(progress));
+        localStorage.setItem(progressStorageKey(), text);
       } catch (_) {
-        // ignore storage errors; launcher still works without persistence
+        // ignore
+      }
+      try {
+        sessionStorage.setItem(progressSessionKey(), text);
+      } catch (_) {
+        // ignore storage errors; launcher still works with in-memory state
       }
     }
 
@@ -533,6 +559,34 @@
         if (progress.statuses[String(row.run_number)] === "started") {
           return row.run_number;
         }
+      }
+      if (Array.isArray(progress.events)) {
+        for (let i = progress.events.length - 1; i >= 0; i--) {
+          const ev = progress.events[i];
+          if (!ev || ev.type !== "run_start") continue;
+          const run = Number.parseInt(String(ev.run_number), 10);
+          if (!Number.isFinite(run) || !manifestRowByRunNumber(run)) continue;
+          const state = progress.statuses[String(run)] || "pending";
+          if (state === "pending" || state === "started") return run;
+        }
+      }
+      if (progress.traceNameSnapshotByRun && typeof progress.traceNameSnapshotByRun === "object") {
+        let bestRun = null;
+        let bestAt = -Infinity;
+        for (const row of manifestRows) {
+          const run = row.run_number;
+          const state = progress.statuses[String(run)] || "pending";
+          if (!(state === "pending" || state === "started")) continue;
+          const snap = progress.traceNameSnapshotByRun[String(run)];
+          if (!snap || typeof snap !== "object") continue;
+          const t = Date.parse(String(snap.createdAtIso || ""));
+          if (!Number.isFinite(t)) continue;
+          if (t > bestAt) {
+            bestAt = t;
+            bestRun = run;
+          }
+        }
+        if (bestRun != null) return bestRun;
       }
       return null;
     }
