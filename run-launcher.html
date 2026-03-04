@@ -466,6 +466,15 @@
       };
     }
 
+    function refreshProgressFromStorage() {
+      if (!manifest || !manifestKey) return false;
+      const before = progress ? JSON.stringify(progress) : "";
+      progress = loadProgress();
+      const after = progress ? JSON.stringify(progress) : "";
+      render();
+      return before !== after;
+    }
+
     function saveProgress() {
       if (!manifestKey || !progress) return;
       try {
@@ -1233,6 +1242,26 @@
         const fileName = `run-launcher-events-${manifestKey}-${Date.now()}.csv`;
         downloadTextFile(fileName, progressExportCsvEl.value, "text/csv");
         statusLineEl.textContent = `Downloaded ${fileName}`;
+      });
+
+      // Browsers may restore this page from BFCache after running a same-tab URL.
+      // Rehydrate from localStorage so completion controls reflect the true started run.
+      window.addEventListener("pageshow", () => {
+        if (!manifest) return;
+        refreshProgressFromStorage();
+      });
+      window.addEventListener("focus", () => {
+        if (!manifest) return;
+        refreshProgressFromStorage();
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible" || !manifest) return;
+        refreshProgressFromStorage();
+      });
+      window.addEventListener("storage", (ev) => {
+        if (!manifest) return;
+        if (ev.key !== progressStorageKey()) return;
+        refreshProgressFromStorage();
       });
     }
 
