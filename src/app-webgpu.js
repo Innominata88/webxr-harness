@@ -91,7 +91,24 @@ function detectApplePlatform() {
   const isVision = /visionOS/i.test(ua) || /Vision Pro/i.test(ua) || /Apple Vision/i.test(ua);
   return isIOS || isIPadDesktopMode || isVision;
 }
+function detectBrowserLabel() {
+  const ua = navigator.userAgent || "";
+  const brands = Array.isArray(navigator.userAgentData?.brands)
+    ? navigator.userAgentData.brands.map((b) => (b && typeof b.brand === "string" ? b.brand : "")).filter(Boolean)
+    : [];
+  if (brands.length) return brands.join(" | ");
+  if (/SamsungBrowser\//i.test(ua)) return "Samsung Internet";
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/OPR\//i.test(ua)) return "Opera";
+  if (/CriOS\//i.test(ua)) return "Chrome iOS";
+  if (/Chrome\//i.test(ua) || /Chromium\//i.test(ua)) return "Chrome";
+  if (/FxiOS\//i.test(ua)) return "Firefox iOS";
+  if (/Firefox\//i.test(ua)) return "Firefox";
+  if (/Safari\//i.test(ua) && /Version\//i.test(ua)) return "Safari";
+  return null;
+}
 const isApplePlatform = detectApplePlatform();
+const browserLabel = detectBrowserLabel();
 const manualDownload = (() => {
   // Default: manual download ON for all platforms unless explicitly disabled.
   // Rationale: Safari/visionOS often blocks programmatic downloads; keeping behavior uniform across devices is safest.
@@ -1587,6 +1604,8 @@ const device_limits = copyLimits(device.limits || {});
       pinGpu,
       sessionGroup
     },
+    browser: browserLabel,
+    userAgent: navigator.userAgent || null,
     ua: navigator.userAgent,
     uaData: (navigator.userAgentData ? {
       brands: navigator.userAgentData.brands,

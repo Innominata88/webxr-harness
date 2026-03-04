@@ -269,6 +269,8 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_session_mode_requested` | string optional | Requested WebXR session mode (`immersive-vr` or `immersive-ar`) |
 | `xr_session_mode_active` | string or null optional | Active session mode returned by WebXR session once started |
 | `xr_session_mode_supported` | boolean or null optional | Result of `isSessionSupported(xrSessionMode)` check when XR path is initialized |
+| `browser` | string or null optional | Human-readable browser label derived from `navigator.userAgentData.brands` (fallback UA parsing) |
+| `userAgent` | string or null optional | Alias of the user-agent string for downstream tools expecting `userAgent` |
 | `ua` | string |
 | `uaData` | object or null |
 | `platform` | string or null |
