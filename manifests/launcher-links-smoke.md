@@ -1,6 +1,6 @@
 # Launcher Links
 
-- generated_at: 2026-03-04T14:26:52.300Z
+- generated_at: 2026-03-04T15:19:53.311Z
 - base_url: https://innominata88.github.io/webxr-harness/
 - launcher_version: r2026-03-04-rc4
 - manifest_filter: smoke
