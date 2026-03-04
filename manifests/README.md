@@ -44,7 +44,7 @@ Output:
 1. `manifests/avp_canvas_primary_regular_paired_5sets.json`
 2. `manifests/avp_xr_primary_regular_paired_5sets.json`
 3. `manifests/avp_xr_primary_cliff_paired_5sets.json`
-4. `manifests/quest2_canvas_primary_regular_webgl_only_5sets.json`
+4. `manifests/quest2_canvas_primary_regular_paired_5sets.json`
 5. `manifests/quest2_xr_primary_regular_webgl_only_5sets.json`
 6. `manifests/pixel8a_canvas_primary_regular_paired_5sets.json`
 7. `manifests/samsung_fe5g_canvas_primary_regular_paired_5sets.json`
@@ -54,10 +54,11 @@ Output:
 11. `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
 12. `manifests/windows_hp_canvas_primary_regular_paired_5sets.json`
 
-## Legacy Phone AR Manifests (Not Primary)
+## Legacy Manifests (Not Primary)
 
-1. `manifests/pixel8a_xr_ar_primary_regular_webgl_only_5sets.json`
-2. `manifests/samsung_fe5g_xr_ar_primary_regular_webgl_only_5sets.json`
+1. `manifests/quest2_canvas_primary_regular_webgl_only_5sets.json`
+2. `manifests/pixel8a_xr_ar_primary_regular_webgl_only_5sets.json`
+3. `manifests/samsung_fe5g_xr_ar_primary_regular_webgl_only_5sets.json`
 
 ## Notes
 
@@ -66,8 +67,10 @@ Output:
 - Regular manifests use cooldown `300000` ms (5 min) between runs.
 - AVP cliff manifest uses cooldown `600000` ms (10 min) between runs.
 - AVP cliff instance band is `340,345,348,350`.
+- AVP canvas baseline manifest locks `canvasScaleFactor=0.75` (applied to both WebGL/WebGPU).
 - Phone canvas baseline manifests lock `canvasScaleFactor=0.75`.
 - Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
+- Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`.
 
 ## Regenerate
 
@@ -77,13 +80,32 @@ Run from repo root:
 node tools/generate-baseline-manifests.mjs
 ```
 
-Generate sanity preflight manifests (two sets per API for paired cohorts, two runs for single-API cohorts):
+Generate sanity preflight manifests (default: two sets per API for paired cohorts, two runs for single-API cohorts):
 
 ```bash
 MANIFEST_PROFILE="sanity" HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-02-rc1" HARNESS_VERSION="r2026-03-02-rc1" node tools/generate-baseline-manifests.mjs
 ```
 
-Sanity manifests are written as `*_sanity_2sets.json` and keep the same core workload params as baseline manifests, while reducing run count for fast preflight.
+Sanity manifests are written as `*_sanity_<N>sets.json` (`N = SANITY_RUNS_PER_API`) and keep the same core workload params as baseline manifests, while reducing run count for preflight.
+
+Generate fast smoke manifests (single run/API, single trial, short duration) for quick device readiness checks:
+
+```bash
+MANIFEST_PROFILE="smoke" HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE_TAG="r2026-03-03-rc2" HARNESS_VERSION="r2026-03-03-rc2" node tools/generate-baseline-manifests.mjs
+```
+
+Smoke defaults (override via env vars if needed):
+
+- `SMOKE_RUNS_PER_API=1`
+- `SMOKE_TRIALS=1`
+- `SMOKE_DURATION_MS=2000`
+- `SMOKE_WARMUP_MS=250`
+- `SMOKE_PER_TRIAL_COOLDOWN_MS=100`
+- `SMOKE_BETWEEN_INSTANCES_MS=200`
+- `SMOKE_PRE_IDLE_MS=0`
+- `SMOKE_POST_IDLE_MS=0`
+- `SMOKE_COOLDOWN_MS=30000`
+- `SMOKE_INSTANCES` optional override for all smoke manifests
 
 Optional overrides:
 
@@ -94,7 +116,13 @@ HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" HARNESS_RELEASE
 Generate sanity-only launcher links:
 
 ```bash
-LAUNCHER_VERSION="r2026-03-02-rc1" MANIFEST_FILTER="_sanity_2sets" LAUNCHER_LINKS_OUT="launcher-links-sanity.csv" node tools/generate-launcher-links.mjs
+LAUNCHER_VERSION="r2026-03-03-rc5" MANIFEST_FILTER="sanity" LAUNCHER_LINKS_OUT="launcher-links-sanity.csv" node tools/generate-launcher-links.mjs
+```
+
+Generate smoke-only launcher links:
+
+```bash
+LAUNCHER_VERSION="r2026-03-03-rc5" MANIFEST_FILTER="smoke" LAUNCHER_LINKS_OUT="launcher-links-smoke.csv" node tools/generate-launcher-links.mjs
 ```
 
 Validate downloaded sanity runs (PASS/FAIL per suite):

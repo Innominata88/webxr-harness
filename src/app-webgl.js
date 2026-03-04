@@ -391,6 +391,30 @@ function applyCanvasResolutionScale() {
   return appliedDpr;
 }
 
+function updateCanvasScaleEnvDiagnostics(appliedDpr = getAppliedCanvasDpr()) {
+  if (!envInfo) return;
+  const nativeDpr = getNativeDevicePixelRatio();
+  const safeNative = nativeDpr > 0 ? nativeDpr : 1;
+  envInfo.dpr = nativeDpr;
+  envInfo.dpr_canvas = appliedDpr;
+  envInfo.canvas_css = { w: canvas.clientWidth, h: canvas.clientHeight };
+  envInfo.canvas_px = { w: canvas.width, h: canvas.height };
+  envInfo.canvasScaleFactor = canvasScaleFactor;
+  envInfo.canvas_scale_factor_requested = canvasScaleFactor;
+  envInfo.canvas_scale_factor_applied = appliedDpr / safeNative;
+}
+
+function resyncCanvasSurfaceForRun() {
+  const appliedDpr = applyCanvasResolutionScale();
+  if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+  if (renderer) {
+    const vp = getDefaultViewProj();
+    renderer.setCamera(vp.proj, vp.view);
+  }
+  updateCanvasScaleEnvDiagnostics(appliedDpr);
+  return appliedDpr;
+}
+
 function ensureManualCanvasStartButton() {
   if (manualCanvasStartButton) return manualCanvasStartButton;
   const header = document.querySelector("header");
@@ -1391,6 +1415,7 @@ async function initGL() {
     gpu,
     url: location.href
   };
+  updateCanvasScaleEnvDiagnostics(canvasAppliedDpr);
 
   const gpuIdentity = `webgl2:${gpu.vendor || "unknown"}|${gpu.renderer || "unknown"}`;
   envInfo.gpu_identity = gpuIdentity;
@@ -1700,6 +1725,8 @@ async function runCanvasSuite() {
   canvasRunInProgress = true;
   let plan = [];
   try {
+    const syncedCanvasDpr = resyncCanvasSurfaceForRun();
+    log(`Canvas surface synced before suite: css=${canvas.clientWidth}x${canvas.clientHeight}, px=${canvas.width}x${canvas.height}, canvasDpr=${syncedCanvasDpr.toFixed(3)}, canvasScaleFactor=${canvasScaleFactor}.`);
     const vp = getDefaultViewProj();
     ensureCanvasRenderProbe(vp);
     resultsCanvas = [];
@@ -1905,6 +1932,7 @@ let xrTrialWallStartNow = NaN;
 let xrAwaitingFirstPoseStart = false;
 let xrStartedOnFirstPose = false;
 let xrAnchoredToFirstPose = false;
+let xrSessionAnchorPose = null; // { yaw, x, z } captured once per XR session
 
 
 function fmtMs(ms) {
@@ -2000,24 +2028,29 @@ function maybeAnchorXRInstancesToPose(pose) {
   const pz = Number.isFinite(t.position?.z) ? t.position.z : null;
   if (!Number.isFinite(yaw) || !Number.isFinite(px) || !Number.isFinite(pz)) return false;
 
+  if (!xrSessionAnchorPose) {
+    xrSessionAnchorPose = { yaw, x: px, z: pz };
+  }
+  const anchor = xrSessionAnchorPose;
+
   renderer.setInstances(item.instances, spacing, {
     layout,
     seed,
     isXR: true,
     xrFrontMinZ,
     xrYOffset,
-    xrAnchorYaw: yaw,
-    xrAnchorX: px,
-    xrAnchorZ: pz
+    xrAnchorYaw: anchor.yaw,
+    xrAnchorX: anchor.x,
+    xrAnchorZ: anchor.z
   });
   xrAnchoredToFirstPose = true;
   if (envInfo) {
     envInfo.xr_anchor_to_first_pose_applied = true;
-    envInfo.xr_anchor_pose_yaw_rad = yaw;
-    envInfo.xr_anchor_pose_x = px;
-    envInfo.xr_anchor_pose_z = pz;
+    envInfo.xr_anchor_pose_yaw_rad = anchor.yaw;
+    envInfo.xr_anchor_pose_x = anchor.x;
+    envInfo.xr_anchor_pose_z = anchor.z;
   }
-  log(`XR anchor applied from first pose (yaw=${yaw.toFixed(3)}, x=${px.toFixed(3)}, z=${pz.toFixed(3)}).`);
+  log(`XR anchor applied from first pose (yaw=${anchor.yaw.toFixed(3)}, x=${anchor.x.toFixed(3)}, z=${anchor.z.toFixed(3)}).`);
   return true;
 }
 
@@ -2386,13 +2419,31 @@ function startNextXRTrial(session) {
   }
 
   const item = xrPlan[xrIndex];
-  renderer.setInstances(item.instances, spacing, { layout, seed, isXR: true, xrFrontMinZ, xrYOffset });
-  xrAnchoredToFirstPose = false;
+  const reuseAnchor = !!(xrAnchorToFirstPose && xrSessionAnchorPose);
+  renderer.setInstances(item.instances, spacing, {
+    layout,
+    seed,
+    isXR: true,
+    xrFrontMinZ,
+    xrYOffset,
+    ...(reuseAnchor ? {
+      xrAnchorYaw: xrSessionAnchorPose.yaw,
+      xrAnchorX: xrSessionAnchorPose.x,
+      xrAnchorZ: xrSessionAnchorPose.z
+    } : {})
+  });
+  xrAnchoredToFirstPose = reuseAnchor;
   if (envInfo) {
-    envInfo.xr_anchor_to_first_pose_applied = false;
-    delete envInfo.xr_anchor_pose_yaw_rad;
-    delete envInfo.xr_anchor_pose_x;
-    delete envInfo.xr_anchor_pose_z;
+    envInfo.xr_anchor_to_first_pose_applied = xrAnchoredToFirstPose;
+    if (xrAnchoredToFirstPose && xrSessionAnchorPose) {
+      envInfo.xr_anchor_pose_yaw_rad = xrSessionAnchorPose.yaw;
+      envInfo.xr_anchor_pose_x = xrSessionAnchorPose.x;
+      envInfo.xr_anchor_pose_z = xrSessionAnchorPose.z;
+    } else {
+      delete envInfo.xr_anchor_pose_yaw_rad;
+      delete envInfo.xr_anchor_pose_x;
+      delete envInfo.xr_anchor_pose_z;
+    }
   }
 
   xrDts = [];
@@ -2552,6 +2603,7 @@ async function onSessionStarted(session) {
     hudStopAuto();
     xrRequesting = false;
     xrSession=null;
+    xrSessionAnchorPose = null;
     btn.textContent = `Enter ${xrSessionModeLabel}`;
     xrActive=false;
     flushUnexpectedXREnd();
@@ -2617,6 +2669,7 @@ async function onSessionStarted(session) {
   resultsXR = [];
   xrPlan = buildPlan();
   xrIndex = 0;
+  xrSessionAnchorPose = null;
   xrSuiteTraceClosed = false;
   traceMark("SUITE_START", { mode: "xr", testId: "suite", trial: "-", index: 1, total: xrPlan.length });
   updateTraceOverlay(`mode=xr\nsuite=${suiteId}\nrunId=${runId}`);

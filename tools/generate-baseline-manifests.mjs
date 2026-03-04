@@ -26,9 +26,19 @@ const requiredFlagsExact = process.env.FEATURE_FLAGS_EXACT || "webxr_projection_
 const generatedAt = new Date().toISOString();
 const sanityRunsPerApi = parsePositiveInt(process.env.SANITY_RUNS_PER_API, 2);
 const sanityCooldownMs = parseNonNegativeInt(process.env.SANITY_COOLDOWN_MS, 120000);
+const smokeRunsPerApi = parsePositiveInt(process.env.SMOKE_RUNS_PER_API, 1);
+const smokeCooldownMs = parseNonNegativeInt(process.env.SMOKE_COOLDOWN_MS, 30000);
+const smokeTrials = parsePositiveInt(process.env.SMOKE_TRIALS, 1);
+const smokeDurationMs = parsePositiveInt(process.env.SMOKE_DURATION_MS, 2000);
+const smokeWarmupMs = parseNonNegativeInt(process.env.SMOKE_WARMUP_MS, 250);
+const smokePerTrialCooldownMs = parseNonNegativeInt(process.env.SMOKE_PER_TRIAL_COOLDOWN_MS, 100);
+const smokeBetweenInstancesMs = parseNonNegativeInt(process.env.SMOKE_BETWEEN_INSTANCES_MS, 200);
+const smokePreIdleMs = parseNonNegativeInt(process.env.SMOKE_PRE_IDLE_MS, 0);
+const smokePostIdleMs = parseNonNegativeInt(process.env.SMOKE_POST_IDLE_MS, 0);
+const smokeInstancesOverride = String(process.env.SMOKE_INSTANCES || "").trim();
 
-if (manifestProfile !== "baseline" && manifestProfile !== "sanity") {
-  throw new Error(`Unsupported MANIFEST_PROFILE=${manifestProfile}. Use baseline or sanity.`);
+if (manifestProfile !== "baseline" && manifestProfile !== "sanity" && manifestProfile !== "smoke") {
+  throw new Error(`Unsupported MANIFEST_PROFILE=${manifestProfile}. Use baseline, sanity, or smoke.`);
 }
 
 function safeGitShortHash() {
@@ -49,6 +59,15 @@ function parseNonNegativeInt(raw, fallback) {
   const v = Number.parseInt(String(raw || "").trim(), 10);
   if (!Number.isFinite(v) || v < 0) return fallback;
   return v;
+}
+
+function firstInstanceFromList(raw, fallback = "64") {
+  const values = String(raw || "")
+    .split(",")
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (!values.length) return fallback;
+  return String(values[0]);
 }
 
 function readReleaseCommitShort(tag) {
@@ -370,6 +389,7 @@ const baselineDefs = [
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
     layout: "xrwall",
+    canvasScaleFactor: "0.75",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
@@ -416,6 +436,25 @@ const baselineDefs = [
     runCount: 10,
     orderSeed: "12345",
     cooldownBetweenRunsMs: 600000
+  },
+  {
+    file: "quest2_canvas_primary_regular_paired_5sets.json",
+    suiteId: "QUEST2_CANVAS_PRIMARY_REGULAR",
+    runIdBase: "quest2_canvas_primary_regular",
+    deviceTag: "quest2",
+    browserTag: "oculus-browser",
+    runMode: "canvas",
+    xrSessionMode: "immersive-vr",
+    instances: "64,128,192,256,320",
+    layout: "xrwall",
+    shuffle: "1",
+    preIdleMs: "0",
+    postIdleMs: "0",
+    apiScope: "paired",
+    orderMode: "abba_baab",
+    runCount: 10,
+    orderSeed: "12345",
+    cooldownBetweenRunsMs: 300000
   },
   {
     file: "quest2_canvas_primary_regular_webgl_only_5sets.json",
@@ -505,6 +544,9 @@ const baselineDefs = [
     xrSessionMode: "immersive-ar",
     instances: "64,128,192,256,320",
     layout: "xrwall",
+    spacing: "0.12",
+    xrFrontMinZ: "-1.6",
+    xrYOffset: "0.0",
     shuffle: "1",
     preIdleMs: "500",
     postIdleMs: "500",
@@ -524,6 +566,9 @@ const baselineDefs = [
     xrSessionMode: "immersive-ar",
     instances: "64,128,192,256,320",
     layout: "xrwall",
+    spacing: "0.12",
+    xrFrontMinZ: "-1.6",
+    xrYOffset: "0.0",
     shuffle: "1",
     preIdleMs: "500",
     postIdleMs: "500",
@@ -595,7 +640,7 @@ const baselineDefs = [
 function sanityFileName(file) {
   const base = String(file || "").replace(/\.json$/i, "");
   const stripped = base.replace(/_5sets$/i, "");
-  return `${stripped}_sanity_2sets.json`;
+  return `${stripped}_sanity_${sanityRunsPerApi}sets.json`;
 }
 
 function toSanityDef(def) {
@@ -610,7 +655,44 @@ function toSanityDef(def) {
   };
 }
 
-const defs = manifestProfile === "sanity" ? baselineDefs.map(toSanityDef) : baselineDefs;
+function smokeFileName(file) {
+  const base = String(file || "").replace(/\.json$/i, "");
+  const stripped = base.replace(/_5sets$/i, "");
+  return `${stripped}_smoke_${smokeRunsPerApi}sets.json`;
+}
+
+function resolveSmokeInstances(defInstances) {
+  const override = String(smokeInstancesOverride || "").trim();
+  if (override) return override;
+  return firstInstanceFromList(defInstances, "64");
+}
+
+function toSmokeDef(def) {
+  const runCount = def.apiScope === "paired" ? smokeRunsPerApi * 2 : smokeRunsPerApi;
+  return {
+    ...def,
+    file: smokeFileName(def.file),
+    suiteId: `${def.suiteId}_SMOKE`,
+    runIdBase: `${def.runIdBase}_smoke`,
+    runCount,
+    instances: resolveSmokeInstances(def.instances),
+    trials: String(smokeTrials),
+    durationMs: String(smokeDurationMs),
+    warmupMs: String(smokeWarmupMs),
+    cooldownMs: String(smokePerTrialCooldownMs),
+    betweenInstancesMs: String(smokeBetweenInstancesMs),
+    preIdleMs: String(smokePreIdleMs),
+    postIdleMs: String(smokePostIdleMs),
+    cooldownBetweenRunsMs: smokeCooldownMs
+  };
+}
+
+const defs =
+  manifestProfile === "sanity"
+    ? baselineDefs.map(toSanityDef)
+    : manifestProfile === "smoke"
+      ? baselineDefs.map(toSmokeDef)
+      : baselineDefs;
 
 function buildManifest(def) {
   const sequence = buildManifestApiSequence(def.orderMode, def.runCount, toSeedU32(def.orderSeed, 12345), def.apiScope);
@@ -622,10 +704,19 @@ function buildManifest(def) {
       ...baseValues,
       suiteId: def.suiteId,
       instances: def.instances,
+      trials: def.trials || baseValues.trials,
+      durationMs: def.durationMs || baseValues.durationMs,
+      warmupMs: def.warmupMs || baseValues.warmupMs,
+      cooldownMs: def.cooldownMs || baseValues.cooldownMs,
+      betweenInstancesMs: def.betweenInstancesMs || baseValues.betweenInstancesMs,
       runMode: def.runMode,
       xrSessionMode: def.xrSessionMode,
       layout: def.layout,
+      spacing: def.spacing || baseValues.spacing,
       canvasScaleFactor: def.canvasScaleFactor || baseValues.canvasScaleFactor,
+      xrScaleFactor: def.xrScaleFactor || baseValues.xrScaleFactor,
+      xrFrontMinZ: def.xrFrontMinZ || baseValues.xrFrontMinZ,
+      xrYOffset: def.xrYOffset || baseValues.xrYOffset,
       shuffle: def.shuffle,
       preIdleMs: def.preIdleMs,
       postIdleMs: def.postIdleMs,
@@ -721,6 +812,11 @@ function main() {
   process.stdout.write(`Base URL: ${baseUrl}\n`);
   if (manifestProfile === "sanity") {
     process.stdout.write(`sanityRunsPerApi=${sanityRunsPerApi} sanityCooldownMs=${sanityCooldownMs}\n`);
+  }
+  if (manifestProfile === "smoke") {
+    process.stdout.write(
+      `smokeRunsPerApi=${smokeRunsPerApi} smokeTrials=${smokeTrials} smokeDurationMs=${smokeDurationMs} smokeCooldownMs=${smokeCooldownMs}\n`
+    );
   }
   process.stdout.write(`harnessCommit=${harnessCommit || "(empty)"} harnessVersion=${harnessVersion || "(empty)"} releaseTag=${releaseTag || "(none)"}\n`);
   for (const f of written) process.stdout.write(`- ${f}\n`);
