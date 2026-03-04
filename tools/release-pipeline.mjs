@@ -19,47 +19,10 @@ if (opts.mode === "promote" && fs.existsSync(releaseDir)) {
 
 const commitShort = safeGit("git rev-parse --short HEAD") || "";
 
-const manifestEnv = {
-  HARNESS_BASE_URL: baseUrl,
-  HARNESS_RELEASE_TAG: opts.tag,
-  HARNESS_VERSION: opts.tag
-};
-if (commitShort) manifestEnv.HARNESS_COMMIT = commitShort;
-
-runNodeScript(path.join(repoRoot, "tools", "generate-baseline-manifests.mjs"), [], manifestEnv, repoRoot);
-runNodeScript(
-  path.join(repoRoot, "tools", "generate-baseline-manifests.mjs"),
-  [],
-  { ...manifestEnv, MANIFEST_PROFILE: "sanity" },
-  repoRoot
-);
-runNodeScript(
-  path.join(repoRoot, "tools", "generate-baseline-manifests.mjs"),
-  [],
-  { ...manifestEnv, MANIFEST_PROFILE: "smoke" },
-  repoRoot
-);
-
-runNodeScript(
-  path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-  [],
-  { LAUNCHER_VERSION: opts.tag },
-  repoRoot
-);
-runNodeScript(
-  path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-  [],
-  { LAUNCHER_VERSION: opts.tag, MANIFEST_FILTER: "sanity", LAUNCHER_LINKS_OUT: "launcher-links-sanity.csv" },
-  repoRoot
-);
-runNodeScript(
-  path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-  [],
-  { LAUNCHER_VERSION: opts.tag, MANIFEST_FILTER: "smoke", LAUNCHER_LINKS_OUT: "launcher-links-smoke.csv" },
-  repoRoot
-);
-
+const generateEnv = buildGenerateEnv(opts.mode, opts.tag, commitShort);
+generateRootArtifacts(opts.tag, generateEnv);
 verifyRootLinksTag(opts.tag);
+verifyRootManifestBase(opts.mode, opts.tag);
 
 if (opts.mode === "promote") {
   runNodeScript(path.join(repoRoot, "tools", "create-immutable-release.mjs"), [opts.tag], {}, repoRoot);
@@ -124,8 +87,8 @@ function usage(prefix) {
   if (prefix) lines.push(prefix);
   lines.push("Usage: node tools/release-pipeline.mjs --tag <release-tag> [--mode candidate|promote]");
   lines.push("Modes:");
-  lines.push("  candidate: regenerate manifests/launcher links pinned to the tag, no immutable snapshot.");
-  lines.push("  promote:   candidate + create immutable snapshot + regenerate release-local launcher links.");
+  lines.push("  candidate: regenerate manifests/launcher links against root URLs (smoke before lock).");
+  lines.push("  promote:   regenerate manifests pinned to releases/<tag>, create immutable snapshot, refresh release-local links.");
   lines.push("Examples:");
   lines.push("  node tools/release-pipeline.mjs --tag r2026-03-05-rc1 --mode candidate");
   lines.push("  node tools/release-pipeline.mjs --tag r2026-03-05-a --mode promote");
@@ -154,6 +117,19 @@ function verifyRootLinksTag(tag) {
   }
 }
 
+function verifyRootManifestBase(mode, tag) {
+  const manifestPath = path.join(repoRoot, "manifests", "macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json");
+  const text = fs.readFileSync(manifestPath, "utf8");
+  const manifest = JSON.parse(text);
+  const effective = String(manifest?.source?.effectiveBaseUrl || "");
+  const expected = mode === "promote" ? `${baseUrl}releases/${tag}/` : baseUrl;
+  if (effective !== expected) {
+    fail(
+      `Root manifest base mismatch in ${path.relative(repoRoot, manifestPath)}.\nExpected: ${expected}\nActual:   ${effective}`
+    );
+  }
+}
+
 function verifyReleaseLinksTag(tag, dir) {
   const mdPath = path.join(dir, "manifests", "launcher-links.md");
   const text = fs.readFileSync(mdPath, "utf8");
@@ -169,7 +145,8 @@ function printSummary(tag, mode, commitShortValue) {
   if (commitShortValue) process.stdout.write(`- source commit: ${commitShortValue}\n`);
   process.stdout.write(`\nNext steps:\n`);
   if (mode === "candidate") {
-    process.stdout.write(`1) Run smoke/sanity checks using v=${tag} URLs.\n`);
+    process.stdout.write(`1) Run smoke/sanity checks using root launcher links (v=${tag}).\n`);
+    process.stdout.write(`   Example: ${baseUrl}run-launcher.html?v=${tag}&manifest=<encoded-manifest-url>\n`);
     process.stdout.write(`2) If checks pass, run:\n`);
     process.stdout.write(`   node tools/release-pipeline.mjs --tag ${tag} --mode promote\n`);
     process.stdout.write(`3) Commit and push manifests + links + releases/${tag}.\n`);
@@ -188,6 +165,51 @@ function safeGit(cmd) {
   } catch (_) {
     return "";
   }
+}
+
+function buildGenerateEnv(mode, tag, commit) {
+  const env = {
+    HARNESS_BASE_URL: baseUrl,
+    HARNESS_VERSION: tag
+  };
+  if (commit) env.HARNESS_COMMIT = commit;
+  if (mode === "promote") env.HARNESS_RELEASE_TAG = tag;
+  return env;
+}
+
+function generateRootArtifacts(tag, env) {
+  runNodeScript(path.join(repoRoot, "tools", "generate-baseline-manifests.mjs"), [], env, repoRoot);
+  runNodeScript(
+    path.join(repoRoot, "tools", "generate-baseline-manifests.mjs"),
+    [],
+    { ...env, MANIFEST_PROFILE: "sanity" },
+    repoRoot
+  );
+  runNodeScript(
+    path.join(repoRoot, "tools", "generate-baseline-manifests.mjs"),
+    [],
+    { ...env, MANIFEST_PROFILE: "smoke" },
+    repoRoot
+  );
+
+  runNodeScript(
+    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
+    [],
+    { LAUNCHER_VERSION: tag },
+    repoRoot
+  );
+  runNodeScript(
+    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
+    [],
+    { LAUNCHER_VERSION: tag, MANIFEST_FILTER: "sanity", LAUNCHER_LINKS_OUT: "launcher-links-sanity.csv" },
+    repoRoot
+  );
+  runNodeScript(
+    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
+    [],
+    { LAUNCHER_VERSION: tag, MANIFEST_FILTER: "smoke", LAUNCHER_LINKS_OUT: "launcher-links-smoke.csv" },
+    repoRoot
+  );
 }
 
 function fail(message) {

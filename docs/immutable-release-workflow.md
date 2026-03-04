@@ -20,7 +20,7 @@ node tools/release-pipeline.mjs --tag "$REL_TAG" --mode candidate
 
 This regenerates baseline/sanity/smoke manifests and launcher links pinned to:
 
-- `https://innominata88.github.io/webxr-harness/releases/<tag>/...`
+- `https://innominata88.github.io/webxr-harness/...` (root pages, no immutable snapshot yet)
 
 Run your smoke/sanity checks using `v=<tag>` links.
 If any issue appears, fix code and re-run candidate mode with the same tag before promotion.
@@ -44,6 +44,7 @@ This creates:
 - `releases/<tag>/RELEASE_INFO.json`
 
 And verifies release-local launcher links are pinned to the same tag.
+After promote, root manifests are also rewritten to point at `releases/<tag>/...`.
 
 ## 4) Run via launcher
 

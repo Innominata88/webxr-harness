@@ -89,6 +89,10 @@ node tools/release-pipeline.mjs --tag "$REL_TAG" --mode candidate
 node tools/release-pipeline.mjs --tag "$REL_TAG" --mode promote
 ```
 
+Notes:
+- `candidate` mode targets root hosted pages (`/webgl.html`, `/webgpu.html`, etc.) so you can smoke test before lock.
+- `promote` mode creates `releases/<tag>/` and rewrites manifests to immutable release URLs.
+
 Generate sanity preflight manifests (default: two sets per API for paired cohorts, two runs for single-API cohorts):
 
 ```bash
