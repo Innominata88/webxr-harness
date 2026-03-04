@@ -1113,13 +1113,16 @@
         }
       }
 
+      let openedTab = true;
       if (openInNewTab) {
         const child = window.open(row.url, "_blank", "noopener,noreferrer");
-        if (!child) {
-          statusLineEl.textContent = "Could not open new tab. Check popup blocking and try again.";
-          return;
+        // Some mobile browsers open the tab but intentionally return null when
+        // noopener/noreferrer is used. Do not treat null as a hard failure.
+        if (child) {
+          try { child.focus(); } catch (_) {}
+        } else {
+          openedTab = false;
         }
-        try { child.focus(); } catch (_) {}
       }
 
       progress.traceNameSnapshotByRun[String(row.run_number)] = snapshot;
@@ -1131,7 +1134,9 @@
       pushEvent("run_start", { run_number: row.run_number, api: row.api, run_id: row.run_id });
       saveProgress();
       if (openInNewTab) {
-        statusLineEl.textContent = `Opened run ${row.run_number} in a new tab. Mark it complete/failed here when done.`;
+        statusLineEl.textContent = openedTab
+          ? `Opened run ${row.run_number} in a new tab. Mark it complete/failed here when done.`
+          : `Run ${row.run_number} marked started. If a tab did not open, open the run URL manually, then mark complete/failed here.`;
         render();
         return;
       }
