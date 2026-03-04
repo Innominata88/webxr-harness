@@ -671,6 +671,23 @@
       return raw;
     }
 
+    function stampRunUrlOutputNames(urlString, token) {
+      try {
+        const u = new URL(String(urlString || ""), location.href);
+        const out = u.searchParams.get("out");
+        if (typeof out === "string" && out.length) {
+          u.searchParams.set("out", applyTimestampToken(out, token));
+        }
+        const outxr = u.searchParams.get("outxr");
+        if (typeof outxr === "string" && outxr.length) {
+          u.searchParams.set("outxr", applyTimestampToken(outxr, token));
+        }
+        return u.toString();
+      } catch (_) {
+        return urlString;
+      }
+    }
+
     function traceTemplatesForRow(row) {
       if (!row || !row.raw) return { chrome: "", safari: "" };
       return {
@@ -1157,6 +1174,7 @@
         chromeStamped: applyTimestampToken(templates.chrome, token),
         safariStamped: applyTimestampToken(templates.safari, token)
       };
+      const launchUrl = stampRunUrlOutputNames(row.url, token);
       if (!progress.traceNameSnapshotByRun || typeof progress.traceNameSnapshotByRun !== "object") {
         progress.traceNameSnapshotByRun = {};
       }
@@ -1169,7 +1187,7 @@
 
       let openedTab = true;
       if (openInNewTab) {
-        const child = window.open(row.url, "_blank", "noopener,noreferrer");
+        const child = window.open(launchUrl, "_blank", "noopener,noreferrer");
         // Some mobile browsers open the tab but intentionally return null when
         // noopener/noreferrer is used. Do not treat null as a hard failure.
         if (child) {
@@ -1194,7 +1212,7 @@
         render();
         return;
       }
-      location.href = row.url;
+      location.href = launchUrl;
     }
 
     function markStartedRun(status) {
