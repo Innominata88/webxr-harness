@@ -173,6 +173,8 @@ export class WebGLMeshRenderer {
     this.instanceStrideBytes=4*3;
     this.debugColorModeName="flat";
     this.debugColorMode=DEBUG_COLOR_MODES.flat;
+    // Compatibility cache used by setCamera/draw fallback API.
+    this._compatViewProj = new Float32Array(16);
   }
 
   setDebugColor(modeName="flat") {
@@ -279,6 +281,17 @@ export class WebGLMeshRenderer {
     }
 
     this.setInstanceOffsets(offsets);
+  }
+
+  // Backward-compatible API used by older app wiring.
+  setCamera(projectionMat, viewMat) {
+    if (!projectionMat || !viewMat) return;
+    computeViewProj(this._compatViewProj, projectionMat, viewMat);
+  }
+
+  // Backward-compatible API used by older app wiring.
+  draw() {
+    this.drawForView(this._compatViewProj);
   }
 
   drawForView(viewProjMat /* Float32Array length 16 */) {

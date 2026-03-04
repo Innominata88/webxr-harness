@@ -444,10 +444,8 @@ function updateCanvasScaleEnvDiagnostics(appliedDpr = getAppliedCanvasDpr()) {
 function resyncCanvasSurfaceForRun() {
   const appliedDpr = applyCanvasResolutionScale();
   if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
-  if (renderer) {
-    const vp = getDefaultViewProj();
-    renderer.setCamera(vp.proj, vp.view);
-  }
+  // WebGL consumes view/projection per-draw via drawForView(...).
+  // Keep resize sync focused on surface state to avoid renderer API coupling.
   updateCanvasScaleEnvDiagnostics(appliedDpr);
   return appliedDpr;
 }
