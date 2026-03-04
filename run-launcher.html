@@ -404,15 +404,25 @@
           for (const row of manifestRows) {
             const k = String(row.run_number);
             const status = parsed.statuses[k];
-            if (status === "completed" || status === "failed" || status === "skipped" || status === "pending") {
+            if (
+              status === "completed" ||
+              status === "failed" ||
+              status === "skipped" ||
+              status === "pending" ||
+              status === "started"
+            ) {
               out.statuses[k] = status;
             }
           }
         }
         if (parsed.startedRunNumber != null) {
           const started = Number.parseInt(String(parsed.startedRunNumber), 10);
-          if (Number.isFinite(started) && out.statuses[String(started)] === "pending") {
+          if (
+            Number.isFinite(started) &&
+            (out.statuses[String(started)] === "pending" || out.statuses[String(started)] === "started")
+          ) {
             out.startedRunNumber = started;
+            out.statuses[String(started)] = "started";
           }
         }
         out.startedAtIso = parsed.startedAtIso || null;
@@ -443,6 +453,23 @@
         if (Array.isArray(parsed.events)) {
           out.events = parsed.events.slice(-80);
         }
+        if (out.startedRunNumber == null) {
+          for (const row of manifestRows) {
+            if (out.statuses[String(row.run_number)] === "started") {
+              out.startedRunNumber = row.run_number;
+              break;
+            }
+          }
+        }
+        if (out.startedRunNumber != null) {
+          const startedKey = String(out.startedRunNumber);
+          for (const row of manifestRows) {
+            const k = String(row.run_number);
+            if (k !== startedKey && out.statuses[k] === "started") {
+              out.statuses[k] = "pending";
+            }
+          }
+        }
         return out;
       } catch (_) {
         return buildInitialProgress();
@@ -468,6 +495,16 @@
 
     function refreshProgressFromStorage() {
       if (!manifest || !manifestKey) return false;
+      let existing = null;
+      try {
+        existing = localStorage.getItem(progressStorageKey());
+      } catch (_) {
+        existing = null;
+      }
+      if (!existing) {
+        render();
+        return false;
+      }
       const before = progress ? JSON.stringify(progress) : "";
       progress = loadProgress();
       const after = progress ? JSON.stringify(progress) : "";
@@ -484,10 +521,28 @@
       }
     }
 
+    function startedRunNumberFromState() {
+      if (!progress) return null;
+      if (progress.startedRunNumber != null) {
+        const started = Number.parseInt(String(progress.startedRunNumber), 10);
+        if (Number.isFinite(started) && manifestRowByRunNumber(started)) {
+          return started;
+        }
+      }
+      for (const row of manifestRows) {
+        if (progress.statuses[String(row.run_number)] === "started") {
+          return row.run_number;
+        }
+      }
+      return null;
+    }
+
     function statusForRow(row) {
       const k = String(row.run_number);
-      if (progress.startedRunNumber === row.run_number) return "started";
-      return progress.statuses[k] || "pending";
+      const status = progress.statuses[k];
+      if (status === "started") return "started";
+      if (startedRunNumberFromState() === row.run_number) return "started";
+      return status || "pending";
     }
 
     function nextPendingRow() {
@@ -499,15 +554,13 @@
 
     function markableRunNumber() {
       if (!progress) return null;
-      if (progress.startedRunNumber != null) {
-        const started = Number.parseInt(String(progress.startedRunNumber), 10);
-        if (Number.isFinite(started) && manifestRowByRunNumber(started)) return started;
-      }
+      const started = startedRunNumberFromState();
+      if (started != null) return started;
       if (progress.lastRunNumber != null) {
         const last = Number.parseInt(String(progress.lastRunNumber), 10);
         if (Number.isFinite(last) && manifestRowByRunNumber(last)) {
           const state = progress.statuses[String(last)] || "pending";
-          if (state === "pending") return last;
+          if (state === "pending" || state === "started") return last;
         }
       }
       return null;
@@ -515,8 +568,9 @@
 
     function traceRowForControls() {
       if (!progress) return null;
-      if (progress.startedRunNumber != null) {
-        const started = manifestRowByRunNumber(progress.startedRunNumber);
+      const startedNum = startedRunNumberFromState();
+      if (startedNum != null) {
+        const started = manifestRowByRunNumber(startedNum);
         if (started) return started;
       }
       const next = nextPendingRow();
@@ -753,9 +807,9 @@
       manifestSummaryEl.textContent =
         `key=${manifestKey}  rows=${total}  generated=${manifest.generatedAt || "?"}  schema=${manifest.schema || "?"}`;
       progressSummaryEl.textContent =
-        `completed=${completed}  failed=${failed}  skipped=${skipped}  remaining=${remaining}  started=${progress.startedRunNumber ?? "-"}`;
+        `completed=${completed}  failed=${failed}  skipped=${skipped}  remaining=${remaining}  started=${startedRunNumberFromState() ?? "-"}`;
 
-      if (progress.startedRunNumber != null && focus) {
+      if (startedRunNumberFromState() != null && focus) {
         nextRunSummaryEl.textContent =
           `started run=${focus.run_number} api=${focus.api} suite=${focus.suite_id || "-"} order=${focus.order_index || "-"}`;
         nextRunUrlEl.value = focus.url;
@@ -1052,6 +1106,12 @@
       if (!progress.traceNameSnapshotByRun || typeof progress.traceNameSnapshotByRun !== "object") {
         progress.traceNameSnapshotByRun = {};
       }
+      for (const rowState of manifestRows) {
+        const k = String(rowState.run_number);
+        if (progress.statuses[k] === "started") {
+          progress.statuses[k] = "pending";
+        }
+      }
 
       if (openInNewTab) {
         const child = window.open(row.url, "_blank", "noopener,noreferrer");
@@ -1063,6 +1123,7 @@
       }
 
       progress.traceNameSnapshotByRun[String(row.run_number)] = snapshot;
+      progress.statuses[String(row.run_number)] = "started";
       progress.startedRunNumber = row.run_number;
       progress.startedAtIso = nowIso();
       progress.lastRunNumber = row.run_number;
@@ -1085,6 +1146,12 @@
       }
       const usedFallback = progress.startedRunNumber == null && progress.lastRunNumber === runNumber;
       const key = String(runNumber);
+      for (const rowState of manifestRows) {
+        const k = String(rowState.run_number);
+        if (progress.statuses[k] === "started" && k !== key) {
+          progress.statuses[k] = "pending";
+        }
+      }
       progress.statuses[key] = status;
       progress.lastRunNumber = runNumber;
       pushEvent("run_mark", { run_number: runNumber, status });
