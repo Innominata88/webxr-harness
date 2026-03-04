@@ -80,6 +80,15 @@ Run from repo root:
 node tools/generate-baseline-manifests.mjs
 ```
 
+Recommended release-safe flow (candidate first, immutable only after checks pass):
+
+```bash
+REL_TAG="r2026-03-05-rc1"
+node tools/release-pipeline.mjs --tag "$REL_TAG" --mode candidate
+# run smoke/sanity checks
+node tools/release-pipeline.mjs --tag "$REL_TAG" --mode promote
+```
+
 Generate sanity preflight manifests (default: two sets per API for paired cohorts, two runs for single-API cohorts):
 
 ```bash

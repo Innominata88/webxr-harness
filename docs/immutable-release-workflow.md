@@ -12,29 +12,26 @@ git commit -m "Freeze harness for release"
 REL_TAG="r2026-03-01-a"
 ```
 
-## 2) Generate manifests pinned to release path
+## 2) Build candidate artifacts (no immutable snapshot yet)
 
 ```bash
-HARNESS_BASE_URL="https://innominata88.github.io/webxr-harness/" \
-HARNESS_RELEASE_TAG="$REL_TAG" \
-HARNESS_VERSION="$REL_TAG" \
-HARNESS_COMMIT="$(git rev-parse --short HEAD)" \
-node tools/generate-baseline-manifests.mjs
-
-LAUNCHER_VERSION="$REL_TAG" node tools/generate-launcher-links.mjs
+node tools/release-pipeline.mjs --tag "$REL_TAG" --mode candidate
 ```
 
-This makes row URLs point to the immutable release path:
+This regenerates baseline/sanity/smoke manifests and launcher links pinned to:
 
 - `https://innominata88.github.io/webxr-harness/releases/<tag>/...`
 
-## 3) Create immutable release snapshot
+Run your smoke/sanity checks using `v=<tag>` links.
+If any issue appears, fix code and re-run candidate mode with the same tag before promotion.
+
+## 3) Promote candidate to immutable snapshot
 
 ```bash
-node tools/create-immutable-release.mjs "$REL_TAG"
+node tools/release-pipeline.mjs --tag "$REL_TAG" --mode promote
 git add manifests releases/"$REL_TAG"
-git commit -m "Add immutable release $REL_TAG and pinned manifests"
-git push
+git commit -m "Publish immutable release $REL_TAG"
+git push origin main
 ```
 
 This creates:
@@ -45,6 +42,8 @@ This creates:
 - `releases/<tag>/builder.html`
 - `releases/<tag>/manifests/*.json`
 - `releases/<tag>/RELEASE_INFO.json`
+
+And verifies release-local launcher links are pinned to the same tag.
 
 ## 4) Run via launcher
 
