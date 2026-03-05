@@ -390,6 +390,7 @@ const baselineDefs = [
     instances: "64,128,192,256,320",
     layout: "xrwall",
     canvasScaleFactor: "0.75",
+    cooldownMs: "1000",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",

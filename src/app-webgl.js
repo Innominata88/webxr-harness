@@ -409,8 +409,84 @@ let batteryError = null;
 let connectionInfo = null;
 let connectionListenerInstalled = false;
 let connectionChangeCount = 0;
+const canvasCheckpointEnabled = (params.get("canvasCheckpoint") || "1") !== "0";
+let _resolvedCanvasOutFilename = null;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
+
+function withSuffixBeforeJsonl(name, suffix) {
+  const raw = String(name || "");
+  if (raw.toLowerCase().endsWith(".jsonl")) return `${raw.slice(0, -6)}${suffix}.jsonl`;
+  return `${raw}${suffix}`;
+}
+
+function canvasOutFilename() {
+  if (_resolvedCanvasOutFilename) return _resolvedCanvasOutFilename;
+  _resolvedCanvasOutFilename = resolveOutputFilename(outFileTemplate, "results_webgl");
+  return _resolvedCanvasOutFilename;
+}
+
+function canvasCheckpointKey() {
+  return `webxr_harness_canvas_partial::webgl2::${suiteId}::${runId}`;
+}
+
+function clearCanvasCheckpoint() {
+  if (!canvasCheckpointEnabled) return;
+  try {
+    localStorage.removeItem(canvasCheckpointKey());
+  } catch (_) {}
+}
+
+function persistCanvasCheckpoint(expectedCount = null) {
+  if (!canvasCheckpointEnabled) return;
+  try {
+    const payload = {
+      schema_version: SCHEMA_VERSION,
+      api: "webgl2",
+      mode: "canvas",
+      run_id: runId,
+      suite_id: suiteId,
+      filename: canvasOutFilename(),
+      expected_count: Number.isFinite(expectedCount) ? expectedCount : null,
+      completed_count: Array.isArray(resultsCanvas) ? resultsCanvas.length : 0,
+      saved_at_iso: new Date().toISOString(),
+      records: Array.isArray(resultsCanvas) ? resultsCanvas : []
+    };
+    localStorage.setItem(canvasCheckpointKey(), JSON.stringify(payload));
+  } catch (_) {}
+}
+
+function offerRecoveredCanvasCheckpoint() {
+  if (!canvasCheckpointEnabled) return;
+  let raw = null;
+  try {
+    raw = localStorage.getItem(canvasCheckpointKey());
+  } catch (_) {}
+  if (!raw) return;
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {}
+  if (!parsed || !Array.isArray(parsed.records) || parsed.records.length < 1) {
+    clearCanvasCheckpoint();
+    return;
+  }
+
+  const recoveredJsonl = parsed.records.map((o) => JSON.stringify(o)).join("\n") + "\n";
+  const expectedCount = Number(parsed.expected_count);
+  const completedCount = Number(parsed.completed_count);
+  const label = Number.isFinite(expectedCount) && expectedCount > 0
+    ? `Recovered partial canvas results (${completedCount}/${expectedCount})`
+    : `Recovered partial canvas results (${parsed.records.length})`;
+  const recoveredFilename = withSuffixBeforeJsonl(
+    (typeof parsed.filename === "string" && parsed.filename) ? parsed.filename : canvasOutFilename(),
+    "__partial_recovered"
+  );
+  queueDownload(recoveredJsonl, recoveredFilename, label);
+  log(`Recovered partial canvas checkpoint from previous interrupted run (records=${parsed.records.length}).`);
+  clearCanvasCheckpoint();
+}
 
 function getNativeDevicePixelRatio() {
   const dpr = Number(window.devicePixelRatio || 1);
@@ -1762,6 +1838,7 @@ async function runCanvasSuite() {
   canvasRunInProgress = true;
   let plan = [];
   try {
+    _resolvedCanvasOutFilename = null;
     const syncedCanvasDpr = resyncCanvasSurfaceForRun();
     log(`Canvas surface synced before suite: css=${canvas.clientWidth}x${canvas.clientHeight}, px=${canvas.width}x${canvas.height}, canvasDpr=${syncedCanvasDpr.toFixed(3)}, canvasScaleFactor=${canvasScaleFactor}.`);
     const vp = getDefaultViewProj();
@@ -1769,6 +1846,7 @@ async function runCanvasSuite() {
     resultsCanvas = [];
 
     plan = buildPlan();
+    persistCanvasCheckpoint(plan.length);
     traceMark("SUITE_START", { mode: "canvas", testId: "suite", trial: "-", index: 1, total: plan.length });
     updateTraceOverlay(`mode=canvas\nsuite=${suiteId}\nrunId=${runId}`);
     for (let i=0;i<plan.length;i++) {
@@ -1801,10 +1879,12 @@ async function runCanvasSuite() {
             frames_collected: 0
           }
         }));
+        persistCanvasCheckpoint(plan.length);
         log(canvasAbortReason);
         break;
       }
       resultsCanvas.push(out);
+      persistCanvasCheckpoint(plan.length);
 
       if (canvasAbortReason) {
         resultsCanvas.push(buildCanvasAbortRecord({
@@ -1815,14 +1895,16 @@ async function runCanvasSuite() {
           planLen: plan.length,
           partialTrial: { elapsed_ms: null, frames_collected: 0 }
         }));
+        persistCanvasCheckpoint(plan.length);
         break;
       }
       await sleep(cooldownMs);
     }
 
     const jsonl = resultsCanvas.map(o=>JSON.stringify(o)).join("\n") + "\n";
-    const canvasOutFile = resolveOutputFilename(outFileTemplate, "results_webgl");
+    const canvasOutFile = canvasOutFilename();
     downloadText(jsonl, canvasOutFile, "Canvas results");
+    clearCanvasCheckpoint();
     log(`Done (canvas). ${manualDownload ? "Queued" : "Downloaded"} ${canvasOutFile}`);
     traceMark("SUITE_END", { mode: "canvas", testId: "suite", trial: "-", index: plan.length, total: plan.length });
     clearCanvasBlankOnce();
@@ -2867,6 +2949,7 @@ async function main() {
     btn.disabled = true;
     btn.textContent = "XR disabled (mode=canvas)";
   }
+  offerRecoveredCanvasCheckpoint();
 
   if (runMode === "xr") {
     log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
