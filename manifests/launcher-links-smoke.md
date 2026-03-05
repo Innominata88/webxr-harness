@@ -1,12 +1,13 @@
 # Launcher Links
 
-- generated_at: 2026-03-05T00:16:15.755Z
+- generated_at: 2026-03-05T00:27:02.672Z
 - base_url: https://innominata88.github.io/webxr-harness/
 - launcher_version: r2026-03-04-rc5
 - manifest_filter: smoke
 
 | Manifest File | Launcher | Manifest URL |
 |---|---|---|
+| avp_canvas_primary_cliff_paired_smoke_1sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-04-rc5&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_canvas_primary_cliff_paired_smoke_1sets.json%3Fv%3Dr2026-03-04-rc5) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_canvas_primary_cliff_paired_smoke_1sets.json?v=r2026-03-04-rc5) |
 | avp_canvas_primary_regular_paired_smoke_1sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-04-rc5&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_canvas_primary_regular_paired_smoke_1sets.json%3Fv%3Dr2026-03-04-rc5) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_canvas_primary_regular_paired_smoke_1sets.json?v=r2026-03-04-rc5) |
 | avp_xr_primary_cliff_paired_smoke_1sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-04-rc5&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_paired_smoke_1sets.json%3Fv%3Dr2026-03-04-rc5) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_paired_smoke_1sets.json?v=r2026-03-04-rc5) |
 | avp_xr_primary_regular_paired_smoke_1sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-04-rc5&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_regular_paired_smoke_1sets.json%3Fv%3Dr2026-03-04-rc5) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_regular_paired_smoke_1sets.json?v=r2026-03-04-rc5) |

@@ -42,17 +42,18 @@ Output:
 ## Required Baseline Manifests
 
 1. `manifests/avp_canvas_primary_regular_paired_5sets.json`
-2. `manifests/avp_xr_primary_regular_paired_5sets.json`
-3. `manifests/avp_xr_primary_cliff_paired_5sets.json`
-4. `manifests/quest2_canvas_primary_regular_paired_5sets.json`
-5. `manifests/quest2_xr_primary_regular_webgl_only_5sets.json`
-6. `manifests/pixel8a_canvas_primary_regular_paired_5sets.json`
-7. `manifests/samsung_fe5g_canvas_primary_regular_paired_5sets.json`
-8. `manifests/pixel8a_xr_ar_primary_regular_paired_5sets.json`
-9. `manifests/samsung_fe5g_xr_ar_primary_regular_paired_5sets.json`
-10. `manifests/ipadairm3_canvas_primary_regular_paired_5sets.json`
-11. `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
-12. `manifests/windows_hp_canvas_primary_regular_paired_5sets.json`
+2. `manifests/avp_canvas_primary_cliff_paired_5sets.json`
+3. `manifests/avp_xr_primary_regular_paired_5sets.json`
+4. `manifests/avp_xr_primary_cliff_paired_5sets.json`
+5. `manifests/quest2_canvas_primary_regular_paired_5sets.json`
+6. `manifests/quest2_xr_primary_regular_webgl_only_5sets.json`
+7. `manifests/pixel8a_canvas_primary_regular_paired_5sets.json`
+8. `manifests/samsung_fe5g_canvas_primary_regular_paired_5sets.json`
+9. `manifests/pixel8a_xr_ar_primary_regular_paired_5sets.json`
+10. `manifests/samsung_fe5g_xr_ar_primary_regular_paired_5sets.json`
+11. `manifests/ipadairm3_canvas_primary_regular_paired_5sets.json`
+12. `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
+13. `manifests/windows_hp_canvas_primary_regular_paired_5sets.json`
 
 ## Legacy Manifests (Not Primary)
 
@@ -65,9 +66,11 @@ Output:
 - Paired manifests use `manifestOrderMode=abba_baab` with `manifestRuns=10` (5 runs per API).
 - Single-API manifests use `manifestOrderMode=none` with `manifestRuns=5`.
 - Regular manifests use cooldown `300000` ms (5 min) between runs.
-- AVP cliff manifest uses cooldown `600000` ms (10 min) between runs.
+- AVP cliff manifests use cooldown `600000` ms (10 min) between runs.
 - AVP cliff instance band is `340,345,348,350`.
-- AVP canvas baseline manifest locks `canvasScaleFactor=0.75` (applied to both WebGL/WebGPU).
+- AVP canvas regular baseline manifest uses instance ladder `64,128,192,256`.
+- AVP canvas cliff baseline manifest isolates `320` with `trials=1` to measure crash/failure rate without losing long regular rows.
+- AVP canvas baseline manifests lock `canvasScaleFactor=0.75` (applied to both WebGL/WebGPU).
 - Phone canvas baseline manifests lock `canvasScaleFactor=0.75`.
 - Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
 - Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`.
