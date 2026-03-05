@@ -527,7 +527,7 @@ const baselineDefs = [
     xrSessionMode: "immersive-vr",
     instances: "64,128,192,256,320",
     layout: "xrwall",
-    canvasScaleFactor: "0.75",
+    canvasScaleFactor: "0.60",
     shuffle: "1",
     preIdleMs: "0",
     postIdleMs: "0",
