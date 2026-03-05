@@ -1,0 +1,22 @@
+{
+  "schema": "webxr-harness-release-info/v1",
+  "releaseTag": "r2026-03-04-rc5",
+  "createdAt": "2026-03-05T01:46:52.616Z",
+  "commitShort": "82693d6",
+  "commitFull": "82693d6c01997d4a583229ebb706cf98254faba9",
+  "branch": "main",
+  "includedPaths": [
+    "assets",
+    "src",
+    "manifests",
+    "builder.html",
+    "run-launcher.html",
+    "webgl.html",
+    "webgpu.html",
+    "vr-webgl.html",
+    "vr-webgpu.html",
+    "idle.html",
+    "index.html",
+    "LICENSE"
+  ]
+}

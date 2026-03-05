@@ -1,6 +1,6 @@
 # Launcher Links
 
-- generated_at: 2026-03-05T00:27:02.606Z
+- generated_at: 2026-03-05T01:46:52.447Z
 - base_url: https://innominata88.github.io/webxr-harness/
 - launcher_version: r2026-03-04-rc5
 - manifest_filter: sanity
