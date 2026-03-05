@@ -1512,12 +1512,16 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
 
 async function initWebGPU() {
   if (!navigator.gpu) throw new Error("WebGPU not supported");
+  const adapterRequest = { powerPreference: "high-performance" };
+  if (runMode === "xr") adapterRequest.xrCompatible = true;
   const adapter = await withTimeout(
-    navigator.gpu.requestAdapter({ powerPreference:"high-performance", xrCompatible:true }),
+    navigator.gpu.requestAdapter(adapterRequest),
     webgpuInitTimeoutMs,
     "WebGPU adapter request"
   );
-  if (!adapter) throw new Error("No WebGPU adapter");
+  if (!adapter) {
+    throw new Error(runMode === "xr" ? "No XR-compatible WebGPU adapter" : "No WebGPU adapter");
+  }
   device = await withTimeout(
     adapter.requestDevice(),
     webgpuInitTimeoutMs,
@@ -1631,9 +1635,9 @@ const device_limits = copyLimits(device.limits || {});
   sceneInfo = { asset_timing: scene.timing, asset_meta: scene.meta };
   envInfo = {
     api: "webgpu",
-    adapterRequest: { powerPreference:"high-performance", xrCompatible:true },
+    adapterRequest: { ...adapterRequest },
     powerPreferenceRequested: "high-performance",
-    xrCompatibleRequested: true,
+    xrCompatibleRequested: !!adapterRequest.xrCompatible,
     hudEnabled,
     hudHz,
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,

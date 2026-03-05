@@ -1325,13 +1325,16 @@ function createXRRenderProbeState() {
 }
 
 async function initGL() {
+  const xrCompatibleRequested = (runMode === "xr");
   gl = canvas.getContext("webgl2", {
     antialias: false,
     depth: true,
-    xrCompatible: true,
+    xrCompatible: xrCompatibleRequested,
     powerPreference: "high-performance",
   });
-  if (!gl) throw new Error("WebGL2 not available");
+  if (!gl) {
+    throw new Error(xrCompatibleRequested ? "WebGL2 not available (XR-compatible context)" : "WebGL2 not available");
+  }
   gl.enable(gl.DEPTH_TEST);
 
   canvas.addEventListener("webglcontextlost", (event) => {
@@ -1428,6 +1431,7 @@ async function initGL() {
   envInfo = {
     api: "webgl2",
     powerPreferenceRequested: "high-performance",
+    webgl_context_xr_compatible_requested: xrCompatibleRequested,
     hudEnabled,
     hudHz,
     xr_expected_max_views: MAX_COMPARABLE_XR_VIEWS,
