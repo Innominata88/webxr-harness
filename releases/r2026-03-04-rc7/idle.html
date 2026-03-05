@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Harness idle</title>
+  <style>
+    body { font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 6px; }
+    .big { font-size: 40px; font-weight: 700; margin: 12px 0; }
+    .muted { opacity: 0.75; }
+    .box { background:#fafafa; border:1px solid #e5e5e5; border-radius: 12px; padding: 16px; max-width: 720px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="muted">WebXR harness</div>
+    <h1 style="margin:6px 0 10px 0">Cooldown / idle</h1>
+    <div id="countdown" class="big">--:--</div>
+    <div id="status" class="muted"></div>
+    <p style="margin-top:14px">
+      When the timer reaches <b>0</b>, start the next suite by opening your next URL (e.g., <code>webgl.html?...&amp;suiteId=...</code>).
+    </p>
+    <p class="muted">
+      This page does not create WebGL/WebGPU contexts and should be safe to leave open between suites.
+    </p>
+  </div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const ms = Math.max(0, parseInt(params.get("betweenSuitesMs") || "300000", 10) || 300000);
+  const start = Date.now();
+  const el = document.getElementById("countdown");
+  const status = document.getElementById("status");
+  const fromSuiteId = params.get("fromSuiteId");
+  const fromApi = params.get("fromApi");
+
+  function fmt(ms) {
+    const s = Math.ceil(ms/1000);
+    const m = Math.floor(s/60);
+    const r = s % 60;
+    return String(m).padStart(2,"0")+":"+String(r).padStart(2,"0");
+  }
+
+  if (fromSuiteId || fromApi) {
+    status.textContent = `Arrived from ${fromApi || "?"} (${fromSuiteId || "unknown suite"})`;
+  }
+
+  function tick(){
+    const remain = Math.max(0, ms - (Date.now() - start));
+    el.textContent = fmt(remain);
+    if (remain <= 0) {
+      status.textContent = (status.textContent ? status.textContent + " · " : "") + "Cooldown complete.";
+      return;
+    }
+    setTimeout(tick, Math.min(1000, remain));
+  }
+  tick();
+</script>
+</body>
+</html>
