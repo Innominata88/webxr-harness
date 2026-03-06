@@ -109,6 +109,8 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
 | `xrStartOnFirstPose` | boolean | all | Requested XR timing mode; when `true`, measured XR window starts on first valid pose |
 | `xrAnchorToFirstPose` | boolean | all | Requested XR placement mode; when `true`, XR layout is anchored to the first viewer pose |
+| `xrAnchorMode` | string | all | XR anchor reuse mode (`"session"` or `"trial"`) captured for reproducibility |
+| `xrIdlePresentMode` | string | all | XR idle presentation mode parameter (`"none"` or `"clear_each_frame"`) captured for reproducibility |
 | `xrFrontMinZ` | number | all | Requested XR forward placement anchor captured at record level |
 | `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
 | `collectPerf` | boolean | all | Whether perf block was collected |
@@ -297,6 +299,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_start_on_first_pose_applied` | boolean optional | `true` when the measured window actually began on first valid pose |
 | `xr_anchor_to_first_pose_requested` | boolean optional | Whether query `xrAnchorToFirstPose=1` was requested for this run |
 | `xr_anchor_to_first_pose_applied` | boolean optional | `true` when XR instances were re-anchored from the first viewer pose |
+| `xr_anchor_mode_requested` | string optional | XR anchor reuse mode requested by the run (`session` for one anchor per XR session, `trial` for re-anchoring at each trial start) |
 | `xr_anchor_pose_yaw_rad` | number optional | Yaw (radians) used for first-pose anchoring |
 | `xr_anchor_pose_x` | number optional | Viewer X used for first-pose anchoring |
 | `xr_anchor_pose_z` | number optional | Viewer Z used for first-pose anchoring |
@@ -304,6 +307,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_no_pose_frames` | number optional | Running/session-level no-pose callback count for XR diagnostics |
 | `xr_no_pose_ms_total` | number optional | Running/session-level no-pose wall-time total (ms) for XR diagnostics |
 | `xr_probe_readback_requested` | boolean optional | Whether XR pixel readback probe was requested (`xrProbeReadback`) |
+| `xr_idle_present_mode` | string optional | XR idle presentation mode in effect (`none` for primary true-idle semantics; `clear_each_frame` for diagnostic idle presentation) |
 | `debugColor` | string optional | Debug fragment coloring mode used by renderer (`flat`, `abspos`, `instance`) |
 | `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
 | `xr_scale_factor_requested` | number |
@@ -319,6 +323,8 @@ Can be `null` if no matching resource timing entry is found.
 | `asset_revision` | string or null optional | Asset revision/hash identifier (query `assetRevision`/`assetHash` or meta tag fallback) |
 | `feature_flags_profile` | string or null optional | Feature-flag profile ID recorded for this run (query `featureFlagsProfile` or meta tag fallback; operator-provided) |
 | `feature_flags_exact` | string or null optional | Exact feature-flag state string recorded for this run (query `featureFlagsExact` or meta tag fallback; operator-provided because browser flag toggles are not readable from page JS) |
+| `profiler_mode` | string or null optional | Profiler/trace collection mode recorded for this run (query `profilerMode`; for example `baseline_untraced` or `traced_recording`) |
+| `profiler_config` | string or null optional | Free-form profiler configuration string recorded for this run (query `profilerConfig`) |
 | `provenance` | object or null optional | Grouped provenance block (see `env.provenance` section) |
 | `js_errors` | object[] or null optional | Ring buffer of global JS runtime `error` events captured by `window.onerror` listener |
 | `js_unhandled_rejections` | object[] or null optional | Ring buffer of global Promise rejection events captured by `window.unhandledrejection` listener |
@@ -383,9 +389,15 @@ Explicit run provenance for reproducibility and paper reporting.
 | `asset_revision` | string or null | Asset revision/hash identifier when available |
 | `feature_flags_profile` | string or null | Feature-flag profile ID when available |
 | `feature_flags_exact` | string or null | Exact feature-flag state string when available |
+| `profiler_mode` | string or null | Profiler/trace collection mode when available |
+| `profiler_config` | string or null | Free-form profiler configuration string when available |
+| `xr_idle_present_mode` | string or null | XR idle presentation mode when available |
+| `xr_anchor_mode` | string or null | XR anchor reuse mode when available |
 | `asset_url` | string | Model URL used by the run |
 
 Note: `feature_flags_profile` / `feature_flags_exact` are provenance fields supplied by the operator or deployment metadata. They are not a browser-reported dump of active flag toggles.
+Note: `xr_anchor_mode=session` is appropriate for immersive-vr. `xr_anchor_mode=trial` is recommended for fixed-mount immersive-ar phone runs so AR world drift does not accumulate across the entire suite.
+Note: `xr_idle_present_mode=none` preserves true-idle semantics for primary runs. `clear_each_frame` is intended for diagnostics when you need the XR compositor to keep presenting between trials.
 
 ## `partial_trial` object (abort records)
 

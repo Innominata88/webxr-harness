@@ -270,6 +270,7 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_start_on_first_pose_applied", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_to_first_pose_requested", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_to_first_pose_applied", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_anchor_mode_requested", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_pose_yaw_rad", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_pose_x", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_pose_z", checkNumber, `${loc}.${key}`, errors);
@@ -277,9 +278,12 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_no_pose_frames", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_no_pose_ms_total", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_idle_present_mode", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "run_id", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "trace_markers_enabled", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "trace_overlay_enabled", checkBoolean, `${loc}.${key}`, errors);
+  checkIfPresent(value, "profiler_mode", checkStringOrNull, `${loc}.${key}`, errors);
+  checkIfPresent(value, "profiler_config", checkStringOrNull, `${loc}.${key}`, errors);
   if (hasOwn(value, "debugColor")) {
     checkString(value, "debugColor", `${loc}.${key}`, errors);
     if (typeof value.debugColor === "string" && !VALID_DEBUG_COLOR_MODES.has(value.debugColor)) {
@@ -300,6 +304,10 @@ function validateEnv(record, loc, errors) {
       checkString(provenance, "harness_version", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "harness_commit", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "asset_revision", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "profiler_mode", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "profiler_config", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "xr_idle_present_mode", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "xr_anchor_mode", `${loc}.${key}.provenance`, errors);
       checkString(provenance, "asset_url", `${loc}.${key}.provenance`, errors);
     }
   }
@@ -647,6 +655,8 @@ function validateBase(record, loc, errors) {
   checkIfPresent(record, "xrScaleFactor", checkNumber, loc, errors);
   checkIfPresent(record, "xrStartOnFirstPose", checkBoolean, loc, errors);
   checkIfPresent(record, "xrAnchorToFirstPose", checkBoolean, loc, errors);
+  checkIfPresent(record, "xrAnchorMode", checkString, loc, errors);
+  checkIfPresent(record, "xrIdlePresentMode", checkString, loc, errors);
   checkIfPresent(record, "xrFrontMinZ", checkNumber, loc, errors);
   checkIfPresent(record, "xrYOffset", checkNumber, loc, errors);
   checkIfPresent(record, "xr_no_pose_frames", checkNumber, loc, errors);

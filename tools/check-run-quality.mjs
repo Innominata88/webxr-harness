@@ -27,6 +27,8 @@ const ROOT_FAIRNESS_FIELDS = [
   { name: "debugColor" },
   { name: "preIdleMs" },
   { name: "postIdleMs" },
+  { name: "xrAnchorMode" },
+  { name: "xrIdlePresentMode" },
   { name: "collectPerf" },
   { name: "perfDetail" },
   { name: "xrAnchorToFirstPose" },
@@ -45,7 +47,9 @@ const ENV_FAIRNESS_FIELDS = [
   { name: "xr_no_pose_grace_ms" },
   { name: "xr_start_on_first_pose_requested" },
   { name: "xr_anchor_to_first_pose_requested" },
+  { name: "xr_anchor_mode_requested" },
   { name: "xr_probe_readback_requested" },
+  { name: "xr_idle_present_mode" },
   { name: "manualDownload" },
   { name: "hudEnabled" },
   { name: "hudHz", tol: 1e-9 },
@@ -58,6 +62,8 @@ const ENV_FAIRNESS_FIELDS = [
   { name: "asset_revision" },
   { name: "feature_flags_profile" },
   { name: "feature_flags_exact" },
+  { name: "profiler_mode" },
+  { name: "profiler_config" },
 ];
 
 function usage() {
