@@ -1362,11 +1362,10 @@ async function initGL() {
   gl = canvas.getContext("webgl2", {
     antialias: false,
     depth: true,
-    xrCompatible: xrCompatibleRequested,
     powerPreference: "high-performance",
   });
   if (!gl) {
-    throw new Error(xrCompatibleRequested ? "WebGL2 not available (XR-compatible context)" : "WebGL2 not available");
+    throw new Error("WebGL2 not available");
   }
   gl.enable(gl.DEPTH_TEST);
 
@@ -2783,7 +2782,13 @@ async function onSessionStarted(session) {
     flushUnexpectedXREnd();
   });
 
-  await gl.makeXRCompatible?.();
+  if (typeof gl.makeXRCompatible === "function") {
+    try {
+      await gl.makeXRCompatible();
+    } catch (e) {
+      throw new Error(`WebGL makeXRCompatible failed: ${e?.message || e}`);
+    }
+  }
   if (!xrSession) return;
 
   const scaleCandidates = (() => {
