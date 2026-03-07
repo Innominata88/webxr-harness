@@ -17,6 +17,22 @@ For immutable releases, generate with `HARNESS_RELEASE_TAG` so URLs point to:
 - Full workflow: `docs/immutable-release-workflow.md`
 - Important: `releases/<tag>/` is a hosted immutable snapshot path. It does not create a GitHub Releases entry unless you also create/push a git tag and publish a release (see `docs/immutable-release-workflow.md` section "GitHub Releases page").
 
+## Recommended Collection Model
+
+Use two artifact types:
+
+1. Harness release:
+- frozen runtime under `releases/<harness-tag>/`
+- includes `webgl.html`, `webgpu.html`, `run-launcher.html`
+- changes here mean code changed
+
+2. Manifest pack:
+- separately versioned campaign/protocol bundle under `manifest-packs/<manifest-tag>/`
+- each manifest points to one frozen harness release via `source.effectiveBaseUrl`
+- changes here mean protocol/order/workload changed, not runtime code
+
+This separation is better for the paper because manifest revisions no longer look like harness revisions.
+
 ## Use With Run Launcher
 
 Direct launcher pattern:
@@ -38,6 +54,27 @@ Output:
 - `manifests/launcher-links.csv`
   - Includes `manifest_url` and fully encoded `launcher_url` for each manifest.
   - `LAUNCHER_VERSION` is added as `?v=...` to both launcher and manifest URLs for cache-busting.
+
+Generate a decoupled manifest pack pinned to an existing frozen harness release:
+
+```bash
+MANIFEST_TAG="m2026-03-07-a"
+HARNESS_TAG="r2026-03-06-a"
+node tools/manifest-pack-pipeline.mjs --manifest-tag "$MANIFEST_TAG" --harness-tag "$HARNESS_TAG"
+```
+
+This creates:
+
+- `manifest-packs/<manifest-tag>/manifests/*.json`
+- `manifest-packs/<manifest-tag>/manifests/launcher-links.html`
+
+And the generated launcher links open:
+
+- `releases/<harness-tag>/run-launcher.html`
+
+while loading manifests from:
+
+- `manifest-packs/<manifest-tag>/manifests/*.json`
 
 ## Required Baseline Manifests
 
@@ -95,6 +132,7 @@ node tools/release-pipeline.mjs --tag "$REL_TAG" --mode promote
 Notes:
 - `candidate` mode targets root hosted pages (`/webgl.html`, `/webgpu.html`, etc.) so you can smoke test before lock.
 - `promote` mode creates `releases/<tag>/` and rewrites manifests to immutable release URLs.
+- After the harness is frozen, prefer `tools/manifest-pack-pipeline.mjs` for campaign/protocol updates instead of making a new harness release.
 
 Generate sanity preflight manifests (default: two sets per API for paired cohorts, two runs for single-API cohorts):
 

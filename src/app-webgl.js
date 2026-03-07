@@ -427,7 +427,11 @@ let connectionInfo = null;
 let connectionListenerInstalled = false;
 let connectionChangeCount = 0;
 const canvasCheckpointEnabled = (params.get("canvasCheckpoint") || "1") !== "0";
+const canvasCrashDiagnosticsEnabled = (params.get("canvasCrashDiagnostics") || "1") !== "0";
+const CANVAS_CRASH_EVENT_RING = 12;
 let _resolvedCanvasOutFilename = null;
+let canvasCrashDiagnosticsState = null;
+let canvasCrashLifecycleInstalled = false;
 
 function log(msg){ status.textContent = msg; console.log(msg); }
 
@@ -447,11 +451,103 @@ function canvasCheckpointKey() {
   return `webxr_harness_canvas_partial::webgl2::${suiteId}::${runId}`;
 }
 
+function canvasCrashDiagnosticsKey() {
+  return `webxr_harness_canvas_diag::webgl2::${suiteId}::${runId}`;
+}
+
+function canvasCrashDiagnosticsFilename() {
+  const raw = String(canvasOutFilename() || "");
+  if (raw.toLowerCase().endsWith(".jsonl")) return `${raw.slice(0, -6)}__crash_diagnostics.json`;
+  return `${raw}__crash_diagnostics.json`;
+}
+
 function clearCanvasCheckpoint() {
   if (!canvasCheckpointEnabled) return;
   try {
     localStorage.removeItem(canvasCheckpointKey());
   } catch (_) {}
+}
+
+function clearCanvasCrashDiagnostics() {
+  if (!canvasCrashDiagnosticsEnabled) return;
+  canvasCrashDiagnosticsState = null;
+  try {
+    localStorage.removeItem(canvasCrashDiagnosticsKey());
+  } catch (_) {}
+}
+
+function summarizeCrashEnv() {
+  return {
+    visibilityState: document.visibilityState,
+    online: navigator.onLine,
+    dpr: Number.isFinite(window.devicePixelRatio) ? window.devicePixelRatio : null,
+    canvas_css: { w: canvas?.clientWidth ?? null, h: canvas?.clientHeight ?? null },
+    canvas_px: { w: canvas?.width ?? null, h: canvas?.height ?? null },
+    gpu: envInfo?.gpu || null,
+    gpu_identity: envInfo?.gpu_identity || null,
+    browser: envInfo?.browser || browserLabel || null,
+    harness_version: envInfo?.harness_version || provenanceInfo.harness_version || null,
+    harness_commit: envInfo?.harness_commit || provenanceInfo.harness_commit || null,
+    canvasScaleFactor,
+    xrScaleFactor
+  };
+}
+
+function writeCanvasCrashDiagnostics() {
+  if (!canvasCrashDiagnosticsEnabled || !canvasCrashDiagnosticsState) return;
+  try {
+    localStorage.setItem(canvasCrashDiagnosticsKey(), JSON.stringify(canvasCrashDiagnosticsState));
+  } catch (_) {}
+}
+
+function updateCanvasCrashDiagnostics(patch = {}) {
+  if (!canvasCrashDiagnosticsEnabled || !canvasCrashDiagnosticsState) return;
+  canvasCrashDiagnosticsState = {
+    ...canvasCrashDiagnosticsState,
+    ...patch,
+    saved_at_iso: new Date().toISOString(),
+    saved_at_perf_ms: performance.now(),
+    env_snapshot: summarizeCrashEnv()
+  };
+  writeCanvasCrashDiagnostics();
+}
+
+function pushCanvasCrashLifecycleEvent(type, extra = {}) {
+  if (!canvasCrashDiagnosticsEnabled || !canvasCrashDiagnosticsState) return;
+  const events = Array.isArray(canvasCrashDiagnosticsState.lifecycle_events)
+    ? canvasCrashDiagnosticsState.lifecycle_events.slice(-CANVAS_CRASH_EVENT_RING + 1)
+    : [];
+  events.push({
+    type,
+    at_iso: new Date().toISOString(),
+    at_perf_ms: performance.now(),
+    visibilityState: document.visibilityState,
+    ...extra
+  });
+  canvasCrashDiagnosticsState.lifecycle_events = events;
+  updateCanvasCrashDiagnostics({});
+}
+
+function startCanvasCrashDiagnostics(expectedCount = null) {
+  if (!canvasCrashDiagnosticsEnabled) return;
+  canvasCrashDiagnosticsState = {
+    schema_version: SCHEMA_VERSION,
+    api: "webgl2",
+    mode: "canvas_crash_diagnostics",
+    run_id: runId,
+    suite_id: suiteId,
+    filename: canvasCrashDiagnosticsFilename(),
+    results_filename: canvasOutFilename(),
+    expected_count: Number.isFinite(expectedCount) ? expectedCount : null,
+    completed_count: Array.isArray(resultsCanvas) ? resultsCanvas.length : 0,
+    status: "running",
+    phase: "suite_start",
+    current_condition: null,
+    last_completed_condition: null,
+    abort_reason: null,
+    lifecycle_events: []
+  };
+  pushCanvasCrashLifecycleEvent("suite_start");
 }
 
 function persistCanvasCheckpoint(expectedCount = null) {
@@ -503,6 +599,53 @@ function offerRecoveredCanvasCheckpoint() {
   queueDownload(recoveredJsonl, recoveredFilename, label);
   log(`Recovered partial canvas checkpoint from previous interrupted run (records=${parsed.records.length}).`);
   clearCanvasCheckpoint();
+}
+
+function offerRecoveredCanvasCrashDiagnostics() {
+  if (!canvasCrashDiagnosticsEnabled) return;
+  let raw = null;
+  try {
+    raw = localStorage.getItem(canvasCrashDiagnosticsKey());
+  } catch (_) {}
+  if (!raw) return;
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {}
+  if (!parsed || typeof parsed !== "object") {
+    clearCanvasCrashDiagnostics();
+    return;
+  }
+  if (parsed.status === "completed") {
+    clearCanvasCrashDiagnostics();
+    return;
+  }
+
+  const filename = (typeof parsed.filename === "string" && parsed.filename)
+    ? parsed.filename
+    : canvasCrashDiagnosticsFilename();
+  queueDownload(JSON.stringify(parsed, null, 2) + "\n", filename, "Recovered canvas crash diagnostics", "application/json");
+  log(`Recovered canvas crash diagnostics (phase=${parsed.phase || "unknown"}, completed=${parsed.completed_count ?? 0}/${parsed.expected_count ?? "?"}).`);
+  clearCanvasCrashDiagnostics();
+}
+
+function installCanvasCrashLifecycleListeners() {
+  if (canvasCrashLifecycleInstalled || !canvasCrashDiagnosticsEnabled) return;
+  canvasCrashLifecycleInstalled = true;
+
+  document.addEventListener("visibilitychange", () => {
+    pushCanvasCrashLifecycleEvent("visibilitychange");
+  });
+  window.addEventListener("pagehide", (event) => {
+    pushCanvasCrashLifecycleEvent("pagehide", { persisted: !!event.persisted });
+  });
+  window.addEventListener("pageshow", (event) => {
+    pushCanvasCrashLifecycleEvent("pageshow", { persisted: !!event.persisted });
+  });
+  window.addEventListener("beforeunload", () => {
+    pushCanvasCrashLifecycleEvent("beforeunload");
+  });
 }
 
 function getNativeDevicePixelRatio() {
@@ -1770,6 +1913,16 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
     function beginMeasured() {
       traceStartMark = traceMark("TEST_START", traceMeta);
       updateTraceOverlay(`mode=canvas\ntrial ${planIdx + 1}/${planLen}\ninst=${item.instances} t=${item.trial}`);
+      updateCanvasCrashDiagnostics({
+        phase: "trial_measured",
+        current_condition: {
+          index: planIdx + 1,
+          total: planLen,
+          instances: item.instances,
+          trial: item.trial
+        },
+        completed_count: resultsCanvas.length
+      });
       stats.markStart();
       let lastT = NaN;
 
@@ -1893,10 +2046,21 @@ async function runCanvasSuite() {
 
     plan = buildPlan();
     persistCanvasCheckpoint(plan.length);
+    startCanvasCrashDiagnostics(plan.length);
     traceMark("SUITE_START", { mode: "canvas", testId: "suite", trial: "-", index: 1, total: plan.length });
     updateTraceOverlay(`mode=canvas\nsuite=${suiteId}\nrunId=${runId}`);
     for (let i=0;i<plan.length;i++) {
       const item = plan[i];
+      updateCanvasCrashDiagnostics({
+        phase: "trial_warmup",
+        current_condition: {
+          index: i + 1,
+          total: plan.length,
+          instances: item.instances,
+          trial: item.trial
+        },
+        completed_count: resultsCanvas.length
+      });
 
       // Extra pause when instances changes (if not shuffled, this is between blocks)
       if (i>0 && plan[i-1].instances !== item.instances) {
@@ -1926,11 +2090,34 @@ async function runCanvasSuite() {
           }
         }));
         persistCanvasCheckpoint(plan.length);
+        updateCanvasCrashDiagnostics({
+          status: "aborted",
+          phase: "trial_abort",
+          abort_reason: canvasAbortReason,
+          completed_count: resultsCanvas.length,
+          current_condition: {
+            index: i + 1,
+            total: plan.length,
+            instances: item.instances,
+            trial: item.trial
+          }
+        });
         log(canvasAbortReason);
         break;
       }
       resultsCanvas.push(out);
       persistCanvasCheckpoint(plan.length);
+      updateCanvasCrashDiagnostics({
+        phase: "trial_complete",
+        completed_count: resultsCanvas.length,
+        last_completed_condition: {
+          index: i + 1,
+          total: plan.length,
+          instances: item.instances,
+          trial: item.trial
+        },
+        current_condition: null
+      });
 
       if (canvasAbortReason) {
         resultsCanvas.push(buildCanvasAbortRecord({
@@ -1942,6 +2129,12 @@ async function runCanvasSuite() {
           partialTrial: { elapsed_ms: null, frames_collected: 0 }
         }));
         persistCanvasCheckpoint(plan.length);
+        updateCanvasCrashDiagnostics({
+          status: "aborted",
+          phase: "suite_abort",
+          abort_reason: canvasAbortReason,
+          completed_count: resultsCanvas.length
+        });
         break;
       }
       await sleep(cooldownMs);
@@ -1951,6 +2144,13 @@ async function runCanvasSuite() {
     const canvasOutFile = canvasOutFilename();
     downloadText(jsonl, canvasOutFile, "Canvas results");
     clearCanvasCheckpoint();
+    updateCanvasCrashDiagnostics({
+      status: "completed",
+      phase: "suite_complete",
+      completed_count: resultsCanvas.length,
+      current_condition: null
+    });
+    clearCanvasCrashDiagnostics();
     log(`Done (canvas). ${manualDownload ? "Queued" : "Downloaded"} ${canvasOutFile}`);
     traceMark("SUITE_END", { mode: "canvas", testId: "suite", trial: "-", index: plan.length, total: plan.length });
     clearCanvasBlankOnce();
@@ -2997,6 +3197,7 @@ if (!xrActive || !xrStats) {
 
 async function main() {
   installGlobalErrorListeners();
+  installCanvasCrashLifecycleListeners();
 
   const appliedCanvasDpr = applyCanvasResolutionScale();
 
@@ -3011,6 +3212,7 @@ async function main() {
     btn.textContent = "XR disabled (mode=canvas)";
   }
   offerRecoveredCanvasCheckpoint();
+  offerRecoveredCanvasCrashDiagnostics();
 
   if (runMode === "xr") {
     log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);

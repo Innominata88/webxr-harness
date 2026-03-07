@@ -3,7 +3,6 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 const ROOT = process.cwd();
-const MANIFEST_DIR = path.join(ROOT, "manifests");
 
 function normalizeBaseUrl(raw) {
   const input = String(raw || "https://innominata88.github.io/webxr-harness/").trim();
@@ -40,7 +39,8 @@ function toMarkdown(rows, meta) {
   lines.push(`# Launcher Links`);
   lines.push("");
   lines.push(`- generated_at: ${meta.generatedAt}`);
-  lines.push(`- base_url: ${meta.baseUrl}`);
+  lines.push(`- launcher_base_url: ${meta.baseUrl}`);
+  lines.push(`- manifest_base_url: ${meta.manifestBaseUrl}`);
   lines.push(`- launcher_version: ${meta.versionToken || "(none)"}`);
   if (meta.manifestFilter) lines.push(`- manifest_filter: ${meta.manifestFilter}`);
   lines.push("");
@@ -56,6 +56,7 @@ function toMarkdown(rows, meta) {
 function toHtml(rows, meta) {
   const generated = escapeHtml(meta.generatedAt);
   const baseUrl = escapeHtml(meta.baseUrl);
+  const manifestBaseUrl = escapeHtml(meta.manifestBaseUrl || meta.baseUrl);
   const version = escapeHtml(meta.versionToken || "(none)");
   const filter = escapeHtml(meta.manifestFilter || "(none)");
 
@@ -89,7 +90,8 @@ function toHtml(rows, meta) {
   <h1>Launcher Links</h1>
   <div class="meta">
     generated_at=${generated}<br/>
-    base_url=${baseUrl}<br/>
+    launcher_base_url=${baseUrl}<br/>
+    manifest_base_url=${manifestBaseUrl}<br/>
     launcher_version=${version}<br/>
     manifest_filter=${filter}
   </div>
@@ -111,12 +113,14 @@ ${tableRows}
 }
 
 async function main() {
-  const baseUrl = normalizeBaseUrl(process.env.HARNESS_BASE_URL);
+  const manifestDir = path.resolve(ROOT, String(process.env.MANIFEST_DIR || "manifests").trim() || "manifests");
+  const manifestBaseUrl = normalizeBaseUrl(process.env.MANIFEST_PUBLIC_BASE_URL || process.env.HARNESS_BASE_URL);
+  const launcherBaseUrl = normalizeBaseUrl(process.env.LAUNCHER_BASE_URL || process.env.HARNESS_BASE_URL);
   const versionToken = String(process.env.LAUNCHER_VERSION || process.env.HARNESS_VERSION || "").trim();
   const manifestFilter = String(process.env.MANIFEST_FILTER || "").trim();
   const outName = String(process.env.LAUNCHER_LINKS_OUT || "launcher-links.csv").trim() || "launcher-links.csv";
 
-  const entries = await fs.readdir(MANIFEST_DIR, { withFileTypes: true });
+  const entries = await fs.readdir(manifestDir, { withFileTypes: true });
   const files = entries
     .filter((e) => e.isFile() && e.name.endsWith(".json"))
     .map((e) => e.name)
@@ -127,18 +131,18 @@ async function main() {
     throw new Error(
       manifestFilter
         ? `No manifest .json files found in ./manifests for MANIFEST_FILTER=${manifestFilter}`
-        : "No manifest .json files found in ./manifests"
+        : "No manifest .json files found in manifest directory"
     );
   }
 
   const rows = [];
   for (const file of files) {
-    const manifestRelPath = `manifests/${file}`;
+    const manifestRelPath = path.posix.join("manifests", file);
 
-    const manifestUrl = new URL(manifestRelPath, baseUrl);
+    const manifestUrl = new URL(manifestRelPath, manifestBaseUrl);
     if (versionToken) manifestUrl.searchParams.set("v", versionToken);
 
-    const launcherUrl = new URL("run-launcher.html", baseUrl);
+    const launcherUrl = new URL("run-launcher.html", launcherBaseUrl);
     if (versionToken) launcherUrl.searchParams.set("v", versionToken);
     launcherUrl.searchParams.set("manifest", manifestUrl.toString());
 
@@ -153,15 +157,16 @@ async function main() {
   const columns = ["manifest_file", "manifest_path", "manifest_url", "launcher_url"];
   const csv = toCsv(rows, columns);
   const meta = {
-    generatedAt: new Date().toISOString(),
-    baseUrl: baseUrl.toString(),
+    generatedAt: String(process.env.GENERATED_AT || "").trim() || new Date().toISOString(),
+    baseUrl: launcherBaseUrl.toString(),
+    manifestBaseUrl: manifestBaseUrl.toString(),
     versionToken,
     manifestFilter
   };
   const markdown = toMarkdown(rows, meta);
   const html = toHtml(rows, meta);
 
-  const outPath = path.join(MANIFEST_DIR, outName);
+  const outPath = path.join(manifestDir, outName);
   const outPathBase = outPath.replace(/\.csv$/i, "");
   const mdOutPath = `${outPathBase}.md`;
   const htmlOutPath = `${outPathBase}.html`;

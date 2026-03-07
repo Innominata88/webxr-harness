@@ -5,10 +5,12 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = path.join(repoRoot, "manifests");
+const manifestOutDirEnv = String(process.env.MANIFEST_OUT_DIR || "").trim();
+const outDir = manifestOutDirEnv ? path.resolve(repoRoot, manifestOutDirEnv) : path.join(repoRoot, "manifests");
 const rootBaseUrl = process.env.HARNESS_BASE_URL || "https://innominata88.github.io/webxr-harness/";
 const releaseTag = process.env.HARNESS_RELEASE_TAG || "";
 const baseUrl = deriveEffectiveBaseUrl(rootBaseUrl, releaseTag);
+const manifestVersion = String(process.env.MANIFEST_VERSION || "").trim();
 const manifestProfile = String(process.env.MANIFEST_PROFILE || "baseline").trim().toLowerCase();
 const modelUrl = "./assets/spiderman_2002_movie_version_sam_raimi_0.glb";
 const releaseCommitShort = readReleaseCommitShort(releaseTag);
@@ -23,7 +25,7 @@ const harnessVersion = process.env.HARNESS_VERSION || releaseTag || "";
 const assetRevision = process.env.ASSET_REVISION || "spiderman_2002_movie_version_sam_raimi_0";
 const requiredFlagsProfileId = process.env.FEATURE_FLAGS_PROFILE_ID || "webxr-webgpu-flags-v1";
 const requiredFlagsExact = process.env.FEATURE_FLAGS_EXACT || "webxr_projection_layers=1;webxr_webgpu_binding=1;webgpu=1";
-const generatedAt = new Date().toISOString();
+const generatedAt = String(process.env.GENERATED_AT || "").trim() || new Date().toISOString();
 const sanityRunsPerApi = parsePositiveInt(process.env.SANITY_RUNS_PER_API, 2);
 const sanityCooldownMs = parseNonNegativeInt(process.env.SANITY_COOLDOWN_MS, 120000);
 const smokeRunsPerApi = parsePositiveInt(process.env.SMOKE_RUNS_PER_API, 1);
@@ -821,6 +823,7 @@ function buildManifest(def) {
       manifestRuns: def.runCount,
       manifestOrderSeed: def.orderSeed,
       effectiveBaseUrl: baseUrl,
+      manifestVersion: manifestVersion || "",
       releaseTag: releaseTag || "",
       cacheMode: "warm",
       profilerMode: baseValues.profilerMode,
@@ -833,6 +836,8 @@ function buildManifest(def) {
     },
     required_flags_profile_id: requiredFlagsProfileId,
     required_flags_exact: requiredFlagsExact,
+    manifest_version: manifestVersion || "",
+    harness_release_tag: releaseTag || "",
     rows
   };
 }
@@ -856,7 +861,7 @@ function main() {
       `smokeRunsPerApi=${smokeRunsPerApi} smokeTrials=${smokeTrials} smokeDurationMs=${smokeDurationMs} smokeCooldownMs=${smokeCooldownMs}\n`
     );
   }
-  process.stdout.write(`harnessCommit=${harnessCommit || "(empty)"} harnessVersion=${harnessVersion || "(empty)"} releaseTag=${releaseTag || "(none)"}\n`);
+  process.stdout.write(`harnessCommit=${harnessCommit || "(empty)"} harnessVersion=${harnessVersion || "(empty)"} releaseTag=${releaseTag || "(none)"} manifestVersion=${manifestVersion || "(none)"}\n`);
   for (const f of written) process.stdout.write(`- ${f}\n`);
 }
 
