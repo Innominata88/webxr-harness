@@ -112,7 +112,8 @@ while loading manifests from:
 - Samsung FE 5G canvas baseline manifest keeps instance ladder `64,128,192,256,320` with `canvasScaleFactor=0.75`.
 - Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
 - Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`, `xrAnchorMode=trial`.
-- Phone XR AR baseline manifests use instance ladder `64,128,192`, zero XR idle gaps, and pose-stability gating (`xrPoseStabilityGateMs=750`, `xrPoseStabilityPosTolM=0.08`, `xrPoseStabilityYawTolDeg=4.0`).
+- Phone XR AR baseline manifests use instance ladder `64,128,192`, zero XR idle gaps, and per-device pose-stability gating.
+- Current candidate values: Pixel 8a uses `xrPoseStabilityGateMs=750`, `xrPoseStabilityPosTolM=0.08`, `xrPoseStabilityYawTolDeg=4.0`; Samsung FE 5G uses `xrPoseStabilityGateMs=500`, `xrPoseStabilityPosTolM=0.12`, `xrPoseStabilityYawTolDeg=6.0`.
 
 ## Regenerate
 

@@ -408,7 +408,7 @@ Explicit run provenance for reproducibility and paper reporting.
 
 Note: `feature_flags_profile` / `feature_flags_exact` are provenance fields supplied by the operator or deployment metadata. They are not a browser-reported dump of active flag toggles.
 Note: `xr_anchor_mode=session` is appropriate for immersive-vr. `xr_anchor_mode=trial` is recommended for fixed-mount immersive-ar phone runs so AR world drift does not accumulate across the entire suite.
-Note: `xr_pose_stability_gate_ms` is primarily intended for fixed-mount `immersive-ar` campaigns. The current phone AR baseline uses `750` ms, `0.08` m, and `4.0` deg.
+Note: `xr_pose_stability_gate_ms` is primarily intended for fixed-mount `immersive-ar` campaigns. Use the logged provenance fields to confirm the exact per-device gate/tolerance values in a given campaign.
 Note: `xr_idle_present_mode=none` preserves true-idle semantics for primary runs. `clear_each_frame` is intended for diagnostics when you need the XR compositor to keep presenting between trials.
 
 ## `partial_trial` object (abort records)
