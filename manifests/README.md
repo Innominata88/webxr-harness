@@ -105,12 +105,14 @@ while loading manifests from:
 - Regular manifests use cooldown `300000` ms (5 min) between runs.
 - AVP cliff manifests use cooldown `600000` ms (10 min) between runs.
 - AVP cliff instance band is `340,345,348,350`.
-- AVP canvas regular baseline manifest uses instance ladder `64,128,192,256`.
+- AVP canvas regular baseline manifest uses instance ladder `64,128,192`.
 - AVP canvas cliff baseline manifest isolates `320` with `trials=1` to measure crash/failure rate without losing long regular rows.
 - AVP canvas baseline manifests lock `canvasScaleFactor=0.75` (applied to both WebGL/WebGPU).
-- Phone canvas baseline manifests lock `canvasScaleFactor=0.75`.
+- Pixel 8a canvas baseline manifest uses instance ladder `64,128,192` with `canvasScaleFactor=0.50`.
+- Samsung FE 5G canvas baseline manifest keeps instance ladder `64,128,192,256,320` with `canvasScaleFactor=0.75`.
 - Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
-- Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`.
+- Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`, `xrAnchorMode=trial`.
+- Phone XR AR baseline manifests use instance ladder `64,128,192`, zero XR idle gaps, and pose-stability gating (`xrPoseStabilityGateMs=750`, `xrPoseStabilityPosTolM=0.08`, `xrPoseStabilityYawTolDeg=4.0`).
 
 ## Regenerate
 

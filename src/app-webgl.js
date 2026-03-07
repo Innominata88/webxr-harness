@@ -291,7 +291,34 @@ const xrAnchorMode = (() => {
   if (raw != null) return String(raw).toLowerCase() === "trial" ? "trial" : "session";
   return xrSessionMode === "immersive-ar" ? "trial" : "session";
 })();
+const xrPoseStabilityGateMs = (() => {
+  const raw = params.get("xrPoseStabilityGateMs");
+  if (raw != null) {
+    const v = parseInt(raw, 10);
+    return (Number.isFinite(v) && v >= 0) ? v : 0;
+  }
+  return xrSessionMode === "immersive-ar" ? 750 : 0;
+})();
+const xrPoseStabilityPosTolM = (() => {
+  const raw = params.get("xrPoseStabilityPosTolM");
+  if (raw != null) {
+    const v = parseFloat(raw);
+    return (Number.isFinite(v) && v >= 0) ? v : 0.08;
+  }
+  return 0.08;
+})();
+const xrPoseStabilityYawTolDeg = (() => {
+  const raw = params.get("xrPoseStabilityYawTolDeg");
+  if (raw != null) {
+    const v = parseFloat(raw);
+    return (Number.isFinite(v) && v >= 0) ? v : 4.0;
+  }
+  return 4.0;
+})();
 provenanceInfo.xr_anchor_mode = xrAnchorMode;
+provenanceInfo.xr_pose_stability_gate_ms = xrPoseStabilityGateMs;
+provenanceInfo.xr_pose_stability_pos_tol_m = xrPoseStabilityPosTolM;
+provenanceInfo.xr_pose_stability_yaw_tol_deg = xrPoseStabilityYawTolDeg;
 
 // Session-order control for ABBA/BAAB/randomized protocols
 const enforceOrder = (params.get("enforceOrder") || "0") === "1";
@@ -980,6 +1007,19 @@ function updateWebGLEnvDiagnostics() {
   updateGlobalErrorEnvDiagnostics();
 }
 
+function updateXRPoseStabilityEnvDiagnostics() {
+  if (!envInfo) return;
+  envInfo.xr_pose_stability_gate_ms_requested = xrPoseStabilityGateMs;
+  envInfo.xr_pose_stability_pos_tol_m_requested = xrPoseStabilityPosTolM;
+  envInfo.xr_pose_stability_yaw_tol_deg_requested = xrPoseStabilityYawTolDeg;
+  envInfo.xr_pose_stability_wait_ms = xrPoseStabilityWaitMs;
+  envInfo.xr_pose_stability_position_span_m = xrPoseStabilityPositionSpanM;
+  envInfo.xr_pose_stability_yaw_span_deg = xrPoseStabilityYawSpanDeg;
+  envInfo.xr_pose_stability_achieved = xrPoseStabilityGateMs <= 0
+    ? true
+    : !!(xrPoseStabilityWaitMs != null && xrPoseStabilityPositionSpanM != null && xrPoseStabilityYawSpanDeg != null);
+}
+
 
 // HUD overlay element (used for both canvas and XR; XR requires dom-overlay support to be visible in-headset)
 const hudEl = document.createElement("div");
@@ -1627,6 +1667,13 @@ async function initGL() {
     xr_anchor_to_first_pose_requested: xrAnchorToFirstPose,
     xr_anchor_to_first_pose_applied: false,
     xr_anchor_mode_requested: xrAnchorMode,
+    xr_pose_stability_gate_ms_requested: xrPoseStabilityGateMs,
+    xr_pose_stability_pos_tol_m_requested: xrPoseStabilityPosTolM,
+    xr_pose_stability_yaw_tol_deg_requested: xrPoseStabilityYawTolDeg,
+    xr_pose_stability_wait_ms: xrPoseStabilityGateMs > 0 ? null : 0,
+    xr_pose_stability_position_span_m: xrPoseStabilityGateMs > 0 ? null : 0,
+    xr_pose_stability_yaw_span_deg: xrPoseStabilityGateMs > 0 ? null : 0,
+    xr_pose_stability_achieved: xrPoseStabilityGateMs <= 0,
     xr_measurement_waiting_for_first_pose: false,
     xr_no_pose_frames: 0,
     xr_no_pose_ms_total: 0,
@@ -1794,6 +1841,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     xrAnchorToFirstPose,
     xrAnchorMode,
     xrIdlePresentMode,
+    xrPoseStabilityGateMs,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -2299,6 +2347,10 @@ let xrAwaitingFirstPoseStart = false;
 let xrStartedOnFirstPose = false;
 let xrAnchoredToFirstPose = false;
 let xrSessionAnchorPose = null; // { yaw, x, z } reused per session or refreshed per trial, depending on xrAnchorMode
+let xrPoseGateState = null;
+let xrPoseStabilityWaitMs = null;
+let xrPoseStabilityPositionSpanM = null;
+let xrPoseStabilityYawSpanDeg = null;
 
 
 function fmtMs(ms) {
@@ -2326,6 +2378,7 @@ function syncXRNoPoseDiagnosticsToEnv() {
   envInfo.xr_no_pose_ms_total = xrNoPoseMsTotal;
   envInfo.xr_start_on_first_pose_applied = xrStartedOnFirstPose;
   envInfo.xr_measurement_waiting_for_first_pose = xrAwaitingFirstPoseStart;
+  updateXRPoseStabilityEnvDiagnostics();
 }
 
 function xrPoseTimeoutElapsedMs(now) {
@@ -2352,10 +2405,12 @@ function beginXRMeasuredWindow(startMode = "immediate") {
   xrLastT = NaN;
   xrLastNow = NaN;
   xrAwaitingFirstPoseStart = false;
-  xrStartedOnFirstPose = (startMode === "first_pose");
+  xrStartedOnFirstPose = (startMode === "first_pose" || startMode === "stable_pose");
   syncXRNoPoseDiagnosticsToEnv();
 
-  const startNote = xrStartedOnFirstPose ? ", start=first_pose" : ", start=immediate";
+  const startNote = startMode === "stable_pose"
+    ? ", start=stable_pose"
+    : (xrStartedOnFirstPose ? ", start=first_pose" : ", start=immediate");
   log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms${startNote})`);
   xrTraceStartMark = traceMark("TEST_START", {
     mode: "xr",
@@ -2381,6 +2436,103 @@ function yawFromQuaternion(q) {
   const cosy = 1 - 2 * (y * y + z * z);
   const yaw = Math.atan2(siny, cosy);
   return Number.isFinite(yaw) ? yaw : null;
+}
+
+function normalizeYawRadians(yaw) {
+  if (!Number.isFinite(yaw)) return null;
+  let out = yaw;
+  while (out > Math.PI) out -= Math.PI * 2;
+  while (out < -Math.PI) out += Math.PI * 2;
+  return out;
+}
+
+function resetXRPoseStabilityState() {
+  xrPoseGateState = null;
+  xrPoseStabilityWaitMs = xrPoseStabilityGateMs > 0 ? null : 0;
+  xrPoseStabilityPositionSpanM = xrPoseStabilityGateMs > 0 ? null : 0;
+  xrPoseStabilityYawSpanDeg = xrPoseStabilityGateMs > 0 ? null : 0;
+  updateXRPoseStabilityEnvDiagnostics();
+}
+
+function extractViewerPoseSample(pose) {
+  const t = pose?.transform;
+  if (!t) return null;
+  const x = Number.isFinite(t.position?.x) ? t.position.x : null;
+  const y = Number.isFinite(t.position?.y) ? t.position.y : null;
+  const z = Number.isFinite(t.position?.z) ? t.position.z : null;
+  const yaw = yawFromQuaternion(t.orientation);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(yaw)) return null;
+  return { x, y, z, yaw };
+}
+
+function createXRPoseGateState(sample, now) {
+  return {
+    startNow: now,
+    minX: sample.x,
+    maxX: sample.x,
+    minY: sample.y,
+    maxY: sample.y,
+    minZ: sample.z,
+    maxZ: sample.z,
+    minYaw: sample.yaw,
+    maxYaw: sample.yaw,
+    lastYaw: sample.yaw,
+    lastUnwrappedYaw: sample.yaw
+  };
+}
+
+function updateXRPoseStabilityGate(pose, now) {
+  if (!(xrPoseStabilityGateMs > 0)) {
+    xrPoseStabilityWaitMs = 0;
+    xrPoseStabilityPositionSpanM = 0;
+    xrPoseStabilityYawSpanDeg = 0;
+    updateXRPoseStabilityEnvDiagnostics();
+    return { stable: true };
+  }
+  const sample = extractViewerPoseSample(pose);
+  if (!sample) return { stable: false, missingSample: true };
+
+  if (!xrPoseGateState) {
+    xrPoseGateState = createXRPoseGateState(sample, now);
+    xrPoseStabilityWaitMs = 0;
+    xrPoseStabilityPositionSpanM = 0;
+    xrPoseStabilityYawSpanDeg = 0;
+    updateXRPoseStabilityEnvDiagnostics();
+    return { stable: false };
+  }
+
+  const state = xrPoseGateState;
+  state.minX = Math.min(state.minX, sample.x);
+  state.maxX = Math.max(state.maxX, sample.x);
+  state.minY = Math.min(state.minY, sample.y);
+  state.maxY = Math.max(state.maxY, sample.y);
+  state.minZ = Math.min(state.minZ, sample.z);
+  state.maxZ = Math.max(state.maxZ, sample.z);
+  const yawDelta = normalizeYawRadians(sample.yaw - state.lastYaw);
+  state.lastUnwrappedYaw += yawDelta == null ? 0 : yawDelta;
+  state.lastYaw = sample.yaw;
+  state.minYaw = Math.min(state.minYaw, state.lastUnwrappedYaw);
+  state.maxYaw = Math.max(state.maxYaw, state.lastUnwrappedYaw);
+
+  const elapsedMs = Math.max(0, now - state.startNow);
+  const posSpan = Math.hypot(state.maxX - state.minX, state.maxY - state.minY, state.maxZ - state.minZ);
+  const yawSpanDeg = (state.maxYaw - state.minYaw) * 180 / Math.PI;
+  xrPoseStabilityWaitMs = elapsedMs;
+  xrPoseStabilityPositionSpanM = posSpan;
+  xrPoseStabilityYawSpanDeg = yawSpanDeg;
+  updateXRPoseStabilityEnvDiagnostics();
+
+  if (elapsedMs < xrPoseStabilityGateMs) return { stable: false };
+  if (posSpan <= xrPoseStabilityPosTolM && yawSpanDeg <= xrPoseStabilityYawTolDeg) {
+    return { stable: true };
+  }
+
+  xrPoseGateState = createXRPoseGateState(sample, now);
+  xrPoseStabilityWaitMs = 0;
+  xrPoseStabilityPositionSpanM = 0;
+  xrPoseStabilityYawSpanDeg = 0;
+  updateXRPoseStabilityEnvDiagnostics();
+  return { stable: false, reset: true };
 }
 
 function maybeAnchorXRInstancesToPose(pose) {
@@ -2624,6 +2776,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     xrAnchorToFirstPose,
     xrAnchorMode,
     xrIdlePresentMode,
+    xrPoseStabilityGateMs,
     xrFrontMinZ,
     xrYOffset,
     collectPerf,
@@ -2684,6 +2837,45 @@ function abortXRForPoseTimeout(session, elapsedMs, waitingForFirstPose=false) {
   });
   resultsXR.push(buildXRAbortRecord({
     abortCode: "xr_pose_unavailable_timeout",
+    abortReason: reason,
+    observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
+  }));
+  flushXRResults(xrOutFilename(), "Aborted (XR)");
+  xrActive = false;
+  log(reason);
+  Promise.resolve(session.end()).catch(()=>{});
+}
+
+function abortXRForPoseStabilityTimeout(session, elapsedMs) {
+  if (xrAbortReason) return;
+  const posSpan = Number.isFinite(xrPoseStabilityPositionSpanM) ? xrPoseStabilityPositionSpanM.toFixed(3) : "n/a";
+  const yawSpan = Number.isFinite(xrPoseStabilityYawSpanDeg) ? xrPoseStabilityYawSpanDeg.toFixed(2) : "n/a";
+  const reason = `XR aborted: stable viewer pose not achieved after ${Math.round(elapsedMs)}ms (gate=${xrPoseStabilityGateMs}ms, posSpan=${posSpan}m, yawSpan=${yawSpan}deg).`;
+  xrAbortReason = reason;
+  if (envInfo) {
+    envInfo.xr_abort_reason = reason;
+    if (!Number.isFinite(envInfo.xr_observed_view_count)) envInfo.xr_observed_view_count = 0;
+    envInfo.xr_expected_max_views = MAX_COMPARABLE_XR_VIEWS;
+    updateXRPoseStabilityEnvDiagnostics();
+  }
+  const cur = currentXRPlanItem();
+  traceMark("TEST_ABORT", {
+    mode: "xr",
+    testId: cur ? `instances_${cur.instances}` : "instances_-",
+    trial: cur ? cur.trial : "-",
+    index: cur ? (xrIndex + 1) : "-",
+    total: xrPlan ? xrPlan.length : "-",
+    reason: "xr_pose_unstable_timeout"
+  });
+  xrTraceStartMark = null;
+  closeXRSuiteTrace("SUITE_ABORT", {
+    testId: "suite",
+    trial: "-",
+    index: xrIndex + 1,
+    total: xrPlan ? xrPlan.length : "-"
+  });
+  resultsXR.push(buildXRAbortRecord({
+    abortCode: "xr_pose_unstable_timeout",
     abortReason: reason,
     observedViewCount: Number.isFinite(envInfo?.xr_observed_view_count) ? envInfo.xr_observed_view_count : 0
   }));
@@ -2879,11 +3071,15 @@ function beginTrialActiveWindow() {
   xrTrialWallStartNow = performance.now();
   xrActive = true;
   xrBlankClearOnce = false;
-  xrAwaitingFirstPoseStart = !!xrStartOnFirstPose;
+  xrAwaitingFirstPoseStart = !!(xrStartOnFirstPose || xrPoseStabilityGateMs > 0);
   xrStartedOnFirstPose = false;
+  resetXRPoseStabilityState();
   syncXRNoPoseDiagnosticsToEnv();
-  if (xrStartOnFirstPose) {
-    log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms, waiting for first pose)`);
+  if (xrAwaitingFirstPoseStart) {
+    const gateLabel = xrPoseStabilityGateMs > 0
+      ? `stable pose (${xrPoseStabilityGateMs}ms gate)`
+      : "first pose";
+    log(`XR run ${xrIndex+1}/${xrPlan.length}: instances=${item.instances}, trial=${item.trial}/${trials} (preIdle ${preIdleMs}ms, waiting for ${gateLabel})`);
   } else {
     beginXRMeasuredWindow("immediate");
   }
@@ -2961,6 +3157,13 @@ async function onSessionStarted(session) {
     envInfo.xr_anchor_to_first_pose_requested = xrAnchorToFirstPose;
     envInfo.xr_anchor_to_first_pose_applied = false;
     envInfo.xr_anchor_mode_requested = xrAnchorMode;
+    envInfo.xr_pose_stability_gate_ms_requested = xrPoseStabilityGateMs;
+    envInfo.xr_pose_stability_pos_tol_m_requested = xrPoseStabilityPosTolM;
+    envInfo.xr_pose_stability_yaw_tol_deg_requested = xrPoseStabilityYawTolDeg;
+    envInfo.xr_pose_stability_wait_ms = xrPoseStabilityGateMs > 0 ? null : 0;
+    envInfo.xr_pose_stability_position_span_m = xrPoseStabilityGateMs > 0 ? null : 0;
+    envInfo.xr_pose_stability_yaw_span_deg = xrPoseStabilityGateMs > 0 ? null : 0;
+    envInfo.xr_pose_stability_achieved = xrPoseStabilityGateMs <= 0;
     delete envInfo.xr_anchor_pose_yaw_rad;
     delete envInfo.xr_anchor_pose_x;
     delete envInfo.xr_anchor_pose_z;
@@ -3052,7 +3255,7 @@ async function onSessionStarted(session) {
   xrSuiteTraceClosed = false;
   traceMark("SUITE_START", { mode: "xr", testId: "suite", trial: "-", index: 1, total: xrPlan.length });
   updateTraceOverlay(`mode=xr\nsuite=${suiteId}\nrunId=${runId}`);
-  log(`XR timing policy: preIdle=${preIdleMs}ms, measured=${durationMs}ms, postIdle=${postIdleMs}ms, cooldown=${cooldownMs}ms, betweenInstances=${betweenInstancesMs}ms on instance changes, warmup=${warmupMs}ms before each trial, xrAnchorMode=${xrAnchorMode}.`);
+  log(`XR timing policy: preIdle=${preIdleMs}ms, measured=${durationMs}ms, postIdle=${postIdleMs}ms, cooldown=${cooldownMs}ms, betweenInstances=${betweenInstancesMs}ms on instance changes, warmup=${warmupMs}ms before each trial, xrAnchorMode=${xrAnchorMode}, xrPoseStabilityGateMs=${xrPoseStabilityGateMs}.`);
 
   await sleep(warmupMs);
   if (!xrSession) return;
@@ -3116,10 +3319,26 @@ if (!xrActive || !xrStats) {
     return;
   }
   if (!ensureComparableXRViews(session, pose)) return;
-  maybeAnchorXRInstancesToPose(pose);
   if (xrAwaitingFirstPoseStart && !isXRMeasurementStarted()) {
-    beginXRMeasuredWindow("first_pose");
+    if (xrPoseStabilityGateMs > 0) {
+      const stable = updateXRPoseStabilityGate(pose, now);
+      if (!stable.stable) {
+        const elapsedMs = xrPoseTimeoutElapsedMs(now);
+        if (!xrFinalizing && elapsedMs != null && elapsedMs > (durationMs + xrNoPoseGraceMs) && xrDts.length < minFrames) {
+          xrFinalizing = true;
+          abortXRForPoseStabilityTimeout(session, elapsedMs);
+        }
+        xrFrameLoopLastNow = now;
+        return;
+      }
+      maybeAnchorXRInstancesToPose(pose);
+      beginXRMeasuredWindow("stable_pose");
+    } else {
+      maybeAnchorXRInstancesToPose(pose);
+      beginXRMeasuredWindow("first_pose");
+    }
   }
+  maybeAnchorXRInstancesToPose(pose);
 
   const glLayer = session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
@@ -3215,7 +3434,7 @@ async function main() {
   offerRecoveredCanvasCrashDiagnostics();
 
   if (runMode === "xr") {
-    log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready (XR-only). Canvas auto-run disabled. Enter ${xrSessionModeLabel} to start XR suite. runId=${runId}, mode=${runMode}, xrSessionMode=${xrSessionMode}, manualStart=${manualStart ? "ON" : "OFF"}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, xrScaleFactor=${xrScaleFactor}, minFrames=${minFrames}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrPoseStabilityGateMs=${xrPoseStabilityGateMs}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
@@ -3226,11 +3445,11 @@ async function main() {
       enabled: true,
       text: "Start Canvas Suite"
     });
-    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+    log(`Ready. Manual canvas start is ON (manualStart=1). Start trace tooling, then click "Start Canvas Suite". runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, canvasAutoDelayMs=${canvasAutoDelayMs}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrPoseStabilityGateMs=${xrPoseStabilityGateMs}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
     return;
   }
 
-  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
+  log(`Ready. Auto-running canvas suite in ${canvasAutoDelayMs}ms: runId=${runId}, instances=[${instancesList.join(",")}], trials=${trials}, durationMs=${durationMs}, minFrames=${minFrames}, layout=${layout}, seed=${seed}, mode=${runMode}, xrSessionMode=${xrSessionMode}, canvasScaleFactor=${canvasScaleFactor}, canvasDpr=${appliedCanvasDpr.toFixed(3)}, manualStart=${manualStart ? "ON" : "OFF"}, xrStartOnFirstPose=${xrStartOnFirstPose ? "ON" : "OFF"}, xrAnchorToFirstPose=${xrAnchorToFirstPose ? "ON" : "OFF"}, xrAnchorMode=${xrAnchorMode}, xrIdlePresentMode=${xrIdlePresentMode}, xrPoseStabilityGateMs=${xrPoseStabilityGateMs}, xrProbeReadback=${xrProbeReadback ? "ON" : "OFF"}, manualDownload=${manualDownload ? "ON" : "OFF"}.`);
   canvasRunScheduled = true;
   setTimeout(() => startCanvasSuiteNow("auto_delay"), canvasAutoDelayMs);
 }

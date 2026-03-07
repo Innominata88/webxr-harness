@@ -271,6 +271,13 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_anchor_to_first_pose_requested", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_to_first_pose_applied", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_mode_requested", checkString, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_gate_ms_requested", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_pos_tol_m_requested", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_yaw_tol_deg_requested", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_wait_ms", checkNumberOrNull, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_position_span_m", checkNumberOrNull, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_yaw_span_deg", checkNumberOrNull, `${loc}.${key}`, errors);
+  checkIfPresent(value, "xr_pose_stability_achieved", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_pose_yaw_rad", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_pose_x", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_anchor_pose_z", checkNumber, `${loc}.${key}`, errors);
@@ -308,6 +315,9 @@ function validateEnv(record, loc, errors) {
       checkStringOrNull(provenance, "profiler_config", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "xr_idle_present_mode", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "xr_anchor_mode", `${loc}.${key}.provenance`, errors);
+      checkNumberOrNull(provenance, "xr_pose_stability_gate_ms", `${loc}.${key}.provenance`, errors);
+      checkNumberOrNull(provenance, "xr_pose_stability_pos_tol_m", `${loc}.${key}.provenance`, errors);
+      checkNumberOrNull(provenance, "xr_pose_stability_yaw_tol_deg", `${loc}.${key}.provenance`, errors);
       checkString(provenance, "asset_url", `${loc}.${key}.provenance`, errors);
     }
   }
@@ -657,6 +667,7 @@ function validateBase(record, loc, errors) {
   checkIfPresent(record, "xrAnchorToFirstPose", checkBoolean, loc, errors);
   checkIfPresent(record, "xrAnchorMode", checkString, loc, errors);
   checkIfPresent(record, "xrIdlePresentMode", checkString, loc, errors);
+  checkIfPresent(record, "xrPoseStabilityGateMs", checkNumber, loc, errors);
   checkIfPresent(record, "xrFrontMinZ", checkNumber, loc, errors);
   checkIfPresent(record, "xrYOffset", checkNumber, loc, errors);
   checkIfPresent(record, "xr_no_pose_frames", checkNumber, loc, errors);

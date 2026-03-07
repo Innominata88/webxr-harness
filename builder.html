@@ -641,7 +641,7 @@
       { key: "trials", label: "trials", group: "core", type: "number", def: "1", min: "1", step: "1", always: true },
       { key: "layout", label: "layout", group: "core", type: "select", def: "xrwall", always: true, options: ["line", "grid", "spiral", "random", "xrwall"] },
       { key: "spacing", label: "spacing", group: "core", type: "number", def: "0.35", step: "0.01", always: true },
-      { key: "canvasScaleFactor", label: "canvasScaleFactor", group: "core", type: "number", def: "1", step: "0.01", always: true, hint: "Canvas-only resolution scale. Keep fixed across paired APIs (for phones, 0.75 recommended)." },
+      { key: "canvasScaleFactor", label: "canvasScaleFactor", group: "core", type: "number", def: "1", step: "0.01", always: true, hint: "Canvas-only resolution scale. Keep fixed across paired APIs. Current baseline pack uses 0.50 on Pixel 8a and 0.75 on Samsung FE 5G/iPad/AVP canvas." },
       { key: "seed", label: "seed", group: "core", type: "number", def: "12345", step: "1", always: true },
       { key: "shuffle", label: "shuffle", group: "core", type: "bool", def: "0", always: true },
       { key: "debugColor", label: "debugColor", group: "core", type: "select", def: "flat", always: true, options: ["flat", "abspos", "instance"] },
@@ -665,6 +665,9 @@
       { key: "xrStartOnFirstPose", label: "xrStartOnFirstPose", group: "xr", type: "bool", def: "1", always: true },
       { key: "xrAnchorToFirstPose", label: "xrAnchorToFirstPose", group: "xr", type: "bool", def: "1", always: true },
       { key: "xrAnchorMode", label: "xrAnchorMode", group: "xr", type: "select", def: "", always: true, options: ["", "session", "trial"], hint: "Blank uses runtime default (session for VR, trial for AR). Use trial on fixed-mount phone AR runs to re-center each trial." },
+      { key: "xrPoseStabilityGateMs", label: "xrPoseStabilityGateMs", group: "xr", type: "number", def: "0", min: "0", step: "1", always: true, hint: "Delay XR trial start until viewer pose remains stable for this many ms. Use on fixed-mount immersive-ar runs; keep 0 for canvas and most immersive-vr runs." },
+      { key: "xrPoseStabilityPosTolM", label: "xrPoseStabilityPosTolM", group: "xr", type: "number", def: "0.08", min: "0", step: "0.01", always: true, hint: "Maximum allowed viewer-position span during the XR pose-stability gate." },
+      { key: "xrPoseStabilityYawTolDeg", label: "xrPoseStabilityYawTolDeg", group: "xr", type: "number", def: "4.0", min: "0", step: "0.1", always: true, hint: "Maximum allowed viewer-yaw span during the XR pose-stability gate." },
       { key: "xrIdlePresentMode", label: "xrIdlePresentMode", group: "xr", type: "select", def: "none", always: true, options: ["none", "clear_each_frame"], hint: "Diagnostic-only XR idle behavior. Keep none for primary runs; clear_each_frame keeps a cheap clear visible between trials." },
 
       { key: "manualDownload", label: "manualDownload", group: "diagnostics", type: "bool", def: "1", always: true },
@@ -974,6 +977,9 @@
       "xrStartOnFirstPose",
       "xrAnchorToFirstPose",
       "xrAnchorMode",
+      "xrPoseStabilityGateMs",
+      "xrPoseStabilityPosTolM",
+      "xrPoseStabilityYawTolDeg",
       "xrIdlePresentMode",
       "xrProbeReadback",
       "manualDownload",
@@ -1037,6 +1043,9 @@
       xrStartOnFirstPose: "Start XR measured timing on first valid pose.",
       xrAnchorToFirstPose: "Anchor XR layout to first pose for stable framing.",
       xrAnchorMode: "XR anchor reuse policy: session keeps one anchor for the whole XR session, trial re-captures the anchor at each trial start.",
+      xrPoseStabilityGateMs: "XR pose-stability gate duration before a trial is allowed to start. When nonzero, the harness waits for a stable viewer pose window instead of starting immediately on the first pose.",
+      xrPoseStabilityPosTolM: "Maximum viewer-position movement tolerated during the XR pose-stability gate window.",
+      xrPoseStabilityYawTolDeg: "Maximum viewer-yaw movement tolerated during the XR pose-stability gate window.",
       xrIdlePresentMode: "XR idle presentation behavior between trials: none keeps true idle semantics, clear_each_frame keeps submitting a cheap clear during idle gaps.",
       manualDownload: "Use manual download buttons instead of automatic file save.",
       hud: "In-headset status HUD overlay.",
@@ -1070,7 +1079,7 @@
     const FIELD_REC = Object.freeze({
       suiteId: "Change once per campaign/device session. Keep fixed across all paired runs in that manifest.",
       runId: "Use as campaign base ID. Manifest rows auto-generate unique runId suffixes per run.",
-      canvasScaleFactor: "For phone canvas baselines, lock to 0.75 across both APIs; keep fixed within a campaign.",
+      canvasScaleFactor: "Lock per device and keep fixed within a campaign. Current baseline pack uses 0.50 on Pixel 8a, 0.75 on Samsung FE 5G, and 0.75 on AVP canvas.",
       shuffle: "Regular runs: keep ON with fixed/logged seed. Cliff runs: keep OFF for monotonic stepping.",
       debugColor: "Primary: keep FLAT. Use abspos/instance only for diagnostics or screenshots.",
       hud: "Primary: keep OFF (or fixed ON for all paired runs).",
@@ -1083,6 +1092,9 @@
       manualStart: "Primary metrics: keep OFF. Profiling/tracing runs: turn ON so you can start profiler first, and keep it matched across APIs.",
       xrSessionMode: "Keep fixed within a campaign. Analyze immersive-vr and immersive-ar as separate cohorts.",
       xrAnchorMode: "For immersive-vr, keep SESSION. For fixed-mount immersive-ar on phones, use TRIAL so AR world drift does not carry across the whole suite.",
+      xrPoseStabilityGateMs: "For fixed-mount immersive-ar baselines, use a nonzero gate such as 750 ms. For immersive-vr and canvas, keep 0 unless you are explicitly diagnosing pose instability.",
+      xrPoseStabilityPosTolM: "For fixed-mount immersive-ar, keep matched across APIs; 0.08 m is the current baseline tolerance.",
+      xrPoseStabilityYawTolDeg: "For fixed-mount immersive-ar, keep matched across APIs; 4.0 deg is the current baseline tolerance.",
       xrIdlePresentMode: "Primary: keep NONE. Use clear_each_frame only for XR diagnostics when you need to see whether idle gaps are causing apparent passthrough/dropout.",
       featureFlagsProfile: "Set once per campaign (for example webxr-webgpu-flags-v1) and keep fixed across all paired runs.",
       featureFlagsExact: "Copy from browser flags/settings once per campaign and keep fixed across all paired runs.",
@@ -2219,6 +2231,9 @@
       if (values.runMode === "canvas" && String(values.xrAnchorMode || "").trim()) {
         notes.push(`runMode=canvas ignores xrAnchorMode=${values.xrAnchorMode}; this setting only affects XR anchoring.`);
       }
+      if (values.runMode === "canvas" && Number(values.xrPoseStabilityGateMs || 0) > 0) {
+        notes.push(`runMode=canvas ignores xrPoseStabilityGateMs=${values.xrPoseStabilityGateMs}; this setting only affects XR start gating.`);
+      }
       if (values.runMode === "canvas" && values.xrIdlePresentMode !== "none") {
         notes.push(`runMode=canvas ignores xrIdlePresentMode=${values.xrIdlePresentMode}; this setting only affects XR idle gaps.`);
       }
@@ -2229,9 +2244,15 @@
         } else if (String(values.xrAnchorMode || "").trim() !== "trial") {
           notes.push("For fixed-mount immersive-ar runs, prefer xrAnchorMode=trial so AR world drift does not carry across the full suite.");
         }
+        if (Number(values.xrPoseStabilityGateMs || 0) <= 0) {
+          warnings.push("Fixed-mount immersive-ar without xrPoseStabilityGateMs may start on a drifting pose and walk the scene out of frame.");
+        }
       }
       if (values.runMode !== "canvas" && values.xrSessionMode === "immersive-vr" && String(values.xrAnchorMode || "").trim() === "trial") {
         notes.push("xrAnchorMode=trial is unusual for immersive-vr. Use session unless you are explicitly diagnosing anchor drift.");
+      }
+      if (values.runMode !== "canvas" && values.xrSessionMode === "immersive-vr" && Number(values.xrPoseStabilityGateMs || 0) > 0) {
+        notes.push("xrPoseStabilityGateMs is mainly for fixed-mount immersive-ar. Keep it at 0 for immersive-vr unless you are explicitly diagnosing unstable startup poses.");
       }
       if (values.runMode !== "canvas" && values.xrIdlePresentMode !== "none") {
         notes.push("xrIdlePresentMode is diagnostic-only. Keep xrIdlePresentMode=none for primary data collection unless your protocol explicitly defines inter-trial settle presentation.");

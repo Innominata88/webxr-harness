@@ -110,6 +110,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `xrStartOnFirstPose` | boolean | all | Requested XR timing mode; when `true`, measured XR window starts on first valid pose |
 | `xrAnchorToFirstPose` | boolean | all | Requested XR placement mode; when `true`, XR layout is anchored to the first viewer pose |
 | `xrAnchorMode` | string | all | XR anchor reuse mode (`"session"` or `"trial"`) captured for reproducibility |
+| `xrPoseStabilityGateMs` | number | all | Requested XR pose-stability gate duration captured for reproducibility; when nonzero the run waits for a stable viewer pose window before timing starts |
 | `xrIdlePresentMode` | string | all | XR idle presentation mode parameter (`"none"` or `"clear_each_frame"`) captured for reproducibility |
 | `xrFrontMinZ` | number | all | Requested XR forward placement anchor captured at record level |
 | `xrYOffset` | number | all | Requested XR vertical placement offset captured at record level |
@@ -300,6 +301,13 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_anchor_to_first_pose_requested` | boolean optional | Whether query `xrAnchorToFirstPose=1` was requested for this run |
 | `xr_anchor_to_first_pose_applied` | boolean optional | `true` when XR instances were re-anchored from the first viewer pose |
 | `xr_anchor_mode_requested` | string optional | XR anchor reuse mode requested by the run (`session` for one anchor per XR session, `trial` for re-anchoring at each trial start) |
+| `xr_pose_stability_gate_ms_requested` | number optional | XR pose-stability gate duration requested by the run; `0` disables gating |
+| `xr_pose_stability_pos_tol_m_requested` | number optional | Position-span tolerance used by the XR pose-stability gate |
+| `xr_pose_stability_yaw_tol_deg_requested` | number optional | Yaw-span tolerance used by the XR pose-stability gate |
+| `xr_pose_stability_wait_ms` | number or null optional | Observed wait time accumulated toward XR pose-stability gating for the current trial/session |
+| `xr_pose_stability_position_span_m` | number or null optional | Observed viewer-position span measured during the XR pose-stability gate |
+| `xr_pose_stability_yaw_span_deg` | number or null optional | Observed viewer-yaw span measured during the XR pose-stability gate |
+| `xr_pose_stability_achieved` | boolean optional | `true` when the XR pose-stability gate was either disabled or successfully satisfied before measurement started |
 | `xr_anchor_pose_yaw_rad` | number optional | Yaw (radians) used for first-pose anchoring |
 | `xr_anchor_pose_x` | number optional | Viewer X used for first-pose anchoring |
 | `xr_anchor_pose_z` | number optional | Viewer Z used for first-pose anchoring |
@@ -393,10 +401,14 @@ Explicit run provenance for reproducibility and paper reporting.
 | `profiler_config` | string or null | Free-form profiler configuration string when available |
 | `xr_idle_present_mode` | string or null | XR idle presentation mode when available |
 | `xr_anchor_mode` | string or null | XR anchor reuse mode when available |
+| `xr_pose_stability_gate_ms` | number or null | XR pose-stability gate duration when available |
+| `xr_pose_stability_pos_tol_m` | number or null | XR pose-stability position tolerance when available |
+| `xr_pose_stability_yaw_tol_deg` | number or null | XR pose-stability yaw tolerance when available |
 | `asset_url` | string | Model URL used by the run |
 
 Note: `feature_flags_profile` / `feature_flags_exact` are provenance fields supplied by the operator or deployment metadata. They are not a browser-reported dump of active flag toggles.
 Note: `xr_anchor_mode=session` is appropriate for immersive-vr. `xr_anchor_mode=trial` is recommended for fixed-mount immersive-ar phone runs so AR world drift does not accumulate across the entire suite.
+Note: `xr_pose_stability_gate_ms` is primarily intended for fixed-mount `immersive-ar` campaigns. The current phone AR baseline uses `750` ms, `0.08` m, and `4.0` deg.
 Note: `xr_idle_present_mode=none` preserves true-idle semantics for primary runs. `clear_each_frame` is intended for diagnostics when you need the XR compositor to keep presenting between trials.
 
 ## `partial_trial` object (abort records)
