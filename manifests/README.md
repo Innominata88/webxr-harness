@@ -41,7 +41,7 @@ Direct launcher pattern:
 
 Example:
 
-- `https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=manifests/avp_xr_primary_regular_paired_5sets.json`
+- `https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=manifests/avp_xr_primary_regular_paired_10sets.json`
 
 Generate fully encoded launcher links for all manifests:
 
@@ -80,7 +80,7 @@ while loading manifests from:
 
 1. `manifests/avp_canvas_primary_regular_paired_5sets.json`
 2. `manifests/avp_canvas_primary_cliff_paired_5sets.json`
-3. `manifests/avp_xr_primary_regular_paired_5sets.json`
+3. `manifests/avp_xr_primary_regular_paired_10sets.json`
 4. `manifests/avp_xr_primary_cliff_paired_5sets.json`
 5. `manifests/quest2_canvas_primary_regular_paired_5sets.json`
 6. `manifests/quest2_xr_primary_regular_webgl_only_5sets.json`
@@ -100,11 +100,13 @@ while loading manifests from:
 
 ## Notes
 
-- Paired manifests use `manifestOrderMode=abba_baab` with `manifestRuns=10` (5 runs per API).
+- Most paired manifests use `manifestOrderMode=abba_baab` with `manifestRuns=10` (5 runs per API).
+- `AVP_XR_PRIMARY_REGULAR` uses `manifestRuns=20` (10 runs per API) with `trials=5` per run to reduce sustained-session thermal and compositor confounds.
 - Single-API manifests use `manifestOrderMode=none` with `manifestRuns=5`.
 - Regular manifests use cooldown `300000` ms (5 min) between runs.
 - AVP cliff manifests use cooldown `600000` ms (10 min) between runs.
 - AVP cliff instance band is `340,345,348,350`.
+- AVP XR regular baseline manifest uses `xrIdlePresentMode=clear_each_frame` to keep the immersive presentation active across inter-trial gaps on visionOS.
 - AVP canvas regular baseline manifest uses instance ladder `64,128,192`.
 - AVP canvas cliff baseline manifest isolates `320` with `trials=1` to measure crash/failure rate without losing long regular rows.
 - AVP canvas baseline manifests lock `canvasScaleFactor=0.75` (applied to both WebGL/WebGPU).
@@ -113,7 +115,7 @@ while loading manifests from:
 - Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
 - Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`, `xrAnchorMode=trial`.
 - Phone XR AR baseline manifests use instance ladder `64,128,192`, zero XR idle gaps, and per-device pose-stability gating.
-- Current candidate values: Pixel 8a uses `xrPoseStabilityGateMs=750`, `xrPoseStabilityPosTolM=0.08`, `xrPoseStabilityYawTolDeg=4.0`; Samsung FE 5G uses `xrPoseStabilityGateMs=500`, `xrPoseStabilityPosTolM=0.12`, `xrPoseStabilityYawTolDeg=6.0`.
+- Current candidate values: Pixel 8a uses `xrPoseStabilityGateMs=750`, `xrPoseStabilityPosTolM=0.08`, `xrPoseStabilityYawTolDeg=4.0`; Samsung FE 5G uses `xrNoPoseGraceMs=8000`, `xrPoseStabilityGateMs=500`, `xrPoseStabilityPosTolM=0.12`, `xrPoseStabilityYawTolDeg=6.0`.
 
 ## Regenerate
 

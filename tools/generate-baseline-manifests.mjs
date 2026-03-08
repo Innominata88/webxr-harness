@@ -439,7 +439,7 @@ const baselineDefs = [
     cooldownBetweenRunsMs: 600000
   },
   {
-    file: "avp_xr_primary_regular_paired_5sets.json",
+    file: "avp_xr_primary_regular_paired_10sets.json",
     suiteId: "AVP_XR_PRIMARY_REGULAR",
     runIdBase: "avp_xr_primary_regular",
     deviceTag: "avp",
@@ -449,11 +449,13 @@ const baselineDefs = [
     instances: "64,128,192",
     layout: "xrwall",
     shuffle: "1",
+    trials: "5",
     preIdleMs: "0",
     postIdleMs: "0",
+    xrIdlePresentMode: "clear_each_frame",
     apiScope: "paired",
     orderMode: "abba_baab",
-    runCount: 10,
+    runCount: 20,
     orderSeed: "12345",
     cooldownBetweenRunsMs: 300000
   },
@@ -614,6 +616,7 @@ const baselineDefs = [
     xrFrontMinZ: "-1.6",
     xrYOffset: "0.0",
     xrAnchorMode: "trial",
+    xrNoPoseGraceMs: "8000",
     xrPoseStabilityGateMs: "500",
     xrPoseStabilityPosTolM: "0.12",
     xrPoseStabilityYawTolDeg: "6.0",
@@ -687,7 +690,7 @@ const baselineDefs = [
 
 function sanityFileName(file) {
   const base = String(file || "").replace(/\.json$/i, "");
-  const stripped = base.replace(/_5sets$/i, "");
+  const stripped = base.replace(/_\d+sets$/i, "");
   return `${stripped}_sanity_${sanityRunsPerApi}sets.json`;
 }
 
@@ -705,7 +708,7 @@ function toSanityDef(def) {
 
 function smokeFileName(file) {
   const base = String(file || "").replace(/\.json$/i, "");
-  const stripped = base.replace(/_5sets$/i, "");
+  const stripped = base.replace(/_\d+sets$/i, "");
   return `${stripped}_smoke_${smokeRunsPerApi}sets.json`;
 }
 
@@ -765,6 +768,7 @@ function buildManifest(def) {
       xrScaleFactor: def.xrScaleFactor || baseValues.xrScaleFactor,
       xrFrontMinZ: def.xrFrontMinZ || baseValues.xrFrontMinZ,
       xrYOffset: def.xrYOffset || baseValues.xrYOffset,
+      xrNoPoseGraceMs: def.xrNoPoseGraceMs || baseValues.xrNoPoseGraceMs,
       xrAnchorMode: def.xrAnchorMode || baseValues.xrAnchorMode,
       xrIdlePresentMode: def.xrIdlePresentMode || baseValues.xrIdlePresentMode,
       xrPoseStabilityGateMs: def.xrPoseStabilityGateMs || baseValues.xrPoseStabilityGateMs,
