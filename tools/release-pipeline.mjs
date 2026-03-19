@@ -34,28 +34,20 @@ if (opts.mode === "promote") {
     { LAUNCHER_VERSION: opts.tag, HARNESS_BASE_URL: releaseBaseUrl },
     releaseDir
   );
-  runNodeScript(
-    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-    [],
-    {
-      LAUNCHER_VERSION: opts.tag,
-      HARNESS_BASE_URL: releaseBaseUrl,
-      MANIFEST_FILTER: "sanity",
-      LAUNCHER_LINKS_OUT: "launcher-links-sanity.csv"
-    },
-    releaseDir
-  );
-  runNodeScript(
-    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-    [],
-    {
-      LAUNCHER_VERSION: opts.tag,
-      HARNESS_BASE_URL: releaseBaseUrl,
-      MANIFEST_FILTER: "smoke",
-      LAUNCHER_LINKS_OUT: "launcher-links-smoke.csv"
-    },
-    releaseDir
-  );
+  for (const linksDef of launcherLinkDefs()) {
+    if (!linksDef.outName || linksDef.outName === "launcher-links.csv") continue;
+    runNodeScript(
+      path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
+      [],
+      {
+        LAUNCHER_VERSION: opts.tag,
+        HARNESS_BASE_URL: releaseBaseUrl,
+        MANIFEST_FILTER: linksDef.manifestFilter,
+        LAUNCHER_LINKS_OUT: linksDef.outName
+      },
+      releaseDir
+    );
+  }
   verifyReleaseLinksTag(opts.tag, releaseDir);
 }
 
@@ -198,18 +190,26 @@ function generateRootArtifacts(tag, env) {
     { LAUNCHER_VERSION: tag },
     repoRoot
   );
-  runNodeScript(
-    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-    [],
-    { LAUNCHER_VERSION: tag, MANIFEST_FILTER: "sanity", LAUNCHER_LINKS_OUT: "launcher-links-sanity.csv" },
-    repoRoot
-  );
-  runNodeScript(
-    path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
-    [],
-    { LAUNCHER_VERSION: tag, MANIFEST_FILTER: "smoke", LAUNCHER_LINKS_OUT: "launcher-links-smoke.csv" },
-    repoRoot
-  );
+  for (const linksDef of launcherLinkDefs()) {
+    if (!linksDef.outName || linksDef.outName === "launcher-links.csv") continue;
+    runNodeScript(
+      path.join(repoRoot, "tools", "generate-launcher-links.mjs"),
+      [],
+      { LAUNCHER_VERSION: tag, MANIFEST_FILTER: linksDef.manifestFilter, LAUNCHER_LINKS_OUT: linksDef.outName },
+      repoRoot
+    );
+  }
+}
+
+function launcherLinkDefs() {
+  return [
+    { manifestFilter: "", outName: "launcher-links.csv" },
+    { manifestFilter: "sanity", outName: "launcher-links-sanity.csv" },
+    { manifestFilter: "smoke", outName: "launcher-links-smoke.csv" },
+    { manifestFilter: "primary_trace", outName: "launcher-links-trace.csv" },
+    { manifestFilter: "primary_cliff_i", outName: "launcher-links-cliff.csv" },
+    { manifestFilter: "failurecurve", outName: "launcher-links-failure.csv" }
+  ];
 }
 
 function fail(message) {

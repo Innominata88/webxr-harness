@@ -70,6 +70,11 @@ This creates:
 
 - `manifest-packs/<manifest-tag>/manifests/*.json`
 - `manifest-packs/<manifest-tag>/manifests/launcher-links.html`
+- `manifest-packs/<manifest-tag>/manifests/launcher-links-sanity.html`
+- `manifest-packs/<manifest-tag>/manifests/launcher-links-smoke.html`
+- `manifest-packs/<manifest-tag>/manifests/launcher-links-trace.html`
+- `manifest-packs/<manifest-tag>/manifests/launcher-links-cliff.html`
+- `manifest-packs/<manifest-tag>/manifests/launcher-links-failure.html`
 
 The launcher links in that pack use the frozen runtime from:
 

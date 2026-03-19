@@ -15,6 +15,7 @@ For immutable releases, generate with `HARNESS_RELEASE_TAG` so URLs point to:
 
 - `https://innominata88.github.io/webxr-harness/releases/<tag>/...`
 - Full workflow: `docs/immutable-release-workflow.md`
+- Collection matrices: `docs/collection-matrices.md`
 - Important: `releases/<tag>/` is a hosted immutable snapshot path. It does not create a GitHub Releases entry unless you also create/push a git tag and publish a release (see `docs/immutable-release-workflow.md` section "GitHub Releases page").
 
 ## Recommended Collection Model
@@ -92,6 +93,37 @@ while loading manifests from:
 12. `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
 13. `manifests/windows_hp_canvas_primary_regular_paired_5sets.json`
 
+## Trace / Cliff / Failure Manifests
+
+Trace manifests:
+
+- `manifests/quest2_canvas_primary_trace_i64_paired_2sets.json`
+- `manifests/quest2_canvas_primary_trace_i192_paired_2sets.json`
+- `manifests/quest2_canvas_primary_trace_i320_paired_2sets.json`
+- `manifests/avp_xr_primary_trace_i64_paired_2sets.json`
+- `manifests/avp_xr_primary_trace_i128_paired_2sets.json`
+- `manifests/avp_xr_primary_trace_i192_paired_2sets.json`
+- `manifests/avp_canvas_primary_trace_i64_paired_2sets.json`
+- `manifests/avp_canvas_primary_trace_i192_paired_2sets.json`
+- `manifests/quest2_xr_primary_trace_i64_webgl_only_2sets.json`
+- `manifests/quest2_xr_primary_trace_i192_webgl_only_2sets.json`
+
+AVP XR cliff manifests:
+
+- `manifests/avp_xr_primary_cliff_i340_paired_5sets.json`
+- `manifests/avp_xr_primary_cliff_i345_paired_5sets.json`
+- `manifests/avp_xr_primary_cliff_i348_paired_5sets.json`
+- `manifests/avp_xr_primary_cliff_i350_paired_5sets.json`
+
+Phone XR failure-rate manifests:
+
+- `manifests/pixel8a_xr_ar_failurecurve_i64_paired_10sets.json`
+- `manifests/pixel8a_xr_ar_failurecurve_i128_paired_10sets.json`
+- `manifests/pixel8a_xr_ar_failurecurve_i192_paired_10sets.json`
+- `manifests/samsung_fe5g_xr_ar_failurecurve_i64_paired_10sets.json`
+- `manifests/samsung_fe5g_xr_ar_failurecurve_i128_paired_10sets.json`
+- `manifests/samsung_fe5g_xr_ar_failurecurve_i192_paired_10sets.json`
+
 ## Legacy Manifests (Not Primary)
 
 1. `manifests/quest2_canvas_primary_regular_webgl_only_5sets.json`
@@ -107,12 +139,15 @@ while loading manifests from:
 - AVP cliff manifests use cooldown `600000` ms (10 min) between runs.
 - AVP cliff instance band is `340,345,348,350`.
 - AVP XR regular baseline manifest uses `xrIdlePresentMode=clear_each_frame` to keep the immersive presentation active across inter-trial gaps on visionOS.
+- AVP XR trace and cliff manifests also use `xrIdlePresentMode=clear_each_frame`.
 - AVP canvas regular baseline manifest uses instance ladder `64,128,192`.
 - AVP canvas cliff baseline manifest isolates `320` with `trials=1` to measure crash/failure rate without losing long regular rows.
+- AVP XR cliff single-instance manifests use `trials=3` with one instance count per manifest.
 - AVP canvas baseline manifests lock `canvasScaleFactor=0.75` (applied to both WebGL/WebGPU).
 - Pixel 8a canvas baseline manifest uses instance ladder `64,128,192` with `canvasScaleFactor=0.50`.
 - Samsung FE 5G canvas baseline manifest keeps instance ladder `64,128,192,256,320` with `canvasScaleFactor=0.75`.
 - Phone XR AR baseline manifests are paired WebGL/WebGPU primary manifests (`immersive-ar` cohort).
+- Phone XR AR failure-rate manifests are the preferred way to continue phone XR testing. They use one trial per run so each launcher row is one reliability attempt.
 - Phone XR AR placement defaults are locked to `spacing=0.12`, `xrFrontMinZ=-1.6`, `xrYOffset=0.0`, `xrAnchorMode=trial`.
 - Phone XR AR baseline manifests use instance ladder `64,128,192`, zero XR idle gaps, and per-device pose-stability gating.
 - Current candidate values: Pixel 8a uses `xrPoseStabilityGateMs=750`, `xrPoseStabilityPosTolM=0.08`, `xrPoseStabilityYawTolDeg=4.0`; Samsung FE 5G uses `xrNoPoseGraceMs=8000`, `xrPoseStabilityGateMs=500`, `xrPoseStabilityPosTolM=0.12`, `xrPoseStabilityYawTolDeg=6.0`.
@@ -182,6 +217,24 @@ Generate smoke-only launcher links:
 
 ```bash
 LAUNCHER_VERSION="r2026-03-03-rc5" MANIFEST_FILTER="smoke" LAUNCHER_LINKS_OUT="launcher-links-smoke.csv" node tools/generate-launcher-links.mjs
+```
+
+Generate trace-only launcher links:
+
+```bash
+LAUNCHER_VERSION="m2026-03-19-a" MANIFEST_FILTER="primary_trace" LAUNCHER_LINKS_OUT="launcher-links-trace.csv" node tools/generate-launcher-links.mjs
+```
+
+Generate AVP XR cliff-only launcher links:
+
+```bash
+LAUNCHER_VERSION="m2026-03-19-a" MANIFEST_FILTER="primary_cliff_i" LAUNCHER_LINKS_OUT="launcher-links-cliff.csv" node tools/generate-launcher-links.mjs
+```
+
+Generate phone XR failure-rate launcher links:
+
+```bash
+LAUNCHER_VERSION="m2026-03-19-a" MANIFEST_FILTER="failurecurve" LAUNCHER_LINKS_OUT="launcher-links-failure.csv" node tools/generate-launcher-links.mjs
 ```
 
 Validate downloaded sanity runs (PASS/FAIL per suite):

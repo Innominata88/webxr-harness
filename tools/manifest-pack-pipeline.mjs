@@ -47,28 +47,16 @@ generateManifestProfile("baseline", generateEnv);
 generateManifestProfile("sanity", generateEnv);
 generateManifestProfile("smoke", generateEnv);
 
-generateLauncherLinks({
-  manifestDirRel,
-  manifestPublicBaseUrl,
-  launcherBaseUrl,
-  versionToken: opts.manifestTag
-});
-generateLauncherLinks({
-  manifestDirRel,
-  manifestPublicBaseUrl,
-  launcherBaseUrl,
-  versionToken: opts.manifestTag,
-  manifestFilter: "sanity",
-  outName: "launcher-links-sanity.csv"
-});
-generateLauncherLinks({
-  manifestDirRel,
-  manifestPublicBaseUrl,
-  launcherBaseUrl,
-  versionToken: opts.manifestTag,
-  manifestFilter: "smoke",
-  outName: "launcher-links-smoke.csv"
-});
+for (const linksDef of launcherLinkDefs()) {
+  generateLauncherLinks({
+    manifestDirRel,
+    manifestPublicBaseUrl,
+    launcherBaseUrl,
+    versionToken: opts.manifestTag,
+    manifestFilter: linksDef.manifestFilter,
+    outName: linksDef.outName
+  });
+}
 
 verifyManifestPack();
 writeManifestPackInfo();
@@ -133,6 +121,17 @@ function generateLauncherLinks({ manifestDirRel: relDir, manifestPublicBaseUrl: 
     MANIFEST_FILTER: manifestFilter,
     LAUNCHER_LINKS_OUT: outName
   });
+}
+
+function launcherLinkDefs() {
+  return [
+    { manifestFilter: "", outName: "launcher-links.csv" },
+    { manifestFilter: "sanity", outName: "launcher-links-sanity.csv" },
+    { manifestFilter: "smoke", outName: "launcher-links-smoke.csv" },
+    { manifestFilter: "primary_trace", outName: "launcher-links-trace.csv" },
+    { manifestFilter: "primary_cliff_i", outName: "launcher-links-cliff.csv" },
+    { manifestFilter: "failurecurve", outName: "launcher-links-failure.csv" }
+  ];
 }
 
 function verifyManifestPack() {
