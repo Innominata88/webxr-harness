@@ -6,3 +6,4 @@ reports/*.csv
 reports/*.json
 quality_report_*.csv
 quality_report_*.json
+analysis/

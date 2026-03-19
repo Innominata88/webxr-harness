@@ -77,6 +77,21 @@ while loading manifests from:
 
 - `manifest-packs/<manifest-tag>/manifests/*.json`
 
+## After Collection
+
+Copy the exact manifest and launcher provenance beside collected result folders:
+
+```bash
+node tools/collect-used-manifests.mjs --data-root "$HOME/Downloads/Data Collection" --copy
+```
+
+This creates a `manifests-used/` folder inside each cohort directory with:
+
+- the matched manifest JSON
+- `MANIFEST_PACK_INFO.json` or `RELEASE_INFO.json`
+- the relevant launcher links page(s)
+- `manifest-selection.json` summarizing the match
+
 ## Required Baseline Manifests
 
 1. `manifests/avp_canvas_primary_regular_paired_5sets.json`
