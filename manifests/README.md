@@ -6,7 +6,7 @@ These manifests were generated for baseline collection using:
 - Generator: `tools/generate-baseline-manifests.mjs`
 - Base URL in run links: `https://innominata88.github.io/webxr-harness/`
 - Model: `./assets/spiderman_2002_movie_version_sam_raimi_0.glb`
-- `debugColor=flat`, `manualDownload=1`, `traceMarkers=1`, `traceOverlay=0`
+- `surfaceMode=flat`, `debugColor=flat`, `manualDownload=1`, `traceMarkers=1`, `traceOverlay=0`
 - Required flags profile metadata is embedded in each manifest (`required_flags_profile_id`, `required_flags_exact`)
 
 All manifests include per-row `out/outxr` output naming so downloaded JSONL names match `results_name`.
@@ -250,6 +250,12 @@ Generate phone XR failure-rate launcher links:
 
 ```bash
 LAUNCHER_VERSION="m2026-03-19-a" MANIFEST_FILTER="failurecurve" LAUNCHER_LINKS_OUT="launcher-links-failure.csv" node tools/generate-launcher-links.mjs
+```
+
+Generate material-complexity launcher links:
+
+```bash
+LAUNCHER_VERSION="m2026-03-19-a" MANIFEST_FILTER="material_complexity" LAUNCHER_LINKS_OUT="launcher-links-material.csv" node tools/generate-launcher-links.mjs
 ```
 
 Validate downloaded sanity runs (PASS/FAIL per suite):

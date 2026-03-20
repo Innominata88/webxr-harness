@@ -7,6 +7,7 @@ const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0.0", "1.1.0"]);
 const VALID_APIS = new Set(["webgl2", "webgpu"]);
 const VALID_MODES = new Set(["canvas", "xr"]);
 const VALID_DEBUG_COLOR_MODES = new Set(["flat", "abspos", "instance"]);
+const VALID_SURFACE_MODES = new Set(["flat", "basecolor"]);
 const MAX_PRINTED_ERRORS = 200;
 
 const COMMON_REQUIRED_FIELDS = [
@@ -286,6 +287,12 @@ function validateEnv(record, loc, errors) {
   checkIfPresent(value, "xr_no_pose_ms_total", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_probe_readback_requested", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_idle_present_mode", checkString, `${loc}.${key}`, errors);
+  if (hasOwn(value, "surfaceMode")) {
+    checkString(value, "surfaceMode", `${loc}.${key}`, errors);
+    if (typeof value.surfaceMode === "string" && !VALID_SURFACE_MODES.has(value.surfaceMode)) {
+      errors.push(`${loc}.${key}: \`surfaceMode\` expected one of [${Array.from(VALID_SURFACE_MODES).join(", ")}], got ${JSON.stringify(value.surfaceMode)}`);
+    }
+  }
   checkIfPresent(value, "run_id", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "trace_markers_enabled", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "trace_overlay_enabled", checkBoolean, `${loc}.${key}`, errors);
@@ -314,6 +321,7 @@ function validateEnv(record, loc, errors) {
       checkStringOrNull(provenance, "profiler_mode", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "profiler_config", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "xr_idle_present_mode", `${loc}.${key}.provenance`, errors);
+      checkStringOrNull(provenance, "surface_mode", `${loc}.${key}.provenance`, errors);
       checkStringOrNull(provenance, "xr_anchor_mode", `${loc}.${key}.provenance`, errors);
       checkNumberOrNull(provenance, "xr_pose_stability_gate_ms", `${loc}.${key}.provenance`, errors);
       checkNumberOrNull(provenance, "xr_pose_stability_pos_tol_m", `${loc}.${key}.provenance`, errors);
@@ -656,6 +664,12 @@ function validateBase(record, loc, errors) {
   checkNumber(record, "seed", loc, errors);
   checkBoolean(record, "shuffle", loc, errors);
   checkNumber(record, "spacing", loc, errors);
+  if (hasOwn(record, "surfaceMode")) {
+    checkString(record, "surfaceMode", loc, errors);
+    if (typeof record.surfaceMode === "string" && !VALID_SURFACE_MODES.has(record.surfaceMode)) {
+      errors.push(`${loc}: \`surfaceMode\` expected one of [${Array.from(VALID_SURFACE_MODES).join(", ")}], got ${JSON.stringify(record.surfaceMode)}`);
+    }
+  }
   if (hasOwn(record, "debugColor")) {
     checkString(record, "debugColor", loc, errors);
     if (typeof record.debugColor === "string" && !VALID_DEBUG_COLOR_MODES.has(record.debugColor)) {

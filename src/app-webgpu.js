@@ -71,6 +71,10 @@ const xrIdlePresentMode = (() => {
   const raw = String(params.get("xrIdlePresentMode") || "none").toLowerCase();
   return raw === "clear_each_frame" ? "clear_each_frame" : "none";
 })();
+const surfaceMode = (() => {
+  const raw = String(params.get("surfaceMode") || "flat").toLowerCase();
+  return raw === "basecolor" ? "basecolor" : "flat";
+})();
 const provenanceInfo = {
   harness_version: harnessVersion,
   harness_commit: harnessCommit,
@@ -80,6 +84,7 @@ const provenanceInfo = {
   profiler_mode: profilerMode,
   profiler_config: profilerConfig,
   xr_idle_present_mode: xrIdlePresentMode,
+  surface_mode: surfaceMode,
   asset_url: modelUrl
 };
 
@@ -1704,6 +1709,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     shuffle,
     spacing,
     debugColor,
+    surfaceMode,
     canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
@@ -1835,10 +1841,10 @@ const device_limits = copyLimits(device.limits || {});
   context.configure({ device, format: colorFormat, alphaMode: "opaque" });
   recreateCanvasDepthTexture();
 
-  renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor });
+  renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor, surfaceMode });
 
-  const scene = await loadGLBMesh(modelUrl);
-  sceneMesh = { positions: scene.positions, indices: scene.indices };
+  const scene = await loadGLBMesh(modelUrl, { surfaceMode });
+  sceneMesh = scene;
   renderer.setMesh(sceneMesh);
 
   // Set default camera for canvas mode
@@ -1900,6 +1906,7 @@ const device_limits = copyLimits(device.limits || {});
     xrFrontMinZ,
     xrYOffset,
     debugColor,
+    surfaceMode,
     xrIdlePresentMode,
     xrAnchorMode,
     harness_version: harnessVersion,
@@ -2040,6 +2047,7 @@ function runCanvasTrial(item, planIdx, planLen) {
       shuffle,
       spacing,
       debugColor,
+      surfaceMode,
       canvasScaleFactor,
       xrScaleFactor,
       xrStartOnFirstPose,
@@ -2925,6 +2933,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     shuffle,
     spacing,
     debugColor,
+    surfaceMode,
     canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
@@ -3198,6 +3207,7 @@ function startNextXRTrial(session) {
     shuffle,
     spacing,
     debugColor,
+    surfaceMode,
     canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
@@ -3354,7 +3364,7 @@ async function onSessionStarted(session) {
     colorFormat = preferred;
     envInfo.colorFormat = colorFormat;
     context.configure({ device, format: colorFormat, alphaMode:"opaque" });
-    renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor });
+    renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor, surfaceMode });
     if (!sceneMesh) throw new Error("Scene mesh not loaded");
     renderer.setMesh(sceneMesh);
     // Keep canvas path valid if a canvas trial is active/queued while entering XR.

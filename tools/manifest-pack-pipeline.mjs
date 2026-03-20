@@ -128,6 +128,7 @@ function launcherLinkDefs() {
     { manifestFilter: "", outName: "launcher-links.csv" },
     { manifestFilter: "sanity", outName: "launcher-links-sanity.csv" },
     { manifestFilter: "smoke", outName: "launcher-links-smoke.csv" },
+    { manifestFilter: "material_complexity", outName: "launcher-links-material.csv" },
     { manifestFilter: "primary_trace", outName: "launcher-links-trace.csv" },
     { manifestFilter: "primary_cliff_i", outName: "launcher-links-cliff.csv" },
     { manifestFilter: "failurecurve", outName: "launcher-links-failure.csv" }

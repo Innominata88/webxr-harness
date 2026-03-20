@@ -105,6 +105,7 @@ node tools/plot-failure-curve.mjs --in reports/failure_curve.json --mode xr --ou
 | `shuffle` | boolean | all | Whether condition order was shuffled |
 | `spacing` | number | all | Inter-instance spacing parameter |
 | `canvasScaleFactor` | number | all | Requested canvas scale-factor parameter captured at record level for reproducibility |
+| `surfaceMode` | string | all | Surface/material rendering mode: `"flat"` or `"basecolor"` |
 | `debugColor` | string | all | Debug fragment coloring mode: `"flat"`, `"abspos"`, or `"instance"` |
 | `xrScaleFactor` | number | all | Requested XR scale-factor parameter captured at record level for reproducibility |
 | `xrStartOnFirstPose` | boolean | all | Requested XR timing mode; when `true`, measured XR window starts on first valid pose |
@@ -316,6 +317,7 @@ Can be `null` if no matching resource timing entry is found.
 | `xr_no_pose_ms_total` | number optional | Running/session-level no-pose wall-time total (ms) for XR diagnostics |
 | `xr_probe_readback_requested` | boolean optional | Whether XR pixel readback probe was requested (`xrProbeReadback`) |
 | `xr_idle_present_mode` | string optional | XR idle presentation mode in effect (`none` for primary true-idle semantics; `clear_each_frame` for diagnostic idle presentation) |
+| `surfaceMode` | string optional | Surface/material rendering mode in effect (`flat` or `basecolor`) |
 | `debugColor` | string optional | Debug fragment coloring mode used by renderer (`flat`, `abspos`, `instance`) |
 | `xrScaleFactor` | number optional | Requested XR scale-factor parameter (camelCase mirror for parser compatibility) |
 | `xr_scale_factor_requested` | number |

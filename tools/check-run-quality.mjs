@@ -24,6 +24,7 @@ const ROOT_FAIRNESS_FIELDS = [
   { name: "shuffle" },
   { name: "spacing", tol: 1e-9 },
   { name: "canvasScaleFactor", tol: 1e-9 },
+  { name: "surfaceMode" },
   { name: "debugColor" },
   { name: "preIdleMs" },
   { name: "postIdleMs" },
@@ -68,6 +69,7 @@ const ENV_FAIRNESS_FIELDS = [
   { name: "feature_flags_exact" },
   { name: "profiler_mode" },
   { name: "profiler_config" },
+  { name: "surfaceMode" },
 ];
 
 function usage() {

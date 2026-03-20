@@ -1,0 +1,20 @@
+# Launcher Links
+
+- generated_at: 2026-03-20T15:45:06.348Z
+- launcher_base_url: https://innominata88.github.io/webxr-harness/
+- manifest_base_url: https://innominata88.github.io/webxr-harness/
+- launcher_version: (none)
+- manifest_filter: material_complexity
+
+| Manifest File | Launcher | Manifest URL |
+|---|---|---|
+| avp_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_canvas_material_complexity_regular_paired_5sets.json) |
+| avp_xr_material_complexity_regular_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_material_complexity_regular_paired_10sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_material_complexity_regular_paired_10sets.json) |
+| ipadairm3_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fipadairm3_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/ipadairm3_canvas_material_complexity_regular_paired_5sets.json) |
+| macbookpro_m1_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fmacbookpro_m1_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/macbookpro_m1_canvas_material_complexity_regular_paired_5sets.json) |
+| pixel8a_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fpixel8a_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/pixel8a_canvas_material_complexity_regular_paired_5sets.json) |
+| quest2_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fquest2_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/quest2_canvas_material_complexity_regular_paired_5sets.json) |
+| quest2_xr_material_complexity_regular_webgl_only_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fquest2_xr_material_complexity_regular_webgl_only_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/quest2_xr_material_complexity_regular_webgl_only_5sets.json) |
+| samsung_fe5g_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fsamsung_fe5g_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/samsung_fe5g_canvas_material_complexity_regular_paired_5sets.json) |
+| windows_hp_canvas_material_complexity_regular_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Fwindows_hp_canvas_material_complexity_regular_paired_5sets.json) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/windows_hp_canvas_material_complexity_regular_paired_5sets.json) |
+

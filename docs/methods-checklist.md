@@ -31,6 +31,7 @@ Use this checklist before collecting data intended for analysis or publication.
   - `shuffle`
   - `spacing`
   - `canvasScaleFactor`
+  - `surfaceMode`
   - `debugColor`
   - `xrFrontMinZ`
   - `xrYOffset`

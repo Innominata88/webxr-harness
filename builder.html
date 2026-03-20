@@ -644,6 +644,7 @@
       { key: "canvasScaleFactor", label: "canvasScaleFactor", group: "core", type: "number", def: "1", step: "0.01", always: true, hint: "Canvas-only resolution scale. Keep fixed across paired APIs. Current baseline pack uses 0.50 on Pixel 8a and 0.75 on Samsung FE 5G/iPad/AVP canvas." },
       { key: "seed", label: "seed", group: "core", type: "number", def: "12345", step: "1", always: true },
       { key: "shuffle", label: "shuffle", group: "core", type: "bool", def: "0", always: true },
+      { key: "surfaceMode", label: "surfaceMode", group: "core", type: "select", def: "flat", always: true, options: ["flat", "basecolor"], hint: "flat = existing instancing benchmark; basecolor = unlit glTF baseColor textures/material factors." },
       { key: "debugColor", label: "debugColor", group: "core", type: "select", def: "flat", always: true, options: ["flat", "abspos", "instance"] },
 
       { key: "durationMs", label: "durationMs", group: "timing", type: "number", def: "6000", min: "1", step: "1", always: true },
@@ -766,6 +767,46 @@
         __manifestProfilerMode: "baseline_untraced",
         __manifestProfilerConfig: "",
         __manifestCooldownMs: "600000",
+      },
+      material_complexity_canvas: {
+        runMode: "canvas",
+        suiteId: "MATERIAL_COMPLEXITY_CANVAS",
+        model: "./assets/spiderman_2002_movie_version_sam_raimi_0.glb",
+        surfaceMode: "basecolor",
+        instances: "1,2,4,8,16,32",
+        trials: "5",
+        durationMs: "6000",
+        layout: "xrwall",
+        shuffle: "1",
+        debugColor: "flat",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
+        __manifestCooldownMs: "300000",
+      },
+      material_complexity_xr: {
+        runMode: "xr",
+        xrSessionMode: "immersive-vr",
+        suiteId: "MATERIAL_COMPLEXITY_XR",
+        model: "./assets/spiderman_2002_movie_version_sam_raimi_0.glb",
+        surfaceMode: "basecolor",
+        instances: "1,2,4,8,16",
+        trials: "5",
+        durationMs: "6000",
+        layout: "xrwall",
+        xrFrontMinZ: "-2.5",
+        xrYOffset: "1.4",
+        xrScaleFactor: "0.25",
+        preIdleMs: "0",
+        postIdleMs: "0",
+        shuffle: "1",
+        xrStartOnFirstPose: "1",
+        xrAnchorToFirstPose: "1",
+        debugColor: "flat",
+        __manifestCacheMode: "warm",
+        __manifestProfilerMode: "baseline_untraced",
+        __manifestProfilerConfig: "",
+        __manifestCooldownMs: "300000",
       },
       regular_primary_10x10: {
         runMode: "xr",
@@ -959,6 +1000,7 @@
       "layout",
       "seed",
       "shuffle",
+      "surfaceMode",
       "spacing",
       "canvasScaleFactor",
       "canvasAutoDelayMs",
@@ -1024,6 +1066,7 @@
       canvasScaleFactor: "Canvas render-resolution scale multiplier relative to device DPR.",
       seed: "Deterministic seed for randomized layouts/order.",
       shuffle: "Shuffles trial order within the suite.",
+      surfaceMode: "Surface/material rendering path. flat uses the original instancing benchmark; basecolor uses unlit glTF baseColor textures/material factors.",
       debugColor: "Fragment color mode used by both renderers.",
       durationMs: "Measured trial duration target in milliseconds.",
       warmupMs: "Warmup wait before starting the first trial.",
@@ -1081,6 +1124,7 @@
       runId: "Use as campaign base ID. Manifest rows auto-generate unique runId suffixes per run.",
       canvasScaleFactor: "Lock per device and keep fixed within a campaign. Current baseline pack uses 0.50 on Pixel 8a, 0.75 on Samsung FE 5G, and 0.75 on AVP canvas.",
       shuffle: "Regular runs: keep ON with fixed/logged seed. Cliff runs: keep OFF for monotonic stepping.",
+      surfaceMode: "Treat flat and basecolor as separate cohorts. Use flat for the existing geometry/instancing benchmark and basecolor for low-instance material-complexity runs.",
       debugColor: "Primary: keep FLAT. Use abspos/instance only for diagnostics or screenshots.",
       hud: "Primary: keep OFF (or fixed ON for all paired runs).",
       traceOverlay: "Primary: keep OFF to avoid overlay/UI overhead drift.",
@@ -1542,6 +1586,7 @@
       const seed = Number.parseInt(values.seed, 10);
       const seedSafe = Number.isFinite(seed) ? (seed >>> 0) : 12345;
       const layout = String(values.layout || "line");
+      const surfaceMode = String(values.surfaceMode || "flat");
       const debugColor = String(values.debugColor || "flat");
       const offsets = genPreviewOffsets(n, spacingSafe, layout, seedSafe);
 
@@ -1597,7 +1642,7 @@
       }
 
       layoutPreviewCaptionEl.textContent =
-        `Showing ${n} instances, layout=${layout}, debugColor=${debugColor}, view=${useFrontView ? "front (x/y)" : "top (x/z)"}`;
+        `Showing ${n} instances, layout=${layout}, surfaceMode=${surfaceMode}, debugColor=${debugColor}, view=${useFrontView ? "front (x/y)" : "top (x/z)"}${surfaceMode === "basecolor" ? " (preview is layout-only; textures are not previewed)" : ""}`;
     }
 
     function slugSegment(value, fallback = "na") {
@@ -1922,6 +1967,7 @@
           layout: rowValues.layout || "",
           seed: rowValues.seed || "",
           shuffle: rowValues.shuffle || "",
+          surface_mode: rowValues.surfaceMode || "",
           debug_color: rowValues.debugColor || "",
           harness_commit: rowValues.harnessCommit || "",
           harness_version: rowValues.harnessVersion || "",
@@ -1961,6 +2007,7 @@
         "layout",
         "seed",
         "shuffle",
+        "surface_mode",
         "debug_color",
         "harness_commit",
         "harness_version",
@@ -2157,7 +2204,9 @@
 
       if (!values.suiteId) warnings.push("suiteId is empty. Pairing and run bookkeeping will be weaker.");
       if (!values.model) warnings.push("model is empty.");
-      if (String(values.debugColor || "").toLowerCase() !== "flat") {
+      if (String(values.surfaceMode || "flat").toLowerCase() === "basecolor" && String(values.debugColor || "").toLowerCase() !== "flat") {
+        warnings.push("surfaceMode=basecolor ignores debugColor. Keep debugColor=flat unless you are switching back to the flat cohort.");
+      } else if (String(values.debugColor || "").toLowerCase() !== "flat") {
         warnings.push("debugColor is not flat. For primary fairness runs, use debugColor=flat and reserve other modes for diagnostics.");
       }
       if (!/^\d+(\s*,\s*\d+)*$/.test(values.instances || "")) {

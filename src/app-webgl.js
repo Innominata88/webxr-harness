@@ -71,6 +71,10 @@ const xrIdlePresentMode = (() => {
   const raw = String(params.get("xrIdlePresentMode") || "none").toLowerCase();
   return raw === "clear_each_frame" ? "clear_each_frame" : "none";
 })();
+const surfaceMode = (() => {
+  const raw = String(params.get("surfaceMode") || "flat").toLowerCase();
+  return raw === "basecolor" ? "basecolor" : "flat";
+})();
 const provenanceInfo = {
   harness_version: harnessVersion,
   harness_commit: harnessCommit,
@@ -80,6 +84,7 @@ const provenanceInfo = {
   profiler_mode: profilerMode,
   profiler_config: profilerConfig,
   xr_idle_present_mode: xrIdlePresentMode,
+  surface_mode: surfaceMode,
   asset_url: modelUrl
 };
 
@@ -1626,10 +1631,11 @@ async function initGL() {
     try { log("WebGL context restored."); } catch (_) {}
   }, false);
 
-  renderer = new WebGLMeshRenderer(gl);
+  renderer = new WebGLMeshRenderer(gl, { surfaceMode });
   renderer.setDebugColor(debugColor);
+  renderer.setSurfaceMode(surfaceMode);
 
-  const scene = await loadGLBMesh(modelUrl);
+  const scene = await loadGLBMesh(modelUrl, { surfaceMode });
   renderer.setMesh(scene);
 
   const ext = gl.getExtension("WEBGL_debug_renderer_info");
@@ -1692,6 +1698,7 @@ async function initGL() {
     xrFrontMinZ,
     xrYOffset,
     debugColor,
+    surfaceMode,
     xrIdlePresentMode,
     xrAnchorMode,
     harness_version: harnessVersion,
@@ -1835,6 +1842,7 @@ function buildCanvasAbortRecord({ abortCode, abortReason, item=null, planIdx=nul
     shuffle,
     spacing,
     debugColor,
+    surfaceMode,
     canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
@@ -1916,6 +1924,7 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
       shuffle,
       spacing,
       debugColor,
+      surfaceMode,
       canvasScaleFactor,
       xrScaleFactor,
       xrStartOnFirstPose,
@@ -2770,6 +2779,7 @@ function buildXRAbortRecord({ abortCode, abortReason, observedViewCount=0, planI
     shuffle,
     spacing,
     debugColor,
+    surfaceMode,
     canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
@@ -3042,6 +3052,7 @@ function startNextXRTrial(session) {
     shuffle,
     spacing,
     debugColor,
+    surfaceMode,
     canvasScaleFactor,
     xrScaleFactor,
     xrStartOnFirstPose,
