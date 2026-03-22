@@ -1,6 +1,6 @@
 # Launcher Links
 
-- generated_at: 2026-03-22T14:13:17.588Z
+- generated_at: 2026-03-22T23:26:42.261Z
 - launcher_base_url: https://innominata88.github.io/webxr-harness/
 - manifest_base_url: https://innominata88.github.io/webxr-harness/
 - launcher_version: r2026-03-21-a

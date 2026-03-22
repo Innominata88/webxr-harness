@@ -205,7 +205,8 @@ function executeCopyPlan(plan, destDirName) {
     fs.copyFileSync(src, dest);
     count++;
   }
-  const summaryPath = path.join(destDir, "manifest-selection.json");
+  const progressBase = path.basename(plan.progressPath).replace(/\.json$/i, "");
+  const summaryPath = path.join(destDir, `manifest-selection-${progressBase}.json`);
   fs.writeFileSync(
     summaryPath,
     `${JSON.stringify({
@@ -252,6 +253,8 @@ function filesToCopyForMatch(match) {
 
 function launcherLinkBaseNamesForManifest(fileName) {
   const name = String(fileName || "").toLowerCase();
+  if (name.includes("_material_stress_")) return ["launcher-links-material-stress", "launcher-links"];
+  if (name.includes("_material_complexity_")) return ["launcher-links-material", "launcher-links"];
   if (name.includes("_trace_")) return ["launcher-links-trace", "launcher-links"];
   if (name.includes("_failurecurve_")) return ["launcher-links-failure", "launcher-links"];
   if (name.includes("_sanity_")) return ["launcher-links-sanity", "launcher-links"];
