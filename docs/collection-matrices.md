@@ -15,8 +15,17 @@ Trace runs are explanatory, not baseline replacements.
 Use:
 
 - `profilerMode=traced_recording`
-- Chrome-family browsers: `profilerConfig=chrome_perf:screenshots=0,memory=0`
+- Chrome-family browsers: `profilerConfig=chrome_perf:screenshots=0,memory=1`
 - Safari / visionOS: `profilerConfig=safari_timelines:manual`
+- trace manifests are tagged `cacheMode=cold_start`
+
+Cold-start discipline for the trace phase:
+
+1. Treat each launcher row as a fresh startup/load attempt.
+2. Before each row, fully close the browser if feasible on that device.
+3. Reopen from the frozen launcher/manifests, not from an already-running benchmark tab.
+4. Avoid reusing a hot benchmark page for the next trace row.
+5. Keep these runs separate from the steady-state baseline dataset.
 
 Recommended trace cohorts:
 

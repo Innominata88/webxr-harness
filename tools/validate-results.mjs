@@ -261,6 +261,8 @@ function validateEnv(record, loc, errors) {
 
   // Optional XR/session context fields.
   checkIfPresent(value, "xr_enter_to_first_frame_ms", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "page_start_to_first_frame_ms", checkNumber, `${loc}.${key}`, errors);
+  checkIfPresent(value, "app_init_to_first_frame_ms", checkNumber, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_dom_overlay_requested", checkBoolean, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_abort_reason", checkString, `${loc}.${key}`, errors);
   checkIfPresent(value, "xr_skipped_reason", checkString, `${loc}.${key}`, errors);

@@ -14,6 +14,14 @@ const cooldownMs = parseInt(params.get("cooldownMs") || "250", 10);
 const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 10);
 const outFileTemplate = params.get("out") || "";
 const SCHEMA_VERSION = "1.1.0";
+const appInitPerfNow = performance.now();
+const pageStartPerfNow = (() => {
+  try {
+    const nav = performance.getEntriesByType?.("navigation")?.[0];
+    if (nav && Number.isFinite(nav.startTime)) return nav.startTime;
+  } catch (_) {}
+  return 0;
+})();
 
 function readMetaContent(name) {
   const el = document.querySelector(`meta[name="${name}"]`);
@@ -427,6 +435,7 @@ let xrResultFlushedForSession=false;
 let sceneInfo=null;
 let sceneMesh=null;
 let envInfo=null;
+let firstPresentedFramePerfMs = null;
 let resultsCanvas=[];
 let resultsXR=[];
 let canvasRunInProgress=false;
@@ -982,6 +991,18 @@ function snapshotEnvInfo() {
   return envInfo;
 }
 
+function syncFirstPresentedFrameEnvDiagnostics() {
+  if (!envInfo || firstPresentedFramePerfMs == null) return;
+  envInfo.page_start_to_first_frame_ms = firstPresentedFramePerfMs - pageStartPerfNow;
+  envInfo.app_init_to_first_frame_ms = firstPresentedFramePerfMs - appInitPerfNow;
+}
+
+function markFirstPresentedFrame() {
+  if (firstPresentedFramePerfMs != null) return;
+  firstPresentedFramePerfMs = performance.now();
+  syncFirstPresentedFrameEnvDiagnostics();
+}
+
 function currentBenchPhase() {
   if (xrSession || xrActive) return "xr";
   if (canvasRunInProgress) return "canvas";
@@ -1535,6 +1556,7 @@ async function ensureCanvasRenderProbe() {
 
     renderer.draw(pass);
     pass.end();
+    markFirstPresentedFrame();
 
     encoder.copyTextureToBuffer(
       { texture: offColor },
@@ -1979,6 +2001,7 @@ const device_limits = copyLimits(device.limits || {});
     colorFormat,
     url: location.href
   };
+  syncFirstPresentedFrameEnvDiagnostics();
 
   const adapterVendor = adapterInfo?.vendor || "unknown";
   const adapterDevice = adapterInfo?.device || "unknown";
@@ -2138,6 +2161,7 @@ function runCanvasTrial(item, planIdx, planLen) {
 
         renderer.draw(pass);
         pass.end();
+        markFirstPresentedFrame();
         device.queue.submit([encoder.finish()]);
       } catch (e) {
         stats.markEnd();
@@ -3581,6 +3605,7 @@ if (!xrActive || !xrStats) {
       maybeStartXRReadbackProbeWebGPU(encoder, subImage, vpObj, clearRGBA8);
     }
   }
+  markFirstPresentedFrame();
   if (xrFirstFramePixels == null) {
     xrFirstFramePixels = framePixelTotal;
     xrFirstFrameViewPixels = frameViewPixels;

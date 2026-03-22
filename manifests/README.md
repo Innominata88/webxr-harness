@@ -123,6 +123,13 @@ Trace manifests:
 - `manifests/quest2_xr_primary_trace_i64_webgl_only_2sets.json`
 - `manifests/quest2_xr_primary_trace_i192_webgl_only_2sets.json`
 
+Trace protocol notes:
+
+- trace manifests are tagged `cacheMode=cold_start` in manifest metadata
+- Chrome / Oculus trace manifests use `profilerConfig=chrome_perf:screenshots=0,memory=1`
+- Safari / visionOS trace manifests use `profilerConfig=safari_timelines:manual`
+- run each trace row as a fresh startup attempt rather than reusing a hot benchmark tab
+
 AVP XR cliff manifests:
 
 - `manifests/avp_xr_primary_cliff_i340_paired_5sets.json`
@@ -155,6 +162,7 @@ Phone XR failure-rate manifests:
 - AVP cliff instance band is `340,345,348,350`.
 - AVP XR regular baseline manifest uses `xrIdlePresentMode=clear_each_frame` to keep the immersive presentation active across inter-trial gaps on visionOS.
 - AVP XR trace and cliff manifests also use `xrIdlePresentMode=clear_each_frame`.
+- Trace manifests are for cold-start mechanism analysis, not steady-state baseline replacement.
 - AVP canvas regular baseline manifest uses instance ladder `64,128,192`.
 - AVP canvas cliff baseline manifest isolates `320` with `trials=1` to measure crash/failure rate without losing long regular rows.
 - AVP XR cliff single-instance manifests use `trials=3` with one instance count per manifest.

@@ -14,6 +14,14 @@ const cooldownMs = parseInt(params.get("cooldownMs") || "250", 10);
 const betweenInstancesMs = parseInt(params.get("betweenInstancesMs") || "800", 10);
 const outFileTemplate = params.get("out") || "";
 const SCHEMA_VERSION = "1.1.0";
+const appInitPerfNow = performance.now();
+const pageStartPerfNow = (() => {
+  try {
+    const nav = performance.getEntriesByType?.("navigation")?.[0];
+    if (nav && Number.isFinite(nav.startTime)) return nav.startTime;
+  } catch (_) {}
+  return 0;
+})();
 
 function readMetaContent(name) {
   const el = document.querySelector(`meta[name="${name}"]`);
@@ -424,6 +432,7 @@ let xrResultFlushedForSession=false;
 
 let sceneInfo=null;
 let envInfo=null;
+let firstPresentedFramePerfMs = null;
 let resultsCanvas=[];
 let resultsXR=[];
 let canvasRunInProgress=false;
@@ -932,6 +941,18 @@ function snapshotEnvInfo() {
   } catch (_) {}
   try { return JSON.parse(JSON.stringify(envInfo)); } catch (_) {}
   return envInfo;
+}
+
+function syncFirstPresentedFrameEnvDiagnostics() {
+  if (!envInfo || firstPresentedFramePerfMs == null) return;
+  envInfo.page_start_to_first_frame_ms = firstPresentedFramePerfMs - pageStartPerfNow;
+  envInfo.app_init_to_first_frame_ms = firstPresentedFramePerfMs - appInitPerfNow;
+}
+
+function markFirstPresentedFrame() {
+  if (firstPresentedFramePerfMs != null) return;
+  firstPresentedFramePerfMs = performance.now();
+  syncFirstPresentedFrameEnvDiagnostics();
 }
 
 function currentBenchPhase() {
@@ -1449,6 +1470,7 @@ function ensureCanvasRenderProbe(vp) {
     gl.clearColor(clear[0], clear[1], clear[2], clear[3]);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     renderer.drawForView(vp);
+    markFirstPresentedFrame();
 
     const x = Math.max(0, Math.min(canvas.width - 3, Math.floor(canvas.width / 2) - 1));
     const y = Math.max(0, Math.min(canvas.height - 3, Math.floor(canvas.height / 2) - 1));
@@ -1767,6 +1789,7 @@ async function initGL() {
     gpu,
     url: location.href
   };
+  syncFirstPresentedFrameEnvDiagnostics();
   updateCanvasScaleEnvDiagnostics(canvasAppliedDpr);
 
   const gpuIdentity = `webgl2:${gpu.vendor || "unknown"}|${gpu.renderer || "unknown"}`;
@@ -2012,6 +2035,7 @@ function runCanvasTrial(item, planIdx, planLen, vp) {
         gl.clearColor(0.08,0.08,0.1,1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         renderer.drawForView(vp);
+        markFirstPresentedFrame();
       } catch (e) {
         stats.markEnd();
         finishReject(makeCanvasTrialError(`Canvas render failed: ${e?.message || e}`, "canvas_trial_failed"));
@@ -3371,6 +3395,7 @@ if (!xrActive || !xrStats) {
     computeViewProj(_vp, view.projectionMatrix, view.transform.inverse.matrix);
     renderer.drawForView(_vp);
   }
+  markFirstPresentedFrame();
   if (xrFirstFramePixels == null) {
     xrFirstFramePixels = framePixelTotal;
     xrFirstFrameViewPixels = frameViewPixels;

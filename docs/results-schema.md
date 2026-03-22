@@ -290,6 +290,8 @@ Can be `null` if no matching resource timing entry is found.
 | `dpr_canvas` | number optional |
 | `canvas_css` | object (`w`,`h`) |
 | `canvas_px` | object (`w`,`h`) |
+| `page_start_to_first_frame_ms` | number optional | Time from navigation start to first presented content frame. For XR-only runs this can include operator entry delay, so prefer `xr_enter_to_first_frame_ms` for immersive-startup analysis. |
+| `app_init_to_first_frame_ms` | number optional | Time from script initialization to first presented content frame |
 | `xr_enter_to_first_frame_ms` | number optional |
 | `xr_dom_overlay_requested` | boolean optional |
 | `xr_abort_reason` | string optional |
