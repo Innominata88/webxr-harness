@@ -684,7 +684,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "safari_timelines:manual",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "avp_canvas_primary_trace_i192_paired_2sets.json",
@@ -711,7 +711,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "safari_timelines:manual",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "quest2_canvas_primary_regular_paired_5sets.json",
@@ -879,7 +879,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "chrome_perf:screenshots=0,memory=1",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "quest2_canvas_primary_trace_i192_paired_2sets.json",
@@ -905,7 +905,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "chrome_perf:screenshots=0,memory=1",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "quest2_canvas_primary_trace_i320_paired_2sets.json",
@@ -931,7 +931,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "chrome_perf:screenshots=0,memory=1",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "quest2_xr_primary_trace_i64_webgl_only_2sets.json",
@@ -957,7 +957,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "chrome_perf:screenshots=0,memory=1",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "quest2_xr_primary_trace_i192_webgl_only_2sets.json",
@@ -983,7 +983,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "chrome_perf:screenshots=0,memory=1",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "pixel8a_canvas_primary_regular_paired_5sets.json",
@@ -1332,7 +1332,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "safari_timelines:manual",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "avp_xr_primary_trace_i128_paired_2sets.json",
@@ -1359,7 +1359,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "safari_timelines:manual",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "avp_xr_primary_trace_i192_paired_2sets.json",
@@ -1386,7 +1386,7 @@ const baselineDefs = [
     profilerMode: "traced_recording",
     profilerConfig: "safari_timelines:manual",
     traceOverlay: "1",
-    profiles: ["baseline"]
+    profiles: ["baseline", "smoke"]
   },
   {
     file: "ipadairm3_canvas_primary_regular_paired_5sets.json",
