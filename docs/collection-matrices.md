@@ -15,7 +15,9 @@ Use this after the low-instance material XR baseline (`1,2,4,8,16`) is complete.
 
 Stress A manifests:
 
+- `avp_canvas_material_stress_a_paired_5sets.json`
 - `avp_xr_material_stress_a_paired_10sets.json`
+- `quest2_canvas_material_stress_a_paired_5sets.json`
 - `quest2_xr_material_stress_a_webgl_only_5sets.json`
 
 Protocol:
@@ -23,7 +25,9 @@ Protocol:
 - `instances=8,16,32,48,64`
 - `trials=5`
 - `shuffle=1`
+- `AVP Canvas`: paired
 - `AVP`: paired, `xrIdlePresentMode=clear_each_frame`
+- `Quest 2 Canvas`: paired
 - `Quest 2`: WebGL only
 
 Escalation rule:

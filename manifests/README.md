@@ -139,7 +139,9 @@ AVP XR cliff manifests:
 
 XR material stress manifests:
 
+- `manifests/avp_canvas_material_stress_a_paired_5sets.json`
 - `manifests/avp_xr_material_stress_a_paired_10sets.json`
+- `manifests/quest2_canvas_material_stress_a_paired_5sets.json`
 - `manifests/quest2_xr_material_stress_a_webgl_only_5sets.json`
 
 Phone XR failure-rate manifests:
@@ -162,6 +164,8 @@ Phone XR failure-rate manifests:
 - Most paired manifests use `manifestOrderMode=abba_baab` with `manifestRuns=10` (5 runs per API).
 - `AVP_XR_PRIMARY_REGULAR` uses `manifestRuns=20` (10 runs per API) with `trials=5` per run to reduce sustained-session thermal and compositor confounds.
 - `AVP_XR_MATERIAL_STRESS_A` uses instance ladder `8,16,32,48,64` as a separate extension after the low-instance XR material baseline.
+- `AVP_CANVAS_MATERIAL_STRESS_A` uses the same ladder as the XR stress companion in canvas mode.
+- `QUEST2_CANVAS_MATERIAL_STRESS_A` uses the same ladder as the XR stress companion in canvas mode.
 - `QUEST2_XR_MATERIAL_STRESS_A` uses the same ladder in `webgl_only` mode.
 - Single-API manifests use `manifestOrderMode=none` with `manifestRuns=5`.
 - Regular manifests use cooldown `300000` ms (5 min) between runs.
