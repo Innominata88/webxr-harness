@@ -1,0 +1,17 @@
+# Launcher Links
+
+- generated_at: 2026-03-24T14:59:04.365Z
+- launcher_base_url: https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/
+- manifest_base_url: https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/
+- launcher_version: m2026-03-24-b
+- manifest_filter: failurecurve
+
+| Manifest File | Launcher | Manifest URL |
+|---|---|---|
+| pixel8a_xr_ar_failurecurve_i128_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-03-24-b%2Fmanifests%2Fpixel8a_xr_ar_failurecurve_i128_paired_10sets.json%3Fv%3Dm2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/manifests/pixel8a_xr_ar_failurecurve_i128_paired_10sets.json?v=m2026-03-24-b) |
+| pixel8a_xr_ar_failurecurve_i192_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-03-24-b%2Fmanifests%2Fpixel8a_xr_ar_failurecurve_i192_paired_10sets.json%3Fv%3Dm2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/manifests/pixel8a_xr_ar_failurecurve_i192_paired_10sets.json?v=m2026-03-24-b) |
+| pixel8a_xr_ar_failurecurve_i64_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-03-24-b%2Fmanifests%2Fpixel8a_xr_ar_failurecurve_i64_paired_10sets.json%3Fv%3Dm2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/manifests/pixel8a_xr_ar_failurecurve_i64_paired_10sets.json?v=m2026-03-24-b) |
+| samsung_fe5g_xr_ar_failurecurve_i128_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-03-24-b%2Fmanifests%2Fsamsung_fe5g_xr_ar_failurecurve_i128_paired_10sets.json%3Fv%3Dm2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/manifests/samsung_fe5g_xr_ar_failurecurve_i128_paired_10sets.json?v=m2026-03-24-b) |
+| samsung_fe5g_xr_ar_failurecurve_i192_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-03-24-b%2Fmanifests%2Fsamsung_fe5g_xr_ar_failurecurve_i192_paired_10sets.json%3Fv%3Dm2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/manifests/samsung_fe5g_xr_ar_failurecurve_i192_paired_10sets.json?v=m2026-03-24-b) |
+| samsung_fe5g_xr_ar_failurecurve_i64_paired_10sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-03-24-b%2Fmanifests%2Fsamsung_fe5g_xr_ar_failurecurve_i64_paired_10sets.json%3Fv%3Dm2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-24-b/manifests/samsung_fe5g_xr_ar_failurecurve_i64_paired_10sets.json?v=m2026-03-24-b) |
+
