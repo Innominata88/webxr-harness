@@ -75,6 +75,10 @@ const profilerMode = normalizeOptionalString(params.get("profilerMode"))
   || normalizeOptionalString(readMetaContent("webxr-profiler-mode"));
 const profilerConfig = normalizeOptionalString(params.get("profilerConfig"))
   || normalizeOptionalString(readMetaContent("webxr-profiler-config"));
+const traceGate = (params.get("traceGate") || "0") === "1";
+const traceTimestamp = normalizeOptionalString(params.get("traceTimestamp"));
+const traceChromeName = normalizeOptionalString(params.get("traceChromeName"));
+const traceSafariName = normalizeOptionalString(params.get("traceSafariName"));
 const xrIdlePresentMode = (() => {
   const raw = String(params.get("xrIdlePresentMode") || "none").toLowerCase();
   return raw === "clear_each_frame" ? "clear_each_frame" : "none";
@@ -91,6 +95,7 @@ const provenanceInfo = {
   feature_flags_exact: featureFlagsExact,
   profiler_mode: profilerMode,
   profiler_config: profilerConfig,
+  trace_gate: traceGate ? "1" : "0",
   xr_idle_present_mode: xrIdlePresentMode,
   surface_mode: surfaceMode,
   asset_url: modelUrl
@@ -1094,10 +1099,10 @@ const hudEl = document.createElement("div");
 hudEl.id = "bench-hud";
 hudEl.style.cssText = [
   "position:fixed",
-  "left:12px",
-  "top:52px",
+  "right:12px",
+  "top:84px",
   "z-index:999999",
-  "max-width:70vw",
+  "max-width:min(42vw, 420px)",
   "padding:8px 10px",
   "border-radius:10px",
   "background:rgba(0,0,0,0.55)",
@@ -1109,12 +1114,36 @@ hudEl.style.cssText = [
 ].join(";");
 document.body.appendChild(hudEl);
 
+function topOverlayBottomPx() {
+  let bottom = 0;
+  const header = document.querySelector("header");
+  if (header) {
+    const rect = header.getBoundingClientRect();
+    if (Number.isFinite(rect.bottom)) bottom = Math.max(bottom, rect.bottom);
+  }
+  const traceGate = document.getElementById("traceGatePanel");
+  if (traceGate && traceGate.style.display !== "none") {
+    const rect = traceGate.getBoundingClientRect();
+    if (Number.isFinite(rect.bottom)) bottom = Math.max(bottom, rect.bottom);
+  }
+  return bottom;
+}
+
+function syncHudPosition() {
+  const topPx = Math.max(12, Math.ceil(topOverlayBottomPx() + 12));
+  hudEl.style.top = `${topPx}px`;
+}
+
+syncHudPosition();
+window.addEventListener("resize", syncHudPosition);
+
 let _hudTimer = null;
 function hudShow() { if (hudEnabled) hudEl.style.display = "block"; }
 function hudHide() { hudEl.style.display = "none"; }
 function hudSet(text) { if (hudEnabled) hudEl.textContent = text; }
 function hudStartAuto(getTextFn) {
   if (!hudEnabled) return;
+  syncHudPosition();
   hudShow();
   const period = Math.round(1000 / hudHz);
   if (_hudTimer) clearInterval(_hudTimer);
@@ -1144,6 +1173,52 @@ function downloadTextAuto(text, filename, mime="application/jsonl") {
 
 const _pendingDownloads = []; // {label, filename, text, mime, summary}
 let _resultsPanelEl = null;
+let _traceGateOverlayEl = null;
+let _traceGateReleased = !traceGate;
+let _traceGateReleaseResolver = null;
+const _traceGateReleasePromise = traceGate
+  ? new Promise((resolve) => { _traceGateReleaseResolver = resolve; })
+  : Promise.resolve({ source: "disabled" });
+
+function pendingDownloadsStorageKey() {
+  return `webxr_harness_pending_downloads::webgpu::${suiteId}::${runId}`;
+}
+
+function persistPendingDownloads() {
+  if (!manualDownload) return;
+  try {
+    const payload = {
+      schema: "webxr-harness-pending-downloads/v1",
+      api: "webgpu",
+      suite_id: suiteId,
+      run_id: runId,
+      updated_at_iso: new Date().toISOString(),
+      items: _pendingDownloads.map((item) => ({
+        label: item.label,
+        filename: item.filename,
+        text: item.text,
+        mime: item.mime
+      }))
+    };
+    localStorage.setItem(pendingDownloadsStorageKey(), JSON.stringify(payload));
+  } catch (e) {
+    console.warn("Failed to persist pending downloads.", e);
+  }
+}
+
+function clearPersistedPendingDownloads() {
+  try {
+    localStorage.removeItem(pendingDownloadsStorageKey());
+  } catch (_) {}
+}
+
+function currentTraceNames() {
+  return {
+    chrome: traceChromeName || "",
+    safari: traceSafariName || "",
+    timestamp: traceTimestamp || ""
+  };
+}
 
 async function copyToClipboard(text) {
   try {
@@ -1203,6 +1278,82 @@ function ensureResultsPanel() {
 
   _resultsPanelEl = panel;
   return panel;
+}
+
+function ensureTraceGateOverlay() {
+  if (!traceGate) return null;
+  if (_traceGateOverlayEl) return _traceGateOverlayEl;
+
+  const names = currentTraceNames();
+  const panel = document.createElement("div");
+  panel.id = "traceGatePanel";
+  panel.style.position = "fixed";
+  panel.style.left = "12px";
+  panel.style.right = "12px";
+  panel.style.top = "12px";
+  panel.style.zIndex = "10000";
+  panel.style.padding = "14px";
+  panel.style.border = "1px solid rgba(255,255,255,0.18)";
+  panel.style.borderRadius = "12px";
+  panel.style.background = "rgba(0,0,0,0.82)";
+  panel.style.backdropFilter = "blur(10px)";
+  panel.style.color = "#fff";
+  panel.style.fontSize = "13px";
+  panel.innerHTML = `
+    <div style="font-weight:600; margin-bottom:6px;">Trace Gate Active</div>
+    <div style="opacity:0.9; line-height:1.4; margin-bottom:10px;">
+      Benchmark init is paused. Start the profiler first, then release the gate from this panel or from the console.
+    </div>
+    <div style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; opacity:0.9; margin-bottom:10px; overflow-wrap:anywhere;">
+      runId=${runId}<br/>
+      suiteId=${suiteId}<br/>
+      safari=${names.safari || "-"}<br/>
+      chrome=${names.chrome || "-"}
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="traceGateStartBtn" style="padding:8px 12px; border-radius:10px;">Start Trace Run</button>
+      <button id="traceGateCopySafariBtn" style="padding:8px 12px; border-radius:10px;">Copy Safari Name</button>
+      <button id="traceGateCopyChromeBtn" style="padding:8px 12px; border-radius:10px;">Copy Chrome Name</button>
+    </div>
+  `;
+  document.body.appendChild(panel);
+
+  panel.querySelector("#traceGateStartBtn")?.addEventListener("click", () => {
+    releaseTraceGate("button");
+  });
+  panel.querySelector("#traceGateCopySafariBtn")?.addEventListener("click", async () => {
+    const ok = await copyToClipboard(names.safari || "");
+    log(ok ? "Safari trace name copied." : "Safari trace name copy failed.");
+  });
+  panel.querySelector("#traceGateCopyChromeBtn")?.addEventListener("click", async () => {
+    const ok = await copyToClipboard(names.chrome || "");
+    log(ok ? "Chrome trace name copied." : "Chrome trace name copy failed.");
+  });
+
+  _traceGateOverlayEl = panel;
+  return panel;
+}
+
+function releaseTraceGate(source = "console") {
+  if (!traceGate || _traceGateReleased) return false;
+  _traceGateReleased = true;
+  if (_traceGateOverlayEl) {
+    _traceGateOverlayEl.remove();
+    _traceGateOverlayEl = null;
+  }
+  if (_traceGateReleaseResolver) {
+    _traceGateReleaseResolver({ source, at_iso: new Date().toISOString() });
+    _traceGateReleaseResolver = null;
+  }
+  console.info(`Trace gate released (${source}).`);
+  return true;
+}
+
+async function waitForTraceGate() {
+  if (!traceGate) return;
+  ensureTraceGateOverlay();
+  log("Trace gate is active. Start the profiler, then release via button or harnessTrace.releaseGate().");
+  await _traceGateReleasePromise;
 }
 
 function summarizeQueuedJsonl(text) {
@@ -1417,6 +1568,134 @@ function renderResultsPanel() {
   panel.style.display = "block";
 }
 
+function listPendingDownloads() {
+  return _pendingDownloads.map((item, index) => ({
+    index,
+    label: item.label,
+    filename: item.filename,
+    mime: item.mime,
+    bytes: typeof item.text === "string" ? item.text.length : 0,
+    status: item.summary?.status || "UNKNOWN",
+    details: item.summary?.details || ""
+  }));
+}
+
+function downloadPendingItem(item) {
+  if (!item) return null;
+  downloadTextAuto(item.text, item.filename, item.mime);
+  return item.filename;
+}
+
+function restorePendingDownloadsFromStorage() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(pendingDownloadsStorageKey());
+  } catch (_) {}
+  if (!raw) return 0;
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    clearPersistedPendingDownloads();
+    return 0;
+  }
+
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  if (!items.length) {
+    clearPersistedPendingDownloads();
+    return 0;
+  }
+
+  const existing = new Set(_pendingDownloads.map((item) => `${item.filename}\u0000${item.text}`));
+  let added = 0;
+  for (const item of items) {
+    if (!item || typeof item.filename !== "string" || typeof item.text !== "string") continue;
+    const key = `${item.filename}\u0000${item.text}`;
+    if (existing.has(key)) continue;
+    existing.add(key);
+    _pendingDownloads.push({
+      label: (typeof item.label === "string" && item.label) ? item.label : "Recovered results",
+      filename: item.filename,
+      text: item.text,
+      mime: (typeof item.mime === "string" && item.mime) ? item.mime : "application/jsonl",
+      summary: summarizeQueuedJsonl(item.text)
+    });
+    added++;
+  }
+  if (added > 0) {
+    renderResultsPanel();
+    console.info(`Recovered ${added} pending download(s) from local storage.`);
+  }
+  return added;
+}
+
+function installConsoleDownloadHelpers() {
+  const helper = {
+    api: "webgpu",
+    suiteId,
+    runId,
+    storageKey: pendingDownloadsStorageKey(),
+    list: () => listPendingDownloads(),
+    recover: () => restorePendingDownloadsFromStorage(),
+    download(index = 0) {
+      const item = _pendingDownloads[index];
+      return downloadPendingItem(item);
+    },
+    downloadLatest() {
+      const item = _pendingDownloads[_pendingDownloads.length - 1];
+      return downloadPendingItem(item);
+    },
+    downloadAll() {
+      return _pendingDownloads.map((item) => downloadPendingItem(item)).filter(Boolean);
+    },
+    text(index = 0) {
+      const item = _pendingDownloads[index];
+      return item ? item.text : null;
+    },
+    async copy(index = 0) {
+      const item = _pendingDownloads[index];
+      if (!item) return false;
+      return copyToClipboard(item.text);
+    },
+    clearStored() {
+      clearPersistedPendingDownloads();
+      return true;
+    }
+  };
+  window.harnessDownloads = helper;
+  window.webxrHarnessDownloads = helper;
+}
+
+function installTraceConsoleHelpers() {
+  const helper = {
+    gateEnabled: traceGate,
+    gateReleased: () => _traceGateReleased,
+    timestamp: () => traceTimestamp || "",
+    names: () => currentTraceNames(),
+    name(kind = "safari") {
+      const names = currentTraceNames();
+      if (kind === "chrome") return names.chrome || "";
+      return names.safari || "";
+    },
+    printNames() {
+      const names = currentTraceNames();
+      console.info("Trace names", names);
+      return names;
+    },
+    async copyName(kind = "safari") {
+      const text = helper.name(kind);
+      if (!text) return false;
+      return copyToClipboard(text);
+    },
+    releaseGate() {
+      return releaseTraceGate("console");
+    }
+  };
+  window.harnessTrace = helper;
+  window.webxrHarnessTrace = helper;
+}
+
 function queueDownload(text, filename, label="Results", mime="application/jsonl") {
   _pendingDownloads.push({
     label,
@@ -1425,6 +1704,7 @@ function queueDownload(text, filename, label="Results", mime="application/jsonl"
     mime,
     summary: summarizeQueuedJsonl(text)
   });
+  persistPendingDownloads();
   renderResultsPanel();
 }
 
@@ -3663,6 +3943,10 @@ if (!xrActive || !xrStats) {
 async function main() {
   installGlobalErrorListeners();
   installCanvasCrashLifecycleListeners();
+  installConsoleDownloadHelpers();
+  installTraceConsoleHelpers();
+  restorePendingDownloadsFromStorage();
+  await waitForTraceGate();
   setXRButtonDisabled("Checking WebGPU…");
 
   const appliedCanvasDpr = applyCanvasResolutionScale();

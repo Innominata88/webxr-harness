@@ -671,7 +671,7 @@
       return raw;
     }
 
-    function stampRunUrlOutputNames(urlString, token) {
+    function stampRunUrlOutputNames(urlString, token, templates = null) {
       try {
         const u = new URL(String(urlString || ""), location.href);
         const out = u.searchParams.get("out");
@@ -681,6 +681,13 @@
         const outxr = u.searchParams.get("outxr");
         if (typeof outxr === "string" && outxr.length) {
           u.searchParams.set("outxr", applyTimestampToken(outxr, token));
+        }
+        if (templates && typeof templates === "object") {
+          const chrome = applyTimestampToken(templates.chrome, token);
+          const safari = applyTimestampToken(templates.safari, token);
+          if (chrome) u.searchParams.set("traceChromeName", chrome);
+          if (safari) u.searchParams.set("traceSafariName", safari);
+          u.searchParams.set("traceTimestamp", token);
         }
         return u.toString();
       } catch (_) {
@@ -1174,7 +1181,7 @@
         chromeStamped: applyTimestampToken(templates.chrome, token),
         safariStamped: applyTimestampToken(templates.safari, token)
       };
-      const launchUrl = stampRunUrlOutputNames(row.url, token);
+      const launchUrl = stampRunUrlOutputNames(row.url, token, templates);
       if (!progress.traceNameSnapshotByRun || typeof progress.traceNameSnapshotByRun !== "object") {
         progress.traceNameSnapshotByRun = {};
       }
