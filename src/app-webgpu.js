@@ -821,10 +821,10 @@ const traceOverlayEl = (() => {
   el.id = "trace-overlay";
   el.style.cssText = [
     "position:fixed",
-    "left:12px",
-    "top:12px",
+    "right:12px",
+    "top:84px",
     "z-index:999999",
-    "max-width:78vw",
+    "max-width:min(42vw, 420px)",
     "padding:8px 10px",
     "border-radius:10px",
     "background:rgba(0,0,0,0.65)",
@@ -837,8 +837,15 @@ const traceOverlayEl = (() => {
   return el;
 })();
 
+function syncTraceOverlayPosition() {
+  if (!traceOverlayEl) return;
+  const topPx = Math.max(12, Math.ceil(topOverlayBottomPx() + 12));
+  traceOverlayEl.style.top = `${topPx}px`;
+}
+
 function updateTraceOverlay(extra="") {
   if (!traceOverlayEl) return;
+  syncTraceOverlayPosition();
   const lines = [
     `runId: ${runId}`,
     `suiteId: ${suiteId}`,
@@ -849,6 +856,7 @@ function updateTraceOverlay(extra="") {
 }
 
 updateTraceOverlay();
+window.addEventListener("resize", syncTraceOverlayPosition);
 
 function getConnectionObject() {
   return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
