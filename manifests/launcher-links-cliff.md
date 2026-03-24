@@ -1,15 +1,15 @@
 # Launcher Links
 
-- generated_at: 2026-03-24T14:22:24.080Z
+- generated_at: 2026-03-24T14:58:50.624Z
 - launcher_base_url: https://innominata88.github.io/webxr-harness/
 - manifest_base_url: https://innominata88.github.io/webxr-harness/
-- launcher_version: r2026-03-24-a
+- launcher_version: r2026-03-24-b
 - manifest_filter: primary_cliff_i
 
 | Manifest File | Launcher | Manifest URL |
 |---|---|---|
-| avp_xr_primary_cliff_i340_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i340_paired_5sets.json%3Fv%3Dr2026-03-24-a) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i340_paired_5sets.json?v=r2026-03-24-a) |
-| avp_xr_primary_cliff_i345_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i345_paired_5sets.json%3Fv%3Dr2026-03-24-a) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i345_paired_5sets.json?v=r2026-03-24-a) |
-| avp_xr_primary_cliff_i348_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i348_paired_5sets.json%3Fv%3Dr2026-03-24-a) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i348_paired_5sets.json?v=r2026-03-24-a) |
-| avp_xr_primary_cliff_i350_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i350_paired_5sets.json%3Fv%3Dr2026-03-24-a) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i350_paired_5sets.json?v=r2026-03-24-a) |
+| avp_xr_primary_cliff_i340_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i340_paired_5sets.json%3Fv%3Dr2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i340_paired_5sets.json?v=r2026-03-24-b) |
+| avp_xr_primary_cliff_i345_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i345_paired_5sets.json%3Fv%3Dr2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i345_paired_5sets.json?v=r2026-03-24-b) |
+| avp_xr_primary_cliff_i348_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i348_paired_5sets.json%3Fv%3Dr2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i348_paired_5sets.json?v=r2026-03-24-b) |
+| avp_xr_primary_cliff_i350_paired_5sets.json | [Open Launcher](https://innominata88.github.io/webxr-harness/run-launcher.html?v=r2026-03-24-b&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifests%2Favp_xr_primary_cliff_i350_paired_5sets.json%3Fv%3Dr2026-03-24-b) | [Manifest JSON](https://innominata88.github.io/webxr-harness/manifests/avp_xr_primary_cliff_i350_paired_5sets.json?v=r2026-03-24-b) |
 
