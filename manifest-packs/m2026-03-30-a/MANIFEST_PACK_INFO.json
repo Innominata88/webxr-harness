@@ -1,0 +1,9 @@
+{
+  "schema": "webxr-harness-manifest-pack/v1",
+  "generatedAt": "2026-03-30T12:56:13.912Z",
+  "manifestTag": "m2026-03-30-a",
+  "harnessReleaseTag": "r2026-03-24-b",
+  "harnessCommit": "84bb3bc",
+  "manifestPublicBaseUrl": "https://innominata88.github.io/webxr-harness/manifest-packs/m2026-03-30-a/",
+  "launcherBaseUrl": "https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/"
+}

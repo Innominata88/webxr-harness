@@ -2298,6 +2298,104 @@ const baselineDefs = [
   }
 ];
 
+function buildStrictSingleRunColdTraceDefs(def, replicateCount = 2) {
+  if (!def || def.apiScope !== "paired") {
+    throw new Error("Strict single-run cold trace expansion requires a paired manifest definition.");
+  }
+  const baseFile = String(def.file || "").replace(/\.json$/i, "");
+  const apiVariants = [
+    { apiScope: "webgl_only", apiTag: "webgl2" },
+    { apiScope: "webgpu_only", apiTag: "webgpu" }
+  ];
+  const out = [];
+  for (let rep = 1; rep <= replicateCount; rep++) {
+    const repTag = `r${String(rep).padStart(2, "0")}`;
+    for (const variant of apiVariants) {
+      out.push({
+        ...def,
+        file: `${baseFile}_${variant.apiTag}_${repTag}_single.json`,
+        suiteId: `${def.suiteId}_${variant.apiTag.toUpperCase()}_${repTag.toUpperCase()}_SINGLE`,
+        runIdBase: `${def.runIdBase}_${variant.apiTag}_${repTag}_single`,
+        apiScope: variant.apiScope,
+        orderMode: "none",
+        runCount: 1,
+        cooldownBetweenRunsMs: 0,
+        profiles: ["baseline"],
+        notes: `${def.notes ? `${def.notes} ` : ""}Strict single-run cold trace manifest (${variant.apiTag}, ${repTag}). Relaunch and clear browser state before each run.`
+      });
+    }
+  }
+  return out;
+}
+
+function buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes) {
+  return {
+    ...def,
+    file,
+    suiteId,
+    runIdBase,
+    profilerMode: "traced_recording",
+    profilerConfig: "chrome_perf:screenshots=0,memory=1",
+    traceOverlay: "1",
+    profiles: ["baseline"],
+    notes: `${notes}${def.notes ? ` ${def.notes}` : ""}`.trim()
+  };
+}
+
+const strictSingleRunColdTraceSourceFiles = [
+  "pixel8a_canvas_material_stress_probe_a_i16_i32_cold_trace_i32_paired_2sets.json",
+  "pixel8a_xr_vr_material_stress_probe_a_cold_trace_i64_paired_2sets.json",
+  "samsung_fe5g_canvas_material_stress_probe_a_cold_trace_i64_paired_2sets.json",
+  "samsung_fe5g_xr_vr_material_stress_probe_a_cold_trace_i64_paired_2sets.json"
+];
+
+baselineDefs.push(
+  ...strictSingleRunColdTraceSourceFiles.flatMap((file) => {
+    const def = baselineDefs.find((entry) => entry.file === file);
+    if (!def) throw new Error(`Missing cold trace source def: ${file}`);
+    return buildStrictSingleRunColdTraceDefs(def, 2);
+  })
+);
+
+const warmBaselineTraceSourceDefs = [
+  {
+    sourceFile: "pixel8a_canvas_material_complexity_regular_paired_5sets.json",
+    file: "pixel8a_canvas_material_complexity_regular_warm_trace_paired_5sets.json",
+    suiteId: "PIXEL8A_CANVAS_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "pixel8a_canvas_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the Pixel canvas material baseline cohort."
+  },
+  {
+    sourceFile: "pixel8a_xr_vr_material_complexity_stabilized_paired_5sets.json",
+    file: "pixel8a_xr_vr_material_complexity_stabilized_warm_trace_paired_5sets.json",
+    suiteId: "PIXEL8A_XR_VR_MATERIAL_COMPLEXITY_STABILIZED_WARM_TRACE",
+    runIdBase: "pixel8a_xr_vr_material_complexity_stabilized_warm_trace",
+    notes: "Warm traced version of the stabilized Pixel immersive-vr material baseline cohort."
+  },
+  {
+    sourceFile: "samsung_fe5g_canvas_material_complexity_regular_paired_5sets.json",
+    file: "samsung_fe5g_canvas_material_complexity_regular_warm_trace_paired_5sets.json",
+    suiteId: "SAMSUNG_FE5G_CANVAS_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "samsung_fe5g_canvas_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the Samsung FE canvas material baseline cohort."
+  },
+  {
+    sourceFile: "samsung_fe5g_xr_vr_material_complexity_regular_paired_5sets.json",
+    file: "samsung_fe5g_xr_vr_material_complexity_regular_warm_trace_paired_5sets.json",
+    suiteId: "SAMSUNG_FE5G_XR_VR_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "samsung_fe5g_xr_vr_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the Samsung FE immersive-vr material baseline cohort."
+  }
+];
+
+baselineDefs.push(
+  ...warmBaselineTraceSourceDefs.map(({ sourceFile, file, suiteId, runIdBase, notes }) => {
+    const def = baselineDefs.find((entry) => entry.file === sourceFile);
+    if (!def) throw new Error(`Missing warm baseline trace source def: ${sourceFile}`);
+    return buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes);
+  })
+);
+
 function includesProfile(def, profile) {
   const allowed = Array.isArray(def?.profiles) && def.profiles.length ? def.profiles : ["baseline", "sanity", "smoke"];
   return allowed.includes(profile);
