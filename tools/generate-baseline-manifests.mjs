@@ -2299,14 +2299,21 @@ const baselineDefs = [
 ];
 
 function buildStrictSingleRunColdTraceDefs(def, replicateCount = 2) {
-  if (!def || def.apiScope !== "paired") {
-    throw new Error("Strict single-run cold trace expansion requires a paired manifest definition.");
+  if (!def || !["paired", "webgl_only", "webgpu_only"].includes(def.apiScope)) {
+    throw new Error("Strict single-run cold trace expansion requires a paired or single-api manifest definition.");
   }
   const baseFile = String(def.file || "").replace(/\.json$/i, "");
-  const apiVariants = [
-    { apiScope: "webgl_only", apiTag: "webgl2" },
-    { apiScope: "webgpu_only", apiTag: "webgpu" }
-  ];
+  const apiVariants = def.apiScope === "paired"
+    ? [
+        { apiScope: "webgl_only", apiTag: "webgl2" },
+        { apiScope: "webgpu_only", apiTag: "webgpu" }
+      ]
+    : [
+        {
+          apiScope: def.apiScope,
+          apiTag: def.apiScope === "webgpu_only" ? "webgpu" : "webgl2"
+        }
+      ];
   const out = [];
   for (let rep = 1; rep <= replicateCount; rep++) {
     const repTag = `r${String(rep).padStart(2, "0")}`;
@@ -2328,14 +2335,15 @@ function buildStrictSingleRunColdTraceDefs(def, replicateCount = 2) {
   return out;
 }
 
-function buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes) {
+function buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes, overrides = {}) {
   return {
     ...def,
     file,
     suiteId,
     runIdBase,
+    ...overrides,
     profilerMode: "traced_recording",
-    profilerConfig: "chrome_perf:screenshots=0,memory=1",
+    profilerConfig: overrides.profilerConfig || def.profilerConfig || "chrome_perf:screenshots=0,memory=1",
     traceOverlay: "1",
     profiles: ["baseline"],
     notes: `${notes}${def.notes ? ` ${def.notes}` : ""}`.trim()
@@ -2343,8 +2351,18 @@ function buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes) {
 }
 
 const strictSingleRunColdTraceSourceFiles = [
+  "avp_canvas_primary_trace_i64_paired_2sets.json",
+  "avp_canvas_primary_trace_i192_paired_2sets.json",
+  "avp_xr_primary_trace_i64_paired_2sets.json",
+  "avp_xr_primary_trace_i128_paired_2sets.json",
+  "avp_xr_primary_trace_i192_paired_2sets.json",
   "pixel8a_canvas_material_stress_probe_a_i16_i32_cold_trace_i32_paired_2sets.json",
   "pixel8a_xr_vr_material_stress_probe_a_cold_trace_i64_paired_2sets.json",
+  "quest2_canvas_primary_trace_i64_paired_2sets.json",
+  "quest2_canvas_primary_trace_i192_paired_2sets.json",
+  "quest2_canvas_primary_trace_i320_paired_2sets.json",
+  "quest2_xr_primary_trace_i64_webgl_only_2sets.json",
+  "quest2_xr_primary_trace_i192_webgl_only_2sets.json",
   "samsung_fe5g_canvas_material_stress_probe_a_cold_trace_i64_paired_2sets.json",
   "samsung_fe5g_xr_vr_material_stress_probe_a_cold_trace_i64_paired_2sets.json"
 ];
@@ -2359,6 +2377,22 @@ baselineDefs.push(
 
 const warmBaselineTraceSourceDefs = [
   {
+    sourceFile: "avp_canvas_material_complexity_regular_paired_5sets.json",
+    file: "avp_canvas_material_complexity_regular_warm_trace_paired_5sets.json",
+    suiteId: "AVP_CANVAS_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "avp_canvas_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the AVP canvas material baseline cohort.",
+    overrides: { profilerConfig: "safari_timelines:manual" }
+  },
+  {
+    sourceFile: "avp_xr_material_complexity_regular_paired_10sets.json",
+    file: "avp_xr_material_complexity_regular_warm_trace_paired_10sets.json",
+    suiteId: "AVP_XR_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "avp_xr_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the AVP XR material baseline cohort.",
+    overrides: { profilerConfig: "safari_timelines:manual" }
+  },
+  {
     sourceFile: "pixel8a_canvas_material_complexity_regular_paired_5sets.json",
     file: "pixel8a_canvas_material_complexity_regular_warm_trace_paired_5sets.json",
     suiteId: "PIXEL8A_CANVAS_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
@@ -2371,6 +2405,20 @@ const warmBaselineTraceSourceDefs = [
     suiteId: "PIXEL8A_XR_VR_MATERIAL_COMPLEXITY_STABILIZED_WARM_TRACE",
     runIdBase: "pixel8a_xr_vr_material_complexity_stabilized_warm_trace",
     notes: "Warm traced version of the stabilized Pixel immersive-vr material baseline cohort."
+  },
+  {
+    sourceFile: "quest2_canvas_material_complexity_regular_paired_5sets.json",
+    file: "quest2_canvas_material_complexity_regular_warm_trace_paired_5sets.json",
+    suiteId: "QUEST2_CANVAS_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "quest2_canvas_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the Quest canvas material baseline cohort."
+  },
+  {
+    sourceFile: "quest2_xr_material_complexity_regular_webgl_only_5sets.json",
+    file: "quest2_xr_material_complexity_regular_webgl_only_warm_trace_5sets.json",
+    suiteId: "QUEST2_XR_MATERIAL_COMPLEXITY_REGULAR_WARM_TRACE",
+    runIdBase: "quest2_xr_material_complexity_regular_warm_trace",
+    notes: "Warm traced version of the Quest XR material baseline cohort."
   },
   {
     sourceFile: "samsung_fe5g_canvas_material_complexity_regular_paired_5sets.json",
@@ -2389,10 +2437,10 @@ const warmBaselineTraceSourceDefs = [
 ];
 
 baselineDefs.push(
-  ...warmBaselineTraceSourceDefs.map(({ sourceFile, file, suiteId, runIdBase, notes }) => {
+  ...warmBaselineTraceSourceDefs.map(({ sourceFile, file, suiteId, runIdBase, notes, overrides }) => {
     const def = baselineDefs.find((entry) => entry.file === sourceFile);
     if (!def) throw new Error(`Missing warm baseline trace source def: ${sourceFile}`);
-    return buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes);
+    return buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes, overrides);
   })
 );
 
