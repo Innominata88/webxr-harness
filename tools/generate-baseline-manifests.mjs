@@ -12,7 +12,7 @@ const releaseTag = process.env.HARNESS_RELEASE_TAG || "";
 const baseUrl = deriveEffectiveBaseUrl(rootBaseUrl, releaseTag);
 const manifestVersion = String(process.env.MANIFEST_VERSION || "").trim();
 const manifestProfile = String(process.env.MANIFEST_PROFILE || "baseline").trim().toLowerCase();
-const modelUrl = "./assets/spiderman_2002_movie_version_sam_raimi_0.glb";
+const modelUrl = String(process.env.MODEL_URL || "./assets/spiderman_2002_movie_version_sam_raimi_0.glb").trim();
 const releaseCommitShort = readReleaseCommitShort(releaseTag);
 const explicitHarnessCommit = String(process.env.HARNESS_COMMIT || "").trim();
 if (explicitHarnessCommit && releaseCommitShort && explicitHarnessCommit !== releaseCommitShort) {
@@ -22,7 +22,7 @@ if (explicitHarnessCommit && releaseCommitShort && explicitHarnessCommit !== rel
 }
 const harnessCommit = explicitHarnessCommit || releaseCommitShort || safeGitShortHash() || "";
 const harnessVersion = process.env.HARNESS_VERSION || releaseTag || "";
-const assetRevision = process.env.ASSET_REVISION || "spiderman_2002_movie_version_sam_raimi_0";
+const assetRevision = String(process.env.ASSET_REVISION || "").trim() || path.basename(modelUrl).replace(/\.[^/.]+$/, "");
 const requiredFlagsProfileId = process.env.FEATURE_FLAGS_PROFILE_ID || "webxr-webgpu-flags-v1";
 const requiredFlagsExact = process.env.FEATURE_FLAGS_EXACT || "webxr_projection_layers=1;webxr_webgpu_binding=1;webgpu=1";
 const generatedAt = String(process.env.GENERATED_AT || "").trim() || new Date().toISOString();
@@ -2374,6 +2374,76 @@ const baselineDefs = [
     cooldownBetweenRunsMs: 300000
   },
   {
+    file: "macbookpro_m1_canvas_material_complexity_regular_safari_paired_5sets.json",
+    suiteId: "MACBOOKPRO_M1_CANVAS_MATERIAL_COMPLEXITY_REGULAR_SAFARI",
+    runIdBase: "macbookpro_m1_canvas_material_complexity_regular_safari",
+    deviceTag: "macbookpro-m1",
+    browserTag: "safari-macos",
+    runMode: "canvas",
+    xrSessionMode: "immersive-vr",
+    instances: "1,2,4,8,16,32",
+    trials: "5",
+    layout: "xrwall",
+    surfaceMode: "basecolor",
+    shuffle: "1",
+    preIdleMs: "0",
+    postIdleMs: "0",
+    apiScope: "paired",
+    orderMode: "abba_baab",
+    runCount: 10,
+    orderSeed: "12345",
+    cooldownBetweenRunsMs: 300000,
+    notes: "Safari browser-sensitivity companion for the MacBook Pro canvas material baseline cohort."
+  },
+  {
+    file: "macbookpro_m1_canvas_material_stress_a_paired_5sets.json",
+    suiteId: "MACBOOKPRO_M1_CANVAS_MATERIAL_STRESS_A",
+    runIdBase: "macbookpro_m1_canvas_material_stress_a",
+    deviceTag: "macbookpro-m1",
+    browserTag: "chrome-macos",
+    runMode: "canvas",
+    xrSessionMode: "immersive-vr",
+    instances: "8,16,32,48,64",
+    trials: "5",
+    layout: "xrwall",
+    spacing: "0.25",
+    surfaceMode: "basecolor",
+    cooldownMs: "1000",
+    shuffle: "1",
+    preIdleMs: "0",
+    postIdleMs: "0",
+    apiScope: "paired",
+    orderMode: "abba_baab",
+    runCount: 10,
+    orderSeed: "12345",
+    cooldownBetweenRunsMs: 300000,
+    notes: "Chrome browser-sensitivity stress cohort for the MacBook Pro canvas material workload."
+  },
+  {
+    file: "macbookpro_m1_canvas_material_stress_a_safari_paired_5sets.json",
+    suiteId: "MACBOOKPRO_M1_CANVAS_MATERIAL_STRESS_A_SAFARI",
+    runIdBase: "macbookpro_m1_canvas_material_stress_a_safari",
+    deviceTag: "macbookpro-m1",
+    browserTag: "safari-macos",
+    runMode: "canvas",
+    xrSessionMode: "immersive-vr",
+    instances: "8,16,32,48,64",
+    trials: "5",
+    layout: "xrwall",
+    spacing: "0.25",
+    surfaceMode: "basecolor",
+    cooldownMs: "1000",
+    shuffle: "1",
+    preIdleMs: "0",
+    postIdleMs: "0",
+    apiScope: "paired",
+    orderMode: "abba_baab",
+    runCount: 10,
+    orderSeed: "12345",
+    cooldownBetweenRunsMs: 300000,
+    notes: "Safari browser-sensitivity stress cohort for the MacBook Pro canvas material workload."
+  },
+  {
     file: "windows_hp_canvas_primary_regular_paired_5sets.json",
     suiteId: "WINDOWS_HP_CANVAS_PRIMARY_REGULAR",
     runIdBase: "windows_hp_canvas_primary_regular",
@@ -2466,6 +2536,77 @@ function buildWarmTraceDefFromSource(def, file, suiteId, runIdBase, notes, overr
     notes: `${notes}${def.notes ? ` ${def.notes}` : ""}`.trim()
   };
 }
+
+function buildVariantDefFromSource(def, file, suiteId, runIdBase, notes, overrides = {}) {
+  return {
+    ...def,
+    file,
+    suiteId,
+    runIdBase,
+    ...overrides,
+    notes: `${notes}${def.notes ? ` ${def.notes}` : ""}`.trim()
+  };
+}
+
+const damagedHelmetStressSourceDefs = [
+  {
+    sourceFile: "samsung_fe5g_canvas_material_stress_probe_a_paired_5sets.json",
+    file: "samsung_fe5g_canvas_material_stress_probe_a_damaged_helmet_i64_paired_5sets.json",
+    suiteId: "SAMSUNG_FE5G_CANVAS_MATERIAL_STRESS_PROBE_A_DAMAGED_HELMET_I64",
+    runIdBase: "samsung_fe5g_canvas_material_stress_probe_a_damaged_helmet_i64",
+    notes: "DamagedHelmet robustness check for Samsung FE canvas stress at the representative i64 rung.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "64"
+    }
+  },
+  {
+    sourceFile: "samsung_fe5g_xr_vr_material_stress_probe_a_paired_5sets.json",
+    file: "samsung_fe5g_xr_vr_material_stress_probe_a_damaged_helmet_i64_paired_5sets.json",
+    suiteId: "SAMSUNG_FE5G_XR_VR_MATERIAL_STRESS_PROBE_A_DAMAGED_HELMET_I64",
+    runIdBase: "samsung_fe5g_xr_vr_material_stress_probe_a_damaged_helmet_i64",
+    notes: "DamagedHelmet robustness check for Samsung FE immersive-vr stress at the representative i64 rung.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "64"
+    }
+  },
+  {
+    sourceFile: "avp_canvas_material_stress_a_paired_5sets.json",
+    file: "avp_canvas_material_stress_a_damaged_helmet_i64_paired_5sets.json",
+    suiteId: "AVP_CANVAS_MATERIAL_STRESS_A_DAMAGED_HELMET_I64",
+    runIdBase: "avp_canvas_material_stress_a_damaged_helmet_i64",
+    notes: "DamagedHelmet robustness check for AVP canvas stress at the representative i64 rung.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "64"
+    }
+  },
+  {
+    sourceFile: "avp_xr_material_stress_a_paired_10sets.json",
+    file: "avp_xr_material_stress_a_damaged_helmet_i64_paired_5sets.json",
+    suiteId: "AVP_XR_MATERIAL_STRESS_A_DAMAGED_HELMET_I64",
+    runIdBase: "avp_xr_material_stress_a_damaged_helmet_i64",
+    notes: "DamagedHelmet robustness check for AVP XR stress at the representative i64 rung.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "64",
+      runCount: 10
+    }
+  }
+];
+
+baselineDefs.push(
+  ...damagedHelmetStressSourceDefs.map(({ sourceFile, file, suiteId, runIdBase, notes, overrides }) => {
+    const def = baselineDefs.find((entry) => entry.file === sourceFile);
+    if (!def) throw new Error(`Missing damaged helmet source def: ${sourceFile}`);
+    return buildVariantDefFromSource(def, file, suiteId, runIdBase, notes, overrides);
+  })
+);
 
 const strictSingleRunColdTraceSourceFiles = [
   "avp_canvas_primary_trace_i64_paired_2sets.json",
@@ -2675,6 +2816,9 @@ function buildManifest(def) {
       orderSeed: def.orderSeed,
       runId: makeManifestRunId(def.runIdBase, runNumber, api)
     };
+
+    if (def.model) rowValues.model = def.model;
+    if (def.assetRevision) rowValues.assetRevision = def.assetRevision;
 
     const core = buildTraceCoreForManifest(rowValues, api, runNumber, def.deviceTag, def.browserTag);
     const chromeTrace = `chrome_trace__${core}__ts=YYYYMMDD-HHMMSS.json`;
