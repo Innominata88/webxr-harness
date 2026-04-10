@@ -2621,6 +2621,18 @@ const damagedHelmetStressSourceDefs = [
       assetRevision: "DamagedHelmet",
       instances: "128"
     }
+  },
+  {
+    sourceFile: "avp_canvas_material_stress_a_paired_5sets.json",
+    file: "avp_canvas_material_stress_a_damaged_helmet_i192_paired_5sets.json",
+    suiteId: "AVP_CANVAS_MATERIAL_STRESS_A_DAMAGED_HELMET_I192",
+    runIdBase: "avp_canvas_material_stress_a_damaged_helmet_i192",
+    notes: "DamagedHelmet follow-up for AVP canvas stress at i192 because both i64 and i128 remained too light to separate APIs.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "192"
+    }
   }
 ];
 
