@@ -2562,6 +2562,18 @@ const damagedHelmetStressSourceDefs = [
     }
   },
   {
+    sourceFile: "samsung_fe5g_canvas_material_stress_probe_a_paired_5sets.json",
+    file: "samsung_fe5g_canvas_material_stress_probe_a_damaged_helmet_i128_paired_5sets.json",
+    suiteId: "SAMSUNG_FE5G_CANVAS_MATERIAL_STRESS_PROBE_A_DAMAGED_HELMET_I128",
+    runIdBase: "samsung_fe5g_canvas_material_stress_probe_a_damaged_helmet_i128",
+    notes: "DamagedHelmet follow-up for Samsung FE canvas stress at i128 because the i64 canvas rung was too light to separate APIs.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "128"
+    }
+  },
+  {
     sourceFile: "samsung_fe5g_xr_vr_material_stress_probe_a_paired_5sets.json",
     file: "samsung_fe5g_xr_vr_material_stress_probe_a_damaged_helmet_i64_paired_5sets.json",
     suiteId: "SAMSUNG_FE5G_XR_VR_MATERIAL_STRESS_PROBE_A_DAMAGED_HELMET_I64",
@@ -2596,6 +2608,18 @@ const damagedHelmetStressSourceDefs = [
       assetRevision: "DamagedHelmet",
       instances: "64",
       runCount: 10
+    }
+  },
+  {
+    sourceFile: "avp_canvas_material_stress_a_paired_5sets.json",
+    file: "avp_canvas_material_stress_a_damaged_helmet_i128_paired_5sets.json",
+    suiteId: "AVP_CANVAS_MATERIAL_STRESS_A_DAMAGED_HELMET_I128",
+    runIdBase: "avp_canvas_material_stress_a_damaged_helmet_i128",
+    notes: "DamagedHelmet follow-up for AVP canvas stress at i128 because the i64 canvas rung was too light to separate APIs.",
+    overrides: {
+      model: "./assets/DamagedHelmet.glb",
+      assetRevision: "DamagedHelmet",
+      instances: "128"
     }
   }
 ];
