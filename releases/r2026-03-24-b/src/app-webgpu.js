@@ -277,6 +277,8 @@ const xrSessionMode = (() => {
 })();
 const xrSessionModeLabel = xrSessionMode === "immersive-ar" ? "AR" : "VR";
 const xrSessionModeShort = xrSessionMode === "immersive-ar" ? "ar" : "vr";
+const xrTransparentBackground = xrSessionMode === "immersive-ar";
+const webgpuCanvasAlphaMode = xrTransparentBackground ? "premultiplied" : "opaque";
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
 const manualStart = (params.get("manualStart") || "0") === "1";
 const batteryTelemetry = (params.get("batteryTelemetry") || "1") !== "0";
@@ -738,7 +740,7 @@ function recreateCanvasDepthTexture() {
 function resyncCanvasSurfaceForRun() {
   const appliedDpr = applyCanvasResolutionScale();
   if (context && device && colorFormat) {
-    context.configure({ device, format: colorFormat, alphaMode: "opaque" });
+    context.configure({ device, format: colorFormat, alphaMode: webgpuCanvasAlphaMode });
   }
   recreateCanvasDepthTexture();
   if (renderer) {
@@ -2148,7 +2150,7 @@ const device_limits = copyLimits(device.limits || {});
 
   context = canvas.getContext("webgpu");
   colorFormat = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({ device, format: colorFormat, alphaMode: "opaque" });
+  context.configure({ device, format: colorFormat, alphaMode: webgpuCanvasAlphaMode });
   recreateCanvasDepthTexture();
 
   renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor, surfaceMode });
@@ -3675,7 +3677,7 @@ async function onSessionStarted(session) {
   if (preferred !== colorFormat) {
     colorFormat = preferred;
     envInfo.colorFormat = colorFormat;
-    context.configure({ device, format: colorFormat, alphaMode:"opaque" });
+    context.configure({ device, format: colorFormat, alphaMode: webgpuCanvasAlphaMode });
     renderer = new WebGPUMeshRenderer(device, colorFormat, "depth24plus", { debugColor, surfaceMode });
     if (!sceneMesh) throw new Error("Scene mesh not loaded");
     renderer.setMesh(sceneMesh);
@@ -3789,7 +3791,7 @@ if (!xrActive || !xrStats) {
               view: subImage.colorTexture.createView(subImage.getViewDescriptor()),
               loadOp: "clear",
               storeOp: "store",
-              clearValue: [0,0,0,1]
+              clearValue: [0,0,0,xrTransparentBackground ? 0 : 1]
             }]
           });
           pass.end();
@@ -3876,7 +3878,7 @@ if (!xrActive || !xrStats) {
         view: subImage.colorTexture.createView(subImage.getViewDescriptor()),
         loadOp: "clear",
         storeOp: "store",
-        clearValue: [0.05,0.05,0.08,1]
+        clearValue: [0.05,0.05,0.08,xrTransparentBackground ? 0 : 1]
       }],
       depthStencilAttachment: {
         view: subImage.depthStencilTexture.createView(subImage.getViewDescriptor()),

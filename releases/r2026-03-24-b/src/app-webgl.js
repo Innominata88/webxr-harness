@@ -277,6 +277,7 @@ const xrSessionMode = (() => {
 })();
 const xrSessionModeLabel = xrSessionMode === "immersive-ar" ? "AR" : "VR";
 const xrSessionModeShort = xrSessionMode === "immersive-ar" ? "ar" : "vr";
+const xrTransparentBackground = xrSessionMode === "immersive-ar";
 const canvasAutoDelayMs = parseInt(params.get("canvasAutoDelayMs") || "1000", 10);
 const manualStart = (params.get("manualStart") || "0") === "1";
 const batteryTelemetry = (params.get("batteryTelemetry") || "1") !== "0";
@@ -1860,6 +1861,8 @@ async function initGL() {
   gl = canvas.getContext("webgl2", {
     antialias: false,
     depth: true,
+    alpha: true,
+    premultipliedAlpha: true,
     powerPreference: "high-performance",
   });
   if (!gl) {
@@ -3536,7 +3539,9 @@ async function onSessionStarted(session) {
   for (let i = 0; i < scaleCandidates.length; i++) {
     const s = scaleCandidates[i];
     try {
-      baseLayer = new XRWebGLLayer(session, gl, { framebufferScaleFactor: s });
+      const layerInit = { framebufferScaleFactor: s };
+      if (xrTransparentBackground) layerInit.alpha = true;
+      baseLayer = new XRWebGLLayer(session, gl, layerInit);
       appliedScale = s;
       usedScaleFallback = i > 0;
       break;
@@ -3547,7 +3552,9 @@ async function onSessionStarted(session) {
 
   if (!baseLayer) {
     try {
-      baseLayer = new XRWebGLLayer(session, gl);
+      baseLayer = xrTransparentBackground
+        ? new XRWebGLLayer(session, gl, { alpha: true })
+        : new XRWebGLLayer(session, gl);
       appliedScale = null;
       usedScaleFallback = true;
       if (envInfo) envInfo.xr_projection_layer_fallback = "default_without_scale";
@@ -3603,7 +3610,7 @@ if (!xrActive || !xrStats) {
         attemptedIdleClear = true;
         const glLayer = session.renderState.baseLayer;
         gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-        gl.clearColor(0,0,0,1);
+        gl.clearColor(0,0,0,xrTransparentBackground ? 0 : 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.flush?.();
       }
@@ -3665,7 +3672,7 @@ if (!xrActive || !xrStats) {
 
   const glLayer = session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-  gl.clearColor(0.05,0.05,0.08,1);
+  gl.clearColor(0.05,0.05,0.08,xrTransparentBackground ? 0 : 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   let framePixelTotal = 0;
