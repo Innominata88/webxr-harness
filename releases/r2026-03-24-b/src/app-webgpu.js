@@ -1690,13 +1690,37 @@ function installTraceConsoleHelpers() {
     },
     printNames() {
       const names = currentTraceNames();
-      console.info("Trace names", names);
+      console.info("Chrome trace name:", names.chrome || "");
+      console.info("Safari trace name:", names.safari || "");
+      console.info("Trace timestamp:", names.timestamp || "");
       return names;
+    },
+    chromeName() {
+      return helper.name("chrome");
+    },
+    safariName() {
+      return helper.name("safari");
+    },
+    printChromeName() {
+      const text = helper.name("chrome");
+      console.info(text);
+      return text;
+    },
+    printSafariName() {
+      const text = helper.name("safari");
+      console.info(text);
+      return text;
     },
     async copyName(kind = "safari") {
       const text = helper.name(kind);
       if (!text) return false;
       return copyToClipboard(text);
+    },
+    async copyChromeName() {
+      return helper.copyName("chrome");
+    },
+    async copySafariName() {
+      return helper.copyName("safari");
     },
     releaseGate() {
       return releaseTraceGate("console");
