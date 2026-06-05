@@ -1,0 +1,7 @@
+{
+  "manifest_tag": "m2026-06-05-a",
+  "release_tag": "r2026-03-24-b",
+  "harness_commit": "84bb3bc",
+  "description": "Phone immersive-ar warm trace pack: canonical full warm traces plus sanity fallback manifests for Pixel 8a and Samsung Galaxy FE AR stress cohorts.",
+  "generated_at": "2026-06-05T15:00:08.803Z"
+}
