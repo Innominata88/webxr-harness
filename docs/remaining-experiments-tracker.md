@@ -17,24 +17,30 @@ Use this as the working tracker during collection. The planning details live in 
 
 - [ ] `Canvas material` smoke
   - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_smoke_1sets.json`
-- [ ] Confirm both `WebGL2` and `WebGPU` render in HoloLens Canvas material smoke
+- [ ] If HoloLens reports `no WebGPU adapter`, switch to `Canvas material` WebGL-only smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_webgl_only_smoke_1sets.json`
+- [ ] Confirm HoloLens Canvas mode is either paired-capable or explicitly `WebGL-only`
 - [ ] `XR material` smoke
   - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json`
 - [ ] Confirm `immersive-ar` WebGL fallback works in HoloLens XR material smoke
 - [ ] `Canvas material` sanity
-  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_sanity_2sets.json`
+  - paired manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_sanity_2sets.json`
+  - WebGL-only fallback: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_webgl_only_sanity_2sets.json`
 - [ ] `XR material` sanity
   - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_sanity_2sets.json`
 - [ ] `Canvas material` full
-  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_5sets.json`
+  - paired manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_5sets.json`
+  - WebGL-only fallback: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_webgl_only_5sets.json`
 - [ ] `XR material` full
   - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_5sets.json`
 - [ ] If both material branches are clean: `Canvas primary` smoke
-  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_smoke_1sets.json`
+  - paired manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_smoke_1sets.json`
+  - WebGL-only fallback: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_webgl_only_smoke_1sets.json`
 - [ ] If both material branches are clean: `XR primary` smoke
   - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_primary_regular_webgl_only_smoke_1sets.json`
 - [ ] If primary smoke passes: `Canvas primary` full
-  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_5sets.json`
+  - paired manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_5sets.json`
+  - WebGL-only fallback: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_webgl_only_5sets.json`
 - [ ] If primary smoke passes: `XR primary` full
   - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_primary_regular_webgl_only_5sets.json`
 
@@ -76,18 +82,25 @@ Use this as the working tracker during collection. The planning details live in 
 
 - [ ] `Canvas material` smoke
   - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_smoke_1sets.json`
-- [ ] Confirm both `WebGL2` and `WebGPU` render in Magic Leap Canvas material smoke
+- [ ] If Magic Leap reports `no WebGPU adapter`, switch to `Canvas material` WebGL-only smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_webgl_only_smoke_1sets.json`
+- [ ] Confirm Magic Leap Canvas mode is either paired-capable or explicitly `WebGL-only`
 - [ ] `XR material` smoke
   - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json`
 - [ ] Confirm `immersive-ar` WebGL fallback works in Magic Leap XR material smoke
 - [ ] If both smoke gates pass: `Canvas material` full
-  - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_5sets.json`
+  - paired manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_5sets.json`
+  - WebGL-only fallback: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_webgl_only_5sets.json`
 - [ ] If both smoke gates pass: `XR material` full
   - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_5sets.json`
 - [ ] If material full passes: `Canvas primary` smoke/full
   - manifests:
-    - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_smoke_1sets.json`
-    - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_5sets.json`
+    - paired:
+      - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_smoke_1sets.json`
+      - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_5sets.json`
+    - WebGL-only fallback:
+      - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_webgl_only_smoke_1sets.json`
+      - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_webgl_only_5sets.json`
 - [ ] If material full passes: `XR primary` smoke/full
   - manifests:
     - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_primary_regular_webgl_only_smoke_1sets.json`

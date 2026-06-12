@@ -26,6 +26,10 @@ Canvas material smoke:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_material_complexity_regular_paired_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
 - manifest: `https://innominata88.github.io/webxr-harness/manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_smoke_1sets.json?v=m2026-06-12-a`
 
+If HoloLens reports `no WebGPU adapter`, use this fallback instead:
+- launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_material_complexity_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
+- manifest: `https://innominata88.github.io/webxr-harness/manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_webgl_only_smoke_1sets.json?v=m2026-06-12-a`
+
 XR material smoke:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
 - manifest: `https://innominata88.github.io/webxr-harness/manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json?v=m2026-06-12-a`
@@ -38,6 +42,9 @@ Canvas material sanity:
 Canvas material full:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_material_complexity_regular_paired_5sets.json%3Fv%3Dm2026-06-12-a`
 
+Canvas material full, WebGL-only fallback:
+- launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_material_complexity_regular_webgl_only_5sets.json%3Fv%3Dm2026-06-12-a`
+
 XR material sanity:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_xr_ar_material_complexity_regular_webgl_only_sanity_2sets.json%3Fv%3Dm2026-06-12-a`
 
@@ -49,8 +56,14 @@ XR material full:
 Canvas primary smoke:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_primary_regular_paired_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
 
+Canvas primary smoke, WebGL-only fallback:
+- launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_primary_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
+
 Canvas primary full:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_primary_regular_paired_5sets.json%3Fv%3Dm2026-06-12-a`
+
+Canvas primary full, WebGL-only fallback:
+- launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_canvas_primary_regular_webgl_only_5sets.json%3Fv%3Dm2026-06-12-a`
 
 XR primary smoke:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fhololens2_xr_ar_primary_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
@@ -108,14 +121,33 @@ Start here only after HoloLens is underway.
 Canvas material smoke:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_material_complexity_regular_paired_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
 
+If Magic Leap reports `no WebGPU adapter`, use this fallback instead:
+- launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_material_complexity_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
+
 XR material smoke:
 - launcher: `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
 
 If both smoke gates pass, promote to:
 - `Canvas material` full:
   - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_material_complexity_regular_paired_5sets.json%3Fv%3Dm2026-06-12-a`
+- `Canvas material` full, WebGL-only fallback:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_material_complexity_regular_webgl_only_5sets.json%3Fv%3Dm2026-06-12-a`
 - `XR material` full:
   - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_xr_ar_material_complexity_regular_webgl_only_5sets.json%3Fv%3Dm2026-06-12-a`
+
+If Magic Leap material full is clean and you promote to primary:
+- `Canvas primary` smoke:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_primary_regular_paired_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
+- `Canvas primary` smoke, WebGL-only fallback:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_primary_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
+- `Canvas primary` full:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_primary_regular_paired_5sets.json%3Fv%3Dm2026-06-12-a`
+- `Canvas primary` full, WebGL-only fallback:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_canvas_primary_regular_webgl_only_5sets.json%3Fv%3Dm2026-06-12-a`
+- `XR primary` smoke:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_xr_ar_primary_regular_webgl_only_smoke_1sets.json%3Fv%3Dm2026-06-12-a`
+- `XR primary` full:
+  - `https://innominata88.github.io/webxr-harness/releases/r2026-03-24-b/run-launcher.html?v=m2026-06-12-a&manifest=https%3A%2F%2Finnominata88.github.io%2Fwebxr-harness%2Fmanifest-packs%2Fm2026-06-12-a%2Fmanifests%2Fmagicleap2_xr_ar_primary_regular_webgl_only_5sets.json%3Fv%3Dm2026-06-12-a`
 
 Optional paired XR diagnostic only if the beta browser clearly exposes `navigator.gpu` plus `XRGPUBinding`:
 - local diagnostic candidate: `manifests/magicleap2_xr_ar_material_complexity_regular_paired_5sets.json`

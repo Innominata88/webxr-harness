@@ -58,6 +58,19 @@ const cohortDefs = [
       "Quest-style headset browser canvas material cohort. Use this to test WebGL2 vs WebGPU without XR-session support confounds.",
   },
   {
+    key: "canvas_material_complexity_regular_webgl_only",
+    fileBase: "canvas_material_complexity_regular",
+    suiteSuffix: "CANVAS_MATERIAL_COMPLEXITY_REGULAR",
+    runIdBaseSuffix: "canvas_material_complexity_regular",
+    runMode: "canvas",
+    apiScope: "webgl_only",
+    instances: "1,2,4,8,16",
+    trials: "5",
+    surfaceMode: "basecolor",
+    notes:
+      "Quest-style headset browser canvas fallback cohort. Use this when the headset browser exposes WebGL but not a usable WebGPU adapter.",
+  },
+  {
     key: "canvas_primary_regular",
     fileBase: "canvas_primary_regular",
     suiteSuffix: "CANVAS_PRIMARY_REGULAR",
@@ -69,6 +82,19 @@ const cohortDefs = [
     surfaceMode: "flat",
     notes:
       "Quest-style headset browser canvas primary cohort. Use this if the material cohort is clean and you want the heavier flat ladder.",
+  },
+  {
+    key: "canvas_primary_regular_webgl_only",
+    fileBase: "canvas_primary_regular",
+    suiteSuffix: "CANVAS_PRIMARY_REGULAR",
+    runIdBaseSuffix: "canvas_primary_regular",
+    runMode: "canvas",
+    apiScope: "webgl_only",
+    instances: "64,128,192",
+    trials: "10",
+    surfaceMode: "flat",
+    notes:
+      "Quest-style headset browser canvas fallback primary cohort. Use this when the headset browser supports only WebGL in browser mode.",
   },
   {
     key: "xr_ar_material_complexity_regular",
