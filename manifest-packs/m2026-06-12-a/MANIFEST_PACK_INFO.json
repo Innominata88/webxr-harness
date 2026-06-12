@@ -1,0 +1,6 @@
+{
+  "manifestTag": "m2026-06-12-a",
+  "releaseTag": "r2026-03-24-b",
+  "generatedAt": "2026-06-12T19:37:26.374Z",
+  "description": "Headset browser reevaluation pack: HoloLens 2 and Magic Leap 2 split into Quest-style paired Canvas cohorts and WebGL-only XR fallback cohorts."
+}

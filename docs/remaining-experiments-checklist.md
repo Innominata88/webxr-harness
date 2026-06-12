@@ -1,6 +1,6 @@
 # Remaining Experiments Checklist
 
-Last updated: 2026-06-05
+Last updated: 2026-06-12
 
 This file is the canonical run plan for the remaining experimental work.
 
@@ -9,75 +9,113 @@ This file is the canonical run plan for the remaining experimental work.
 - Core deduped web benchmark cohorts are already complete.
 - Phone AR material reevaluation is complete.
 - Phone AR stress reevaluation is complete.
-- Remaining work is about closing mechanism gaps, enterprise AR onboarding, the AVP cliff, and completing the required native branch.
+- Phone AR stress warm traces are complete.
+- Remaining work is about closing the headset/browser branch, the required native branch, the AVP cliff, and deciding how much Magic Leap beta-browser work is worth promoting.
 
 ## Do Not Rerun
 
 - Existing deduped web benchmark cohorts
 - Phone AR material probe cohorts
-- Samsung phone AR material cleanup reruns
+- Phone AR stress benchmark cohorts
+- Phone AR stress warm traces
 - Any legacy meeting-review outputs
 
 ## Required To Close The Final Study
 
-### 1. Phone AR Stress Warm Traces
+### 1. HoloLens 2 Split Browser Reevaluation
 
-Status: `pending`
+Status: `required`
 
 Purpose:
-- Add mechanism evidence for the now-interesting phone AR stress result.
-- Keep traced runs separate from the headline untraced benchmark dataset.
+- Stop treating HoloLens like a paired `WebGPU XR` platform.
+- Mirror the Quest logic instead:
+  - paired `Canvas` for `WebGL2` vs `WebGPU`
+  - `WebGL-only XR` fallback for `immersive-ar`
+- Keep the flat/primary ladders separate from the material ladders.
 
-Required manifests:
-- `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_paired_5sets.json`
-- `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_paired_5sets.json`
+New pack:
+- `manifest-packs/m2026-06-12-a/`
+- launcher index:
+  - `manifest-packs/m2026-06-12-a/manifests/launcher-links-headset-browser-reeval.html`
 
-Fallback manifests if the full traced cohorts are too fragile:
-- `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_paired_sanity_2sets.json`
-- `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_paired_sanity_2sets.json`
+Material gate order:
+1. `Canvas material` smoke
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_smoke_1sets.json`
+2. `XR material` smoke
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json`
+3. `Canvas material` sanity
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_sanity_2sets.json`
+4. `XR material` sanity
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_sanity_2sets.json`
+5. `Canvas material` full
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_5sets.json`
+6. `XR material` full
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_5sets.json`
 
-Highest-value focused diagnostic traces, if you need per-instance recovery:
-- `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_i48_paired_2sets.json`
-- `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_i64_paired_2sets.json`
-- `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_i32_paired_2sets.json`
-- `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_i48_paired_2sets.json`
-- `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_i64_paired_2sets.json`
+Primary promotion order, only if both material branches are clean:
+1. `Canvas primary` smoke
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_smoke_1sets.json`
+2. `XR primary` smoke
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_primary_regular_webgl_only_smoke_1sets.json`
+3. `Canvas primary` full
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_5sets.json`
+4. `XR primary` full
+   - `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_primary_regular_webgl_only_5sets.json`
 
 Success criteria:
-- Valid passthrough
-- Stable enough pose to complete traced runs
-- Chrome trace and JSONL provenance both present
+- `Canvas material` smoke shows both `WebGL2` and `WebGPU` rendering on HoloLens.
+- `XR material` smoke shows usable `immersive-ar` entry and stable `WebGL` fallback behavior.
+- Full material cohorts complete cleanly before promoting to the primary ladders.
 
-Stop rule:
-- If a device cannot complete the full traced cohort, drop to the sanity manifest.
-- If sanity still fails, collect the focused `i48` and `i64` traces instead.
+Stop rules:
+- If `Canvas material` smoke cannot render `WebGPU`, stop HoloLens `Canvas` promotion and record that as a capability limit.
+- If `XR material` smoke cannot maintain usable `immersive-ar` with `WebGL`, stop HoloLens `XR` promotion and record that as the result.
+- Do not use the older paired HoloLens XR manifests as the main plan. They mix the unsupported `WebGPU XR` question into the XR fallback question.
 
-### 2. HoloLens 2 Onboarding
+### 2. Native Metal Canvas Branch
 
-Status: `pending`
+Status: `required`
 
 Purpose:
-- Close the enterprise AR branch with at least one working headset.
-- Verify whether `WebGPU` AR is usable on-device before committing to heavier cohorts.
+- Add the required web-vs-native canvas comparison on macOS.
+- Keep it separate from the XR interpretation.
 
-Run first:
-- `manifests/hololens2_xr_ar_material_complexity_regular_paired_5sets.json`
+Current setup files:
+- `native/NativeBenchmark/SETUP.md`
+- `native/NativeBenchmark/NativeBenchmark/BenchmarkRenderer.swift`
+- `native/NativeBenchmark/NativeBenchmark/BenchmarkRunner.swift`
+- `native/NativeBenchmark/NativeBenchmark/ConditionPlan.swift`
+- `native/NativeBenchmark/NativeBenchmark/ManifestLoader.swift`
 
-Run second only if the first manifest succeeds cleanly:
-- `manifests/hololens2_xr_ar_primary_regular_paired_5sets.json`
+Important setup note:
+- The Xcode project itself is not committed. `SETUP.md` expects a local project creation step.
 
-Success criteria for the material manifest:
-- `immersive-ar` enters
-- passthrough is visually correct
-- content anchors and stays usable
-- both row 1 `WebGL2` and row 2 `WebGPU` render correctly
+Matched Mac web manifests:
+- `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_smoke_1sets.json`
+- `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_5sets.json`
+- `manifests/macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json`
+- `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
 
-Stop rule:
-- Do not proceed to the primary flat cohort if the material cohort fails on session entry, anchoring, or `WebGPU` rendering.
+Minimum native run plan:
+1. Create the Xcode project locally
+2. Native material smoke
+   - `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_smoke_1sets.json`
+3. Native material full
+   - `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_5sets.json`
+4. Verify whether matched Mac web primary data already exists
+5. If matched Mac web primary is missing, collect:
+   - `manifests/macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json`
+   - `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
+6. Native primary smoke and full
+   - `manifests/macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json`
+   - `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
+
+Method note:
+- Write up native as a Mac canvas extension, not as part of the main headset XR story.
 
 ### 3. AVP XR Cliff Matrix
 
-Status: `pending`
+Status: `required`
 
 Purpose:
 - Close the high-load threshold story on AVP XR.
@@ -102,53 +140,51 @@ Success criteria:
 - Clean paired completion at each point
 - No unresolved ambiguity about the cliff onset
 
-### 4. Native Metal Canvas Branch
+## Conditional Runs
 
-Status: `required`
+### 4. Magic Leap 2 Beta Browser Capability Gate
+
+Status: `conditional`
 
 Purpose:
-- Add a web-vs-native canvas comparison on macOS.
-- This is not part of the XR branch. Treat it as a separate comparison axis.
+- Probe the Magic Leap beta browser without assuming it supports the full paired XR/WebGPU path.
+- Use the same split-browser logic as HoloLens first:
+  - paired `Canvas`
+  - `WebGL-only XR`
+- Only after that decide whether any paired XR/WebGPU diagnostic is worth attempting.
 
-Current setup files:
-- `native/NativeBenchmark/SETUP.md`
-- `native/NativeBenchmark/NativeBenchmark/BenchmarkRenderer.swift`
-- `native/NativeBenchmark/NativeBenchmark/BenchmarkRunner.swift`
-- `native/NativeBenchmark/NativeBenchmark/ConditionPlan.swift`
-- `native/NativeBenchmark/NativeBenchmark/ManifestLoader.swift`
+New pack:
+- `manifest-packs/m2026-06-12-a/`
 
-Important setup note:
-- The Xcode project itself is not committed. `SETUP.md` expects you to create the `NativeBenchmark` macOS app locally in Xcode.
+Smoke gate order:
+1. `Canvas material` smoke
+   - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_smoke_1sets.json`
+2. `XR material` smoke
+   - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json`
 
-Matched Mac web manifests:
-- `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_smoke_1sets.json`
-- `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_5sets.json`
-- `manifests/macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json`
-- `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
+Promote only if both smoke gates pass:
+- `Canvas material` sanity/full
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_sanity_2sets.json`
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_5sets.json`
+- `XR material` sanity/full
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_sanity_2sets.json`
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_5sets.json`
 
-Known current state:
-- Mac web material data already appears in the collection audit.
-- Mac web primary data should be verified before rerunning; if missing, collect it.
+Primary promotion, only if both material full cohorts are clean:
+- `Canvas primary` smoke/full
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_smoke_1sets.json`
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_5sets.json`
+- `XR primary` smoke/full
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_primary_regular_webgl_only_smoke_1sets.json`
+  - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_primary_regular_webgl_only_5sets.json`
 
-Minimum native run plan:
-1. Create the Xcode project locally as described in `native/NativeBenchmark/SETUP.md`
-2. Run one native smoke using the material smoke manifest:
-   - `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_smoke_1sets.json`
-3. Run full native material:
-   - `manifests/macbookpro_m1_canvas_material_complexity_regular_paired_5sets.json`
-4. Verify whether matched Mac web primary data already exists
-5. If matched Mac web primary is missing, collect:
-   - `manifests/macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json`
-   - `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
-6. Run native primary:
-   - `manifests/macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json`
-   - `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
+Optional paired XR diagnostic, only if the beta browser clearly exposes `navigator.gpu` plus `XRGPUBinding`:
+- existing diagnostic candidate:
+  - `manifests/magicleap2_xr_ar_material_complexity_regular_paired_5sets.json`
 
-Method note:
-- Analyze native separately from the core XR conclusions.
-- If native is included, write it up as a Mac canvas extension, not as part of the main phone/AVP/Quest XR story.
-
-## Conditional Runs
+Recommendation:
+- Do not start Magic Leap with the older paired XR manifests.
+- Start with capability smoke only.
 
 ### 5. Phone AR Failure Curves
 
@@ -169,33 +205,18 @@ Samsung manifests:
 
 Recommendation:
 - Do these only after the required items above are done.
-- They are lower priority now because phone AR stress benchmark data already exists and is useful.
-
-### 6. Magic Leap 2 Onboarding
-
-Status: `optional`
-
-Purpose:
-- Second enterprise AR headset, only if HoloLens works and there is remaining time/scope.
-
-Manifests:
-- `manifests/magicleap2_xr_ar_material_complexity_regular_paired_5sets.json`
-- `manifests/magicleap2_xr_ar_primary_regular_paired_5sets.json`
-
-Recommendation:
-- Do not start here.
-- Use Magic Leap only after HoloLens material succeeds.
 
 ## Recommended Sequence
 
-1. `Phone AR stress warm traces`
-2. `Native Metal material branch`
-3. `HoloLens 2 material onboarding`
-4. `Native primary branch`, if matched web primary exists or is collected
-5. `HoloLens 2 primary flat`, only if material succeeds
-6. `AVP XR cliff`
-7. `Phone AR failure curves`, only if reliability boundaries are still needed
-8. `Magic Leap 2 onboarding`, only if HoloLens succeeds and there is remaining scope
+1. `HoloLens 2 Canvas material smoke`
+2. `HoloLens 2 XR material smoke`
+3. `HoloLens 2 material sanity/full promotion`
+4. `Native Metal material branch`
+5. `AVP XR cliff`
+6. `HoloLens primary promotion`, if both material branches are clean
+7. `Magic Leap` capability smokes
+8. `Magic Leap` promotion, only if the beta browser passes the smoke gates
+9. `Phone AR failure curves`, only if reliability boundaries are still needed
 
 ## Current Completion Snapshot
 
@@ -204,11 +225,11 @@ Completed:
 - Main current figure set
 - Phone AR material reevaluation
 - Phone AR stress reevaluation
+- Phone AR stress warm traces
 
 Remaining:
-- Phone AR stress traces
+- HoloLens 2 split browser reevaluation
 - Native Metal branch
-- HoloLens 2 onboarding
 - AVP XR cliff
+- Conditional Magic Leap beta-browser reevaluation
 - Optional phone AR failure curves
-- Optional Magic Leap 2 onboarding

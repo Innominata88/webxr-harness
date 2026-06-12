@@ -1,54 +1,42 @@
 # Remaining Experiments Tracker
 
-Last updated: 2026-06-05
+Last updated: 2026-06-12
 
 Use this as the working tracker during collection. The planning details live in `docs/remaining-experiments-checklist.md`.
 
+## Completed
+
+- [x] Core deduped web benchmark cohorts
+- [x] Phone AR material reevaluation
+- [x] Phone AR stress reevaluation
+- [x] Phone AR stress warm traces
+
 ## Required
 
-### Phone AR Stress Warm Traces
+### HoloLens 2 Split Browser Matrix
 
-- [ ] `Pixel 8a` full warm trace
-  - manifest: `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_paired_5sets.json`
-- [ ] `Samsung Galaxy FE` full warm trace
-  - manifest: `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_paired_5sets.json`
-- [ ] If `Pixel 8a` full trace fails, run sanity fallback
-  - manifest: `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_paired_sanity_2sets.json`
-- [ ] If `Samsung Galaxy FE` full trace fails, run sanity fallback
-  - manifest: `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_paired_sanity_2sets.json`
-- [ ] If full and sanity both fail on `Pixel 8a`, collect focused traces at `48` and `64`
-  - manifests:
-    - `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_i48_paired_2sets.json`
-    - `manifest-packs/m2026-06-05-a/manifests/pixel8a_xr_ar_material_stress_probe_a_warm_trace_i64_paired_2sets.json`
-- [ ] If full and sanity both fail on `Samsung Galaxy FE`, collect focused traces at `48` and `64`
-  - manifests:
-    - `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_i48_paired_2sets.json`
-    - `manifest-packs/m2026-06-05-a/manifests/samsung_fe5g_xr_ar_material_stress_probe_a_warm_trace_i64_paired_2sets.json`
-
-### HoloLens 2
-
-- [ ] Material onboarding
-  - manifest: `manifests/hololens2_xr_ar_material_complexity_regular_paired_5sets.json`
-- [ ] Confirm row 1 `WebGL2` works
-- [ ] Confirm row 2 `WebGPU` works
-- [ ] Confirm passthrough and anchoring are usable
-- [ ] Only if material succeeds: run primary flat cohort
-  - manifest: `manifests/hololens2_xr_ar_primary_regular_paired_5sets.json`
-
-### AVP XR Cliff
-
-- [ ] Smoke
-  - manifest: `manifests/avp_xr_primary_cliff_paired_smoke_1sets.json`
-- [ ] Sanity
-  - manifest: `manifests/avp_xr_primary_cliff_paired_sanity_2sets.json`
-- [ ] `340`
-  - manifest: `manifests/avp_xr_primary_cliff_i340_paired_5sets.json`
-- [ ] `345`
-  - manifest: `manifests/avp_xr_primary_cliff_i345_paired_5sets.json`
-- [ ] `348`
-  - manifest: `manifests/avp_xr_primary_cliff_i348_paired_5sets.json`
-- [ ] `350`
-  - manifest: `manifests/avp_xr_primary_cliff_i350_paired_5sets.json`
+- [ ] `Canvas material` smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_smoke_1sets.json`
+- [ ] Confirm both `WebGL2` and `WebGPU` render in HoloLens Canvas material smoke
+- [ ] `XR material` smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json`
+- [ ] Confirm `immersive-ar` WebGL fallback works in HoloLens XR material smoke
+- [ ] `Canvas material` sanity
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_sanity_2sets.json`
+- [ ] `XR material` sanity
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_sanity_2sets.json`
+- [ ] `Canvas material` full
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_material_complexity_regular_paired_5sets.json`
+- [ ] `XR material` full
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_material_complexity_regular_webgl_only_5sets.json`
+- [ ] If both material branches are clean: `Canvas primary` smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_smoke_1sets.json`
+- [ ] If both material branches are clean: `XR primary` smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_primary_regular_webgl_only_smoke_1sets.json`
+- [ ] If primary smoke passes: `Canvas primary` full
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_canvas_primary_regular_paired_5sets.json`
+- [ ] If primary smoke passes: `XR primary` full
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/hololens2_xr_ar_primary_regular_webgl_only_5sets.json`
 
 ### Native Metal Canvas Branch
 
@@ -67,9 +55,47 @@ Use this as the working tracker during collection. The planning details live in 
 - [ ] Native primary full
   - manifest: `manifests/macbookpro_m1_canvas_primary_regular_paired_5sets.json`
 
+### AVP XR Cliff
+
+- [ ] Smoke
+  - manifest: `manifests/avp_xr_primary_cliff_paired_smoke_1sets.json`
+- [ ] Sanity
+  - manifest: `manifests/avp_xr_primary_cliff_paired_sanity_2sets.json`
+- [ ] `340`
+  - manifest: `manifests/avp_xr_primary_cliff_i340_paired_5sets.json`
+- [ ] `345`
+  - manifest: `manifests/avp_xr_primary_cliff_i345_paired_5sets.json`
+- [ ] `348`
+  - manifest: `manifests/avp_xr_primary_cliff_i348_paired_5sets.json`
+- [ ] `350`
+  - manifest: `manifests/avp_xr_primary_cliff_i350_paired_5sets.json`
+
 ## Conditional
 
-### Optional Reliability Boundary Work
+### Magic Leap 2 Beta Browser Capability Gate
+
+- [ ] `Canvas material` smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_smoke_1sets.json`
+- [ ] Confirm both `WebGL2` and `WebGPU` render in Magic Leap Canvas material smoke
+- [ ] `XR material` smoke
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_smoke_1sets.json`
+- [ ] Confirm `immersive-ar` WebGL fallback works in Magic Leap XR material smoke
+- [ ] If both smoke gates pass: `Canvas material` full
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_material_complexity_regular_paired_5sets.json`
+- [ ] If both smoke gates pass: `XR material` full
+  - manifest: `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_material_complexity_regular_webgl_only_5sets.json`
+- [ ] If material full passes: `Canvas primary` smoke/full
+  - manifests:
+    - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_smoke_1sets.json`
+    - `manifest-packs/m2026-06-12-a/manifests/magicleap2_canvas_primary_regular_paired_5sets.json`
+- [ ] If material full passes: `XR primary` smoke/full
+  - manifests:
+    - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_primary_regular_webgl_only_smoke_1sets.json`
+    - `manifest-packs/m2026-06-12-a/manifests/magicleap2_xr_ar_primary_regular_webgl_only_5sets.json`
+- [ ] Optional only if the beta browser clearly exposes `navigator.gpu` plus `XRGPUBinding`: paired XR diagnostic smoke
+  - manifest: `manifests/magicleap2_xr_ar_material_complexity_regular_paired_5sets.json`
+
+### Optional Phone AR Failure Curves
 
 - [ ] `Pixel 8a` AR failure curve `64`
 - [ ] `Pixel 8a` AR failure curve `128`
@@ -78,17 +104,10 @@ Use this as the working tracker during collection. The planning details live in 
 - [ ] `Samsung Galaxy FE` AR failure curve `128`
 - [ ] `Samsung Galaxy FE` AR failure curve `192`
 
-### Optional Enterprise Extension
-
-- [ ] `Magic Leap 2` material onboarding
-  - manifest: `manifests/magicleap2_xr_ar_material_complexity_regular_paired_5sets.json`
-- [ ] `Magic Leap 2` primary flat
-  - manifest: `manifests/magicleap2_xr_ar_primary_regular_paired_5sets.json`
-
 ## Meeting Notes
 
-- [ ] Explain that phone AR benchmark reevaluation is already complete
-- [ ] Explain that phone AR stress traces are the highest-value remaining mechanism work
-- [ ] Explain that native is now a required branch, not future work
-- [ ] Explain that HoloLens is the next enterprise AR gate
-- [ ] Ask whether Mac web primary must be rerun if the existing web-side heavy cohort is incomplete
+- [ ] Explain that phone AR benchmark collection and traces are complete
+- [ ] Explain that the headset plan is now split by capability, not by the older paired-XR assumption
+- [ ] Explain that HoloLens should be treated like Quest: paired Canvas plus WebGL-only XR fallback
+- [ ] Explain that Magic Leap stays capability-gated because the browser is beta
+- [ ] Explain that native is still required and separate from XR conclusions
