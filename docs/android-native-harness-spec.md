@@ -219,6 +219,7 @@ Proposed schema:
   "api": "vulkan",
   "mode": "canvas",
   "surface_mode": "basecolor",
+  "render_scale": 0.5,
   "layout": "xrwall",
   "spacing": 0.35,
   "instances": [1, 2, 4, 8, 16, 32],
@@ -258,6 +259,7 @@ Reject the plan before rendering when:
 - `api != vulkan`
 - `mode` is not supported by the installed build flavor
 - `surface_mode` is not `flat` or `basecolor`
+- `render_scale` is not greater than zero and at most one
 - a material suite ID is paired with `surface_mode=flat`
 - a flat suite ID is paired with `surface_mode=basecolor`
 - the asset revision does not match the bundled/selected asset
@@ -396,6 +398,7 @@ Required `env` fields:
 - `xr_runtime=none|arcore|openxr`
 - `renderer_path=vulkan-flat|vulkan-basecolor`
 - `surface_mode=flat|basecolor`
+- `render_scale`
 - `device_manufacturer`
 - `device_model`
 - `device_code_name`

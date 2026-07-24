@@ -18,6 +18,7 @@ struct BenchmarkConfig {
     var seed: UInt32 = 12345
     var shuffle = true
     var surfaceMode = "flat"
+    var renderScale: Double = 1
     var deviceGroup = "macbookpro_m1"
     var cohortGroup = "canvas_primary_regular"
     var harnessVersion = "native-1.0.0"
@@ -96,6 +97,7 @@ class BenchmarkRunner: ObservableObject {
         for (index, row) in rows.enumerated() {
             do {
                 try renderer.setSurfaceMode(row.surfaceMode)
+                applyRenderScale(row.renderScale, to: mtkView)
             } catch {
                 status = "Run rejected: \(error.localizedDescription)"
                 return
@@ -135,6 +137,7 @@ class BenchmarkRunner: ObservableObject {
         do {
             try renderer.uploadMesh(mesh)
             try renderer.setSurfaceMode(config.surfaceMode)
+            applyRenderScale(config.renderScale, to: mtkView)
         } catch {
             status = "Manual run rejected: \(error.localizedDescription)"
             return
@@ -152,6 +155,7 @@ class BenchmarkRunner: ObservableObject {
             runId: "macbookpro_m1_native_manual_\(Int(Date().timeIntervalSince1970))",
             cooldownAfterMs: 0,
             surfaceMode: config.surfaceMode,
+            renderScale: config.renderScale,
             instancesList: config.instancesList,
             trialsPerInstance: config.trialsPerInstance,
             durationMs: config.durationMs,
@@ -177,6 +181,15 @@ class BenchmarkRunner: ObservableObject {
             cohortGroup: config.cohortGroup
         )
         status = completed ? "Manual run complete." : status
+    }
+
+    private func applyRenderScale(_ scale: Double, to view: MTKView) {
+        view.autoResizeDrawable = false
+        let backingSize = view.convertToBacking(view.bounds).size
+        view.drawableSize = CGSize(
+            width: max(1, backingSize.width * scale),
+            height: max(1, backingSize.height * scale)
+        )
     }
 
     private func executeRow(
@@ -313,6 +326,8 @@ class BenchmarkRunner: ObservableObject {
             "mode": "canvas",
             "surface_mode": row.surfaceMode,
             "surfaceMode": row.surfaceMode,
+            "canvasScaleFactor": row.renderScale,
+            "render_scale": row.renderScale,
             "modelUrl": row.assetRevision,
             "trial": condition.trial,
             "trials": row.trialsPerInstance,
@@ -348,6 +363,9 @@ class BenchmarkRunner: ObservableObject {
             "renderer_path": "metal-\(row.surfaceMode)",
             "surface_mode": row.surfaceMode,
             "surfaceMode": row.surfaceMode,
+            "render_scale": row.renderScale,
+            "drawable_width": renderer?.drawableSize.width ?? 0,
+            "drawable_height": renderer?.drawableSize.height ?? 0,
             "gpu_renderer": renderer?.device.name ?? "",
             "timing_source_primary": "mtkview_draw_callback",
             "browser": "native",

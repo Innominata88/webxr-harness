@@ -1,0 +1,64 @@
+{
+  "schema": "native-benchmark-manifest/v1",
+  "generated_at": "2026-07-24T18:07:06.147Z",
+  "plan_id": "samsung_fe5g_native_canvas_material_complexity_regular_v1",
+  "source_manifest": "samsung_fe5g_canvas_material_complexity_regular_paired_5sets.json",
+  "source_manifest_schema": "webxr-harness-manifest/v1",
+  "source_harness_commit": "84bb3bc",
+  "source_harness_version": "r2026-03-24-b",
+  "asset_revision": "spiderman_2002_movie_version_sam_raimi_0",
+  "device_group": "samsung_fe5g",
+  "cohort_group": "canvas_material_complexity_regular",
+  "runtime_family": "native-android",
+  "api": "vulkan",
+  "mode": "canvas",
+  "surface_mode": "basecolor",
+  "render_scale": 0.75,
+  "layout": "xrwall",
+  "spacing": 0.35,
+  "instances": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "trials_per_instance": 5,
+  "duration_ms": 6000,
+  "warmup_ms": 500,
+  "cooldown_ms": 250,
+  "between_instances_ms": 800,
+  "between_runs_ms": 300000,
+  "min_frames": 30,
+  "seed": 12345,
+  "shuffle": true,
+  "run_count": 5,
+  "runs": [
+    {
+      "run_number": 1,
+      "run_id": "samsung_fe5g_native_canvas_material_complexity_regular_r01",
+      "suite_id": "SAMSUNG_FE5G_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR"
+    },
+    {
+      "run_number": 2,
+      "run_id": "samsung_fe5g_native_canvas_material_complexity_regular_r02",
+      "suite_id": "SAMSUNG_FE5G_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR"
+    },
+    {
+      "run_number": 3,
+      "run_id": "samsung_fe5g_native_canvas_material_complexity_regular_r03",
+      "suite_id": "SAMSUNG_FE5G_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR"
+    },
+    {
+      "run_number": 4,
+      "run_id": "samsung_fe5g_native_canvas_material_complexity_regular_r04",
+      "suite_id": "SAMSUNG_FE5G_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR"
+    },
+    {
+      "run_number": 5,
+      "run_id": "samsung_fe5g_native_canvas_material_complexity_regular_r05",
+      "suite_id": "SAMSUNG_FE5G_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR"
+    }
+  ]
+}

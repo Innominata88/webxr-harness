@@ -86,6 +86,9 @@ function validateEnvironment(record, location, errors) {
     requireNonemptyString(env, key, `${location}.env`, errors);
   }
   requireNonemptyString(env, "surface_mode", `${location}.env`, errors);
+  for (const key of ["render_scale", "drawable_width", "drawable_height"]) {
+    requireFiniteNumber(env, key, `${location}.env`, errors, { min: 0 });
+  }
 
   const mode = surfaceModeOf(record);
   if (env.surface_mode !== mode) {
@@ -94,6 +97,17 @@ function validateEnvironment(record, location, errors) {
   const expectedRendererSuffix = mode === "basecolor" ? "basecolor" : "flat";
   if (typeof env.renderer_path === "string" && !env.renderer_path.endsWith(expectedRendererSuffix)) {
     errors.push(`${location}.env: renderer_path does not match ${mode}`);
+  }
+  if (typeof record.render_scale === "number"
+      && typeof env.render_scale === "number"
+      && record.render_scale !== env.render_scale) {
+    errors.push(`${location}.env: render scale disagrees with root record`);
+  }
+  if (env.render_scale <= 0 || env.render_scale > 1) {
+    errors.push(`${location}.env: render_scale must be greater than 0 and at most 1`);
+  }
+  if (env.drawable_width <= 0 || env.drawable_height <= 0) {
+    errors.push(`${location}.env: drawable dimensions must be positive`);
   }
 }
 
@@ -136,6 +150,7 @@ export function validateNativeRecord(record, location = "record") {
   }
   requireType(record, "shuffle", "boolean", location, errors);
   requireType(record, "aborted", "boolean", location, errors);
+  requireFiniteNumber(record, "render_scale", location, errors, { min: 0 });
 
   if (record.schema_version !== "1.1.0") {
     errors.push(`${location}: unsupported schema_version ${JSON.stringify(record.schema_version)}`);
@@ -149,6 +164,9 @@ export function validateNativeRecord(record, location = "record") {
   const surfaceMode = surfaceModeOf(record);
   if (!VALID_SURFACE_MODES.has(surfaceMode)) {
     errors.push(`${location}: unsupported surface mode ${JSON.stringify(surfaceMode)}`);
+  }
+  if (record.render_scale <= 0 || record.render_scale > 1) {
+    errors.push(`${location}: render_scale must be greater than 0 and at most 1`);
   }
   if (String(record.suiteId).toUpperCase().includes("MATERIAL") && surfaceMode !== "basecolor") {
     errors.push(`${location}: MATERIAL suite must use basecolor`);

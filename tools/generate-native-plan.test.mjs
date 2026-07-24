@@ -25,6 +25,7 @@ test("paired ten-row material manifest becomes five native runs", () => {
   assert.equal(plan.api, "vulkan");
   assert.equal(plan.mode, "canvas");
   assert.equal(plan.surface_mode, "basecolor");
+  assert.equal(plan.render_scale, 0.5);
   assert.deepEqual(plan.instances, [1, 2, 4, 8, 16, 32]);
   assert.equal(plan.trials_per_instance, 5);
   assert.equal(plan.duration_ms, 6000);
@@ -77,4 +78,19 @@ test("explicit run count is honored without replaying source rows", () => {
   assert.equal(plan.runtime_family, "native-apple");
   assert.equal(plan.run_count, 2);
   assert.equal(plan.runs.length, 2);
+});
+
+test("render scale is part of the stable workload definition", () => {
+  const source = loadMaterialManifest();
+  const url = new URL(source.rows[1].url);
+  url.searchParams.set("canvasScaleFactor", "0.75");
+  source.rows[1].url = url.toString();
+
+  assert.throws(
+    () => generateNativePlan(source, {
+      sourceName: materialManifestPath.pathname,
+      api: "vulkan",
+    }),
+    /mixes workload parameters/
+  );
 });

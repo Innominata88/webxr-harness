@@ -51,6 +51,7 @@ class BenchmarkRenderer: NSObject, MTKViewDelegate {
     private var instanceBuffer: MTLBuffer?
     private var instanceCount = 0
     private(set) var surfaceMode: BenchmarkSurfaceMode = .flat
+    private(set) var drawableSize: CGSize = .zero
     private(set) var loadedMeshMeta: GLBMeta?
 
     enum Phase { case idle, warmup, measuring, cooldown, done }
@@ -201,6 +202,7 @@ class BenchmarkRenderer: NSObject, MTKViewDelegate {
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        drawableSize = size
         updateCamera(drawableSize: size)
     }
 

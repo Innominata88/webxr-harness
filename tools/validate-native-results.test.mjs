@@ -13,6 +13,7 @@ function record(overrides = {}) {
     mode: "canvas",
     surface_mode: "basecolor",
     surfaceMode: "basecolor",
+    render_scale: 1,
     suiteId: "MACBOOKPRO_M1_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR",
     runId: "macbookpro_m1_native_canvas_material_complexity_regular_r01",
     startedAt: "2026-07-24T12:00:00Z",
@@ -39,6 +40,9 @@ function record(overrides = {}) {
       xr_runtime: "none",
       renderer_path: "metal-basecolor",
       surface_mode: "basecolor",
+      render_scale: 1,
+      drawable_width: 1200,
+      drawable_height: 800,
       timing_source_primary: "mtkview_draw_callback",
       asset_revision: "spiderman_2002_movie_version_sam_raimi_0",
       plan_id: "macbookpro_m1_native_canvas_material_complexity_regular_v1",
@@ -106,4 +110,15 @@ test("rejects incomplete or duplicate condition sets", () => {
   const errors = validateNativeRun([first, duplicate]);
   assert.match(errors.join("\n"), /duplicate condition_index/);
   assert.match(errors.join("\n"), /missing condition_index 1/);
+});
+
+test("rejects a render-scale disagreement", () => {
+  const invalid = record({
+    render_scale: 0.5,
+    env: {
+      ...record().env,
+      render_scale: 0.75,
+    },
+  });
+  assert.match(validateNativeRecord(invalid).join("\n"), /render scale disagrees/);
 });

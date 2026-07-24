@@ -1,6 +1,6 @@
 {
   "schema": "native-benchmark-manifest/v1",
-  "generated_at": "2026-07-24T17:42:57.734Z",
+  "generated_at": "2026-07-24T18:07:05.441Z",
   "plan_id": "macbookpro_m1_native_canvas_primary_regular_v1",
   "source_manifest": "macbookpro_m1_canvas_primary_regular_paired_smoke_1sets.json",
   "source_manifest_schema": "webxr-harness-manifest/v1",
@@ -13,6 +13,7 @@
   "api": "metal",
   "mode": "canvas",
   "surface_mode": "flat",
+  "render_scale": 1,
   "layout": "xrwall",
   "spacing": 0.35,
   "instances": [

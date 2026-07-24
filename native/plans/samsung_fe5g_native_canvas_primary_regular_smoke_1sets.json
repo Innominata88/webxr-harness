@@ -1,0 +1,39 @@
+{
+  "schema": "native-benchmark-manifest/v1",
+  "generated_at": "2026-07-24T18:07:06.244Z",
+  "plan_id": "samsung_fe5g_native_canvas_primary_regular_v1",
+  "source_manifest": "samsung_fe5g_canvas_primary_regular_paired_smoke_1sets.json",
+  "source_manifest_schema": "webxr-harness-manifest/v1",
+  "source_harness_commit": "84bb3bc",
+  "source_harness_version": "r2026-03-24-b",
+  "asset_revision": "spiderman_2002_movie_version_sam_raimi_0",
+  "device_group": "samsung_fe5g",
+  "cohort_group": "canvas_primary_regular",
+  "runtime_family": "native-android",
+  "api": "vulkan",
+  "mode": "canvas",
+  "surface_mode": "flat",
+  "render_scale": 0.75,
+  "layout": "xrwall",
+  "spacing": 0.35,
+  "instances": [
+    64
+  ],
+  "trials_per_instance": 1,
+  "duration_ms": 2000,
+  "warmup_ms": 250,
+  "cooldown_ms": 100,
+  "between_instances_ms": 200,
+  "between_runs_ms": 30000,
+  "min_frames": 30,
+  "seed": 12345,
+  "shuffle": true,
+  "run_count": 1,
+  "runs": [
+    {
+      "run_number": 1,
+      "run_id": "samsung_fe5g_native_canvas_primary_regular_r01",
+      "suite_id": "SAMSUNG_FE5G_NATIVE_CANVAS_PRIMARY_REGULAR_SMOKE"
+    }
+  ]
+}

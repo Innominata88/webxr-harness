@@ -11,6 +11,7 @@ struct ManifestRunConfig {
     var runId: String
     var cooldownAfterMs: Double
     var surfaceMode: String
+    var renderScale: Double
     var instancesList: [Int]
     var trialsPerInstance: Int
     var durationMs: Double
@@ -96,6 +97,10 @@ func loadNativeManifest(url: URL) throws -> ManifestFile {
     guard ["flat", "basecolor"].contains(surfaceMode) else {
         throw ManifestError.invalidField("surface_mode")
     }
+    let renderScale = try positiveDouble(json, "render_scale")
+    guard renderScale <= 1 else {
+        throw ManifestError.invalidField("render_scale")
+    }
 
     let planId = try requiredString(json, "plan_id")
     let deviceGroup = try requiredString(json, "device_group")
@@ -152,6 +157,7 @@ func loadNativeManifest(url: URL) throws -> ManifestFile {
             runId: runId,
             cooldownAfterMs: betweenRunsMs,
             surfaceMode: surfaceMode,
+            renderScale: renderScale,
             instancesList: instances,
             trialsPerInstance: trials,
             durationMs: durationMs,

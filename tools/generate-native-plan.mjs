@@ -20,6 +20,7 @@ const QUERY_FIELDS = Object.freeze({
   seed: "seed",
   shuffle: "shuffle",
   surfaceMode: "surfaceMode",
+  renderScale: "canvasScaleFactor",
   harnessCommit: "harnessCommit",
   harnessVersion: "harnessVersion",
   assetRevision: "assetRevision",
@@ -117,6 +118,7 @@ function parseQueryRow(row, rowIndex) {
     seed: Number(value("seed", row.order_seed ?? "12345")),
     shuffle: value("shuffle", row.shuffle ?? "0") === "1",
     surfaceMode,
+    renderScale: Number(value("canvasScaleFactor", "1")),
     harnessCommit: value("harnessCommit", row.harness_commit ?? ""),
     harnessVersion: value("harnessVersion", row.harness_version ?? ""),
     assetRevision: value("assetRevision", row.asset_revision ?? ""),
@@ -138,6 +140,7 @@ function stableWorkload(row) {
     seed: row.seed,
     shuffle: row.shuffle,
     surfaceMode: row.surfaceMode,
+    renderScale: row.renderScale,
     harnessCommit: row.harnessCommit,
     harnessVersion: row.harnessVersion,
     assetRevision: row.assetRevision,
@@ -228,9 +231,13 @@ export function generateNativePlan(source, options = {}) {
   const numericFields = [
     "trialsPerInstance", "durationMs", "warmupMs", "cooldownMs",
     "betweenInstancesMs", "minFrames", "spacing", "seed", "cooldownAfterMs",
+    "renderScale",
   ];
   for (const field of numericFields) {
     if (!Number.isFinite(template[field])) fail(`Invalid numeric field: ${field}`);
+  }
+  if (template.renderScale <= 0 || template.renderScale > 1) {
+    fail("renderScale must be greater than 0 and at most 1");
   }
 
   return {
@@ -248,6 +255,7 @@ export function generateNativePlan(source, options = {}) {
     api,
     mode: "canvas",
     surface_mode: template.surfaceMode,
+    render_scale: template.renderScale,
     layout: template.layout,
     spacing: template.spacing,
     instances: template.instances,

@@ -62,8 +62,8 @@ are complete or have a documented capability stop.
 | MacBook Pro M1 | Metal flat + material | N/A | 1 | Prototype needs correction |
 | iPad Air M3 | Metal flat + material | Optional unless required | 2 | Not implemented |
 | Apple Vision Pro | Metal windowed | visionOS immersive | 3 | Not implemented |
-| Pixel 8a | Vulkan flat + material | ARCore Vulkan AR | 4 | Not implemented |
-| Samsung Galaxy FE | Vulkan flat + material | ARCore Vulkan AR | 5 | Not implemented |
+| Pixel 8a | Vulkan flat + material | ARCore Vulkan AR | 4 | Canvas visual-preview APK built; device gate pending |
+| Samsung Galaxy FE | Vulkan flat + material | ARCore Vulkan AR | 5 | Canvas visual-preview APK built; device gate pending |
 | Quest 2 | N/A for main native comparison | OpenXR Vulkan | 6 | Not implemented |
 | Magic Leap 2 | N/A for main native comparison | OpenXR Vulkan | 7 | Not implemented |
 | HP laptop | D3D11 flat + material | N/A | 8 | Not implemented |
@@ -182,12 +182,20 @@ Exit gate:
 
 Shared Android core:
 
-- [ ] Create `native/AndroidBenchmark`.
-- [ ] Add Kotlin lifecycle/file-selection shell.
+- [x] Create `native/AndroidBenchmark`.
+- [x] Add the initial Android lifecycle and plan-selection shell.
 - [ ] Add C++ manifest, GLB, condition-plan, timing, JSONL, and Vulkan modules.
-- [ ] Bundle or select the exact study asset revision.
-- [ ] Implement flat and base-color Vulkan pipelines.
-- [ ] Implement the `xrwall` instance layout and seeded shuffle.
+  - [x] Strict manifest parser.
+  - [x] Condition plan, `xrwall` layout, and statistics.
+  - [x] GLB geometry/material/texture metadata loader.
+  - [x] Vulkan instance/surface/device capability probe.
+  - [x] Vulkan visual-preview renderer.
+  - [ ] Measurement scheduler, timing samples, and JSONL writer.
+- [x] Bundle the exact study asset revision.
+- [x] Implement separate flat and base-color Vulkan pipelines.
+- [x] Apply plan-controlled offscreen render scale before swapchain presentation.
+- [x] Add Choreographer-driven preview and lifecycle-safe renderer teardown.
+- [x] Implement the `xrwall` instance layout and seeded shuffle.
 - [ ] Use Android frame callback cadence as the primary windowed timing source.
 - [ ] Record device, OS, GPU, driver, display refresh, and thermal metadata.
 

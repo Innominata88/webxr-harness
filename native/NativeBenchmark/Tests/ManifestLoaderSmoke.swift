@@ -12,6 +12,7 @@ struct ManifestLoaderSmoke {
         )
         try expect(material.api == "metal", "material API")
         try expect(material.surfaceMode == "basecolor", "material surface mode")
+        try expect(material.rows.allSatisfy { $0.renderScale == 1 }, "material render scale")
         try expect(material.rows.count == 5, "material run count")
         try expect(
             material.rows.allSatisfy { $0.surfaceMode == "basecolor" },
