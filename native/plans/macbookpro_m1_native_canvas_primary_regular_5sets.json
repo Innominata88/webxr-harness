@@ -1,0 +1,62 @@
+{
+  "schema": "native-benchmark-manifest/v1",
+  "generated_at": "2026-07-24T17:42:57.738Z",
+  "plan_id": "macbookpro_m1_native_canvas_primary_regular_v1",
+  "source_manifest": "macbookpro_m1_canvas_primary_regular_paired_5sets.json",
+  "source_manifest_schema": "webxr-harness-manifest/v1",
+  "source_harness_commit": "84bb3bc",
+  "source_harness_version": "r2026-03-24-b",
+  "asset_revision": "spiderman_2002_movie_version_sam_raimi_0",
+  "device_group": "macbookpro_m1",
+  "cohort_group": "canvas_primary_regular",
+  "runtime_family": "native-apple",
+  "api": "metal",
+  "mode": "canvas",
+  "surface_mode": "flat",
+  "layout": "xrwall",
+  "spacing": 0.35,
+  "instances": [
+    64,
+    128,
+    192,
+    256,
+    320
+  ],
+  "trials_per_instance": 10,
+  "duration_ms": 6000,
+  "warmup_ms": 500,
+  "cooldown_ms": 250,
+  "between_instances_ms": 800,
+  "between_runs_ms": 300000,
+  "min_frames": 30,
+  "seed": 12345,
+  "shuffle": true,
+  "run_count": 5,
+  "runs": [
+    {
+      "run_number": 1,
+      "run_id": "macbookpro_m1_native_canvas_primary_regular_r01",
+      "suite_id": "MACBOOKPRO_M1_NATIVE_CANVAS_PRIMARY_REGULAR"
+    },
+    {
+      "run_number": 2,
+      "run_id": "macbookpro_m1_native_canvas_primary_regular_r02",
+      "suite_id": "MACBOOKPRO_M1_NATIVE_CANVAS_PRIMARY_REGULAR"
+    },
+    {
+      "run_number": 3,
+      "run_id": "macbookpro_m1_native_canvas_primary_regular_r03",
+      "suite_id": "MACBOOKPRO_M1_NATIVE_CANVAS_PRIMARY_REGULAR"
+    },
+    {
+      "run_number": 4,
+      "run_id": "macbookpro_m1_native_canvas_primary_regular_r04",
+      "suite_id": "MACBOOKPRO_M1_NATIVE_CANVAS_PRIMARY_REGULAR"
+    },
+    {
+      "run_number": 5,
+      "run_id": "macbookpro_m1_native_canvas_primary_regular_r05",
+      "suite_id": "MACBOOKPRO_M1_NATIVE_CANVAS_PRIMARY_REGULAR"
+    }
+  ]
+}

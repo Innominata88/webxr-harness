@@ -1,0 +1,38 @@
+{
+  "schema": "native-benchmark-manifest/v1",
+  "generated_at": "2026-07-24T17:42:57.734Z",
+  "plan_id": "macbookpro_m1_native_canvas_material_complexity_regular_v1",
+  "source_manifest": "macbookpro_m1_canvas_material_complexity_regular_paired_smoke_1sets.json",
+  "source_manifest_schema": "webxr-harness-manifest/v1",
+  "source_harness_commit": "84bb3bc",
+  "source_harness_version": "r2026-03-24-b",
+  "asset_revision": "spiderman_2002_movie_version_sam_raimi_0",
+  "device_group": "macbookpro_m1",
+  "cohort_group": "canvas_material_complexity_regular",
+  "runtime_family": "native-apple",
+  "api": "metal",
+  "mode": "canvas",
+  "surface_mode": "basecolor",
+  "layout": "xrwall",
+  "spacing": 0.35,
+  "instances": [
+    1
+  ],
+  "trials_per_instance": 1,
+  "duration_ms": 2000,
+  "warmup_ms": 250,
+  "cooldown_ms": 100,
+  "between_instances_ms": 200,
+  "between_runs_ms": 30000,
+  "min_frames": 30,
+  "seed": 12345,
+  "shuffle": true,
+  "run_count": 1,
+  "runs": [
+    {
+      "run_number": 1,
+      "run_id": "macbookpro_m1_native_canvas_material_complexity_regular_r01",
+      "suite_id": "MACBOOKPRO_M1_NATIVE_CANVAS_MATERIAL_COMPLEXITY_REGULAR_SMOKE"
+    }
+  ]
+}
