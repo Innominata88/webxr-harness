@@ -122,3 +122,32 @@ test("rejects a render-scale disagreement", () => {
   });
   assert.match(validateNativeRecord(invalid).join("\n"), /render scale disagrees/);
 });
+
+test("accepts a stereo native XR record with source WebXR scale metadata", () => {
+  const valid = record({
+    mode: "xr",
+    source_webxr_scale_factor: 0.25,
+    env: {
+      ...record().env,
+      runtime_mode: "immersive-vr",
+      xr_runtime: "CompositorServices",
+      view_count: 2,
+      source_webxr_scale_factor: 0.25,
+      timing_source_primary: "compositorservices_predicted_presentation_time",
+    },
+  });
+  assert.deepEqual(validateNativeRecord(valid), []);
+});
+
+test("rejects monocular or scale-ambiguous native XR output", () => {
+  const invalid = record({
+    mode: "xr",
+    env: {
+      ...record().env,
+      view_count: 1,
+    },
+  });
+  const errors = validateNativeRecord(invalid).join("\n");
+  assert.match(errors, /source_webxr_scale_factor/);
+  assert.match(errors, /view_count=2/);
+});

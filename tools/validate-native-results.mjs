@@ -109,6 +109,19 @@ function validateEnvironment(record, location, errors) {
   if (env.drawable_width <= 0 || env.drawable_height <= 0) {
     errors.push(`${location}.env: drawable dimensions must be positive`);
   }
+  if (record.mode === "xr") {
+    requireFiniteNumber(env, "view_count", `${location}.env`, errors, { min: 1 });
+    requireFiniteNumber(
+      env,
+      "source_webxr_scale_factor",
+      `${location}.env`,
+      errors,
+      { min: Number.EPSILON }
+    );
+    if (env.view_count !== 2) {
+      errors.push(`${location}.env: immersive headset data requires view_count=2`);
+    }
+  }
 }
 
 function validateScene(record, location, errors) {
@@ -151,6 +164,15 @@ export function validateNativeRecord(record, location = "record") {
   requireType(record, "shuffle", "boolean", location, errors);
   requireType(record, "aborted", "boolean", location, errors);
   requireFiniteNumber(record, "render_scale", location, errors, { min: 0 });
+  if (record.mode === "xr") {
+    requireFiniteNumber(
+      record,
+      "source_webxr_scale_factor",
+      location,
+      errors,
+      { min: Number.EPSILON }
+    );
+  }
 
   if (record.schema_version !== "1.1.0") {
     errors.push(`${location}: unsupported schema_version ${JSON.stringify(record.schema_version)}`);

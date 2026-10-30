@@ -21,6 +21,7 @@ const QUERY_FIELDS = Object.freeze({
   shuffle: "shuffle",
   surfaceMode: "surfaceMode",
   renderScale: "canvasScaleFactor",
+  xrRenderScale: "xrScaleFactor",
   harnessCommit: "harnessCommit",
   harnessVersion: "harnessVersion",
   assetRevision: "assetRevision",
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     api: "",
     runtimeFamily: "",
     runCount: null,
+    mode: "",
     force: false,
   };
 
@@ -54,6 +56,7 @@ function parseArgs(argv) {
       case "--api": args.api = next.toLowerCase(); break;
       case "--runtime-family": args.runtimeFamily = next; break;
       case "--run-count": args.runCount = Number(next); break;
+      case "--mode": args.mode = next.toLowerCase(); break;
       default: fail(`Unknown argument: ${arg}`);
     }
     i++;
@@ -61,6 +64,9 @@ function parseArgs(argv) {
 
   if (!args.manifest) fail("--manifest is required");
   if (!args.api) fail("--api is required");
+  if (args.mode && !["canvas", "xr"].includes(args.mode)) {
+    fail("--mode must be canvas or xr");
+  }
   if (args.runCount != null && (!Number.isInteger(args.runCount) || args.runCount < 1)) {
     fail("--run-count must be a positive integer");
   }
@@ -79,7 +85,6 @@ function runtimeFamilyForApi(api) {
 }
 
 function parseQueryRow(row, rowIndex) {
-  if ((row.run_mode ?? "canvas") !== "canvas") return null;
   if (!row.url) fail(`Row ${rowIndex + 1} has no URL`);
 
   let url;
@@ -90,6 +95,8 @@ function parseQueryRow(row, rowIndex) {
   }
 
   const value = (name, fallback = "") => url.searchParams.get(name) ?? fallback;
+  const mode = String(value("runMode", row.run_mode ?? "canvas")).toLowerCase();
+  if (!["canvas", "xr"].includes(mode)) return null;
   const instances = value("instances", row.instances ?? "64")
     .split(",")
     .map((entry) => Number(entry.trim()))
@@ -105,6 +112,7 @@ function parseQueryRow(row, rowIndex) {
 
   return {
     api: String(row.api ?? ""),
+    mode,
     suiteId: value("suiteId", row.suite_id ?? ""),
     instances,
     trialsPerInstance: Number(value("trials", row.trials ?? "5")),
@@ -118,7 +126,13 @@ function parseQueryRow(row, rowIndex) {
     seed: Number(value("seed", row.order_seed ?? "12345")),
     shuffle: value("shuffle", row.shuffle ?? "0") === "1",
     surfaceMode,
-    renderScale: Number(value("canvasScaleFactor", "1")),
+    renderScale: Number(value(mode === "xr" ? "xrScaleFactor" : "canvasScaleFactor", "1")),
+    presentationMode: mode === "xr" ? value("xrSessionMode", "immersive-vr") : "window",
+    xrFrontMinZ: Number(value("xrFrontMinZ", "-2.5")),
+    xrYOffset: Number(value("xrYOffset", "1.4")),
+    xrAnchorToFirstPose: value("xrAnchorToFirstPose", "0") === "1",
+    xrAnchorMode: value("xrAnchorMode", "session"),
+    xrStartOnFirstPose: value("xrStartOnFirstPose", "0") === "1",
     harnessCommit: value("harnessCommit", row.harness_commit ?? ""),
     harnessVersion: value("harnessVersion", row.harness_version ?? ""),
     assetRevision: value("assetRevision", row.asset_revision ?? ""),
@@ -128,6 +142,7 @@ function parseQueryRow(row, rowIndex) {
 
 function stableWorkload(row) {
   return JSON.stringify({
+    mode: row.mode,
     instances: row.instances,
     trialsPerInstance: row.trialsPerInstance,
     durationMs: row.durationMs,
@@ -141,6 +156,12 @@ function stableWorkload(row) {
     shuffle: row.shuffle,
     surfaceMode: row.surfaceMode,
     renderScale: row.renderScale,
+    presentationMode: row.presentationMode,
+    xrFrontMinZ: row.xrFrontMinZ,
+    xrYOffset: row.xrYOffset,
+    xrAnchorToFirstPose: row.xrAnchorToFirstPose,
+    xrAnchorMode: row.xrAnchorMode,
+    xrStartOnFirstPose: row.xrStartOnFirstPose,
     harnessCommit: row.harnessCommit,
     harnessVersion: row.harnessVersion,
     assetRevision: row.assetRevision,
@@ -155,7 +176,7 @@ function inferRunCount(rows) {
     counts.set(api, (counts.get(api) ?? 0) + 1);
   }
   const values = [...counts.values()];
-  if (!values.length) fail("No canvas rows found");
+  if (!values.length) fail("No matching rows found");
   if (new Set(values).size !== 1) {
     fail(`Source APIs have unequal repetition counts: ${JSON.stringify(Object.fromEntries(counts))}`);
   }
@@ -207,15 +228,22 @@ export function generateNativePlan(source, options = {}) {
   const api = String(options.api ?? "").toLowerCase();
   if (!api) fail("Native API is required");
   const runtimeFamily = options.runtimeFamily || runtimeFamilyForApi(api);
-  const parsedRows = (source.rows ?? [])
+  let parsedRows = (source.rows ?? [])
     .map(parseQueryRow)
     .filter(Boolean);
-  if (!parsedRows.length) fail("Source manifest has no canvas rows");
+  if (options.mode) {
+    parsedRows = parsedRows.filter((row) => row.mode === options.mode);
+  }
+  if (!parsedRows.length) fail("Source manifest has no matching canvas or XR rows");
+  const modes = new Set(parsedRows.map((row) => row.mode));
+  if (modes.size !== 1) {
+    fail("Source manifest mixes canvas and XR rows; select one with --mode");
+  }
 
   const expectedWorkload = stableWorkload(parsedRows[0]);
   for (let i = 1; i < parsedRows.length; i++) {
     if (stableWorkload(parsedRows[i]) !== expectedWorkload) {
-      fail(`Source manifest mixes workload parameters at canvas row ${i + 1}`);
+      fail(`Source manifest mixes workload parameters at selected row ${i + 1}`);
     }
   }
 
@@ -240,7 +268,8 @@ export function generateNativePlan(source, options = {}) {
     fail("renderScale must be greater than 0 and at most 1");
   }
 
-  return {
+  const nativeRenderScale = template.mode === "xr" ? 1 : template.renderScale;
+  const plan = {
     schema: NATIVE_SCHEMA,
     generated_at: options.generatedAt ?? new Date().toISOString(),
     plan_id: `${runStem}_v1`,
@@ -253,9 +282,10 @@ export function generateNativePlan(source, options = {}) {
     cohort_group: cohortGroup,
     runtime_family: runtimeFamily,
     api,
-    mode: "canvas",
+    mode: template.mode,
     surface_mode: template.surfaceMode,
-    render_scale: template.renderScale,
+    render_scale: nativeRenderScale,
+    source_render_scale: template.renderScale,
     layout: template.layout,
     spacing: template.spacing,
     instances: template.instances,
@@ -275,13 +305,26 @@ export function generateNativePlan(source, options = {}) {
       suite_id: suiteId,
     })),
   };
+
+  if (template.mode === "xr") {
+    Object.assign(plan, {
+      presentation_mode: template.presentationMode,
+      xr_front_min_z: template.xrFrontMinZ,
+      xr_y_offset: template.xrYOffset,
+      xr_anchor_to_first_pose: template.xrAnchorToFirstPose,
+      xr_anchor_mode: template.xrAnchorMode,
+      xr_start_on_first_pose: template.xrStartOnFirstPose,
+    });
+  }
+  return plan;
 }
 
 function usage() {
   return [
     "Usage:",
     "  node tools/generate-native-plan.mjs --manifest <web-manifest.json> --api <metal|vulkan|d3d11>",
-    "    [--runtime-family <name>] [--run-count <n>] [--out <native-plan.json>] [--force]",
+    "    [--mode <canvas|xr>] [--runtime-family <name>] [--run-count <n>]",
+    "    [--out <native-plan.json>] [--force]",
   ].join("\n");
 }
 
@@ -302,6 +345,7 @@ function main(argv) {
     api: args.api,
     runtimeFamily: args.runtimeFamily,
     runCount: args.runCount,
+    mode: args.mode,
   });
 
   const output = `${JSON.stringify(plan, null, 2)}\n`;

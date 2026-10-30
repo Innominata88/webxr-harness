@@ -8,6 +8,10 @@ const materialManifestPath = new URL(
   "../manifests/pixel8a_canvas_material_complexity_regular_paired_5sets.json",
   import.meta.url
 );
+const avpXRManifestPath = new URL(
+  "../releases/r2026-03-24-b/manifests/avp_xr_material_complexity_regular_paired_10sets.json",
+  import.meta.url
+);
 
 function loadMaterialManifest() {
   return JSON.parse(fs.readFileSync(materialManifestPath, "utf8"));
@@ -93,4 +97,28 @@ test("render scale is part of the stable workload definition", () => {
     }),
     /mixes workload parameters/
   );
+});
+
+test("AVP XR manifest becomes native Metal immersive runs", () => {
+  const source = JSON.parse(fs.readFileSync(avpXRManifestPath, "utf8"));
+  const plan = generateNativePlan(source, {
+    sourceName: avpXRManifestPath.pathname,
+    api: "metal",
+    mode: "xr",
+    generatedAt: "2026-10-16T00:00:00.000Z",
+  });
+
+  assert.equal(plan.mode, "xr");
+  assert.equal(plan.presentation_mode, "immersive-vr");
+  assert.equal(plan.surface_mode, "basecolor");
+  assert.equal(plan.source_render_scale, 0.25);
+  assert.equal(plan.render_scale, 1);
+  assert.equal(plan.xr_front_min_z, -2.5);
+  assert.equal(plan.xr_y_offset, 1.4);
+  assert.equal(plan.xr_anchor_to_first_pose, true);
+  assert.equal(plan.xr_anchor_mode, "session");
+  assert.deepEqual(plan.instances, [1, 2, 4, 8, 16]);
+  assert.equal(plan.run_count, 10);
+  assert.equal(plan.runs.length, 10);
+  assert.match(plan.runs[0].suite_id, /AVP_NATIVE_XR_MATERIAL/);
 });

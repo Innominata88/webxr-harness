@@ -1,0 +1,209 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000000000000000000001 /* VisionProBenchmarkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001; };
+		B10000000000000000000002 /* ControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002; };
+		B10000000000000000000003 /* VisionBenchmarkCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003; };
+		B10000000000000000000004 /* VisionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004; };
+		B10000000000000000000005 /* BenchmarkRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000005; };
+		B10000000000000000000006 /* ImmersiveMetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006; };
+		B10000000000000000000007 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000007; };
+		B10000000000000000000008 /* ConditionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008; };
+		B10000000000000000000009 /* GLBLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000009; };
+		B1000000000000000000000A /* InstanceLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000A; };
+		B1000000000000000000000B /* TrialStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000B; };
+		B1000000000000000000000C /* spiderman_2002_movie_version_sam_raimi_0.glb in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000C; };
+		B1000000000000000000000D /* regular smoke plan in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000D; };
+		B1000000000000000000000E /* regular sanity plan in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000E; };
+		B1000000000000000000000F /* regular full plan in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000F; };
+		B10000000000000000000010 /* stress smoke plan in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010; };
+		B10000000000000000000011 /* stress sanity plan in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011; };
+		B10000000000000000000012 /* stress full plan in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000001 /* VisionProBenchmarkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionProBenchmarkApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000002 /* ControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlView.swift; sourceTree = "<group>"; };
+		A10000000000000000000003 /* VisionBenchmarkCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionBenchmarkCoordinator.swift; sourceTree = "<group>"; };
+		A10000000000000000000004 /* VisionManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionManifest.swift; sourceTree = "<group>"; };
+		A10000000000000000000005 /* BenchmarkRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkRuntime.swift; sourceTree = "<group>"; };
+		A10000000000000000000006 /* ImmersiveMetalRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveMetalRenderer.swift; sourceTree = "<group>"; };
+		A10000000000000000000007 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		A10000000000000000000008 /* ConditionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ConditionPlan.swift; path = ../NativeBenchmark/NativeBenchmark/ConditionPlan.swift; sourceTree = SOURCE_ROOT; };
+		A10000000000000000000009 /* GLBLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GLBLoader.swift; path = ../NativeBenchmark/NativeBenchmark/GLBLoader.swift; sourceTree = SOURCE_ROOT; };
+		A1000000000000000000000A /* InstanceLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InstanceLayout.swift; path = ../NativeBenchmark/NativeBenchmark/InstanceLayout.swift; sourceTree = SOURCE_ROOT; };
+		A1000000000000000000000B /* TrialStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrialStats.swift; path = ../NativeBenchmark/NativeBenchmark/TrialStats.swift; sourceTree = SOURCE_ROOT; };
+		A1000000000000000000000C /* spiderman_2002_movie_version_sam_raimi_0.glb */ = {isa = PBXFileReference; lastKnownFileType = file; name = spiderman_2002_movie_version_sam_raimi_0.glb; path = ../../assets/spiderman_2002_movie_version_sam_raimi_0.glb; sourceTree = SOURCE_ROOT; };
+		A1000000000000000000000D /* regular smoke */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = avp_native_xr_material_complexity_regular_smoke_1sets.json; path = ../plans/avp_native_xr_material_complexity_regular_smoke_1sets.json; sourceTree = SOURCE_ROOT; };
+		A1000000000000000000000E /* regular sanity */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = avp_native_xr_material_complexity_regular_sanity_2sets.json; path = ../plans/avp_native_xr_material_complexity_regular_sanity_2sets.json; sourceTree = SOURCE_ROOT; };
+		A1000000000000000000000F /* regular full */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = avp_native_xr_material_complexity_regular_10sets.json; path = ../plans/avp_native_xr_material_complexity_regular_10sets.json; sourceTree = SOURCE_ROOT; };
+		A10000000000000000000010 /* stress smoke */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = avp_native_xr_material_stress_a_smoke_1sets.json; path = ../plans/avp_native_xr_material_stress_a_smoke_1sets.json; sourceTree = SOURCE_ROOT; };
+		A10000000000000000000011 /* stress sanity */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = avp_native_xr_material_stress_a_sanity_2sets.json; path = ../plans/avp_native_xr_material_stress_a_sanity_2sets.json; sourceTree = SOURCE_ROOT; };
+		A10000000000000000000012 /* stress full */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = avp_native_xr_material_stress_a_10sets.json; path = ../plans/avp_native_xr_material_stress_a_10sets.json; sourceTree = SOURCE_ROOT; };
+		D10000000000000000000001 /* VisionProBenchmark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisionProBenchmark.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E10000000000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000002 /* VisionProBenchmark */,
+				C10000000000000000000003 /* Shared */,
+				C10000000000000000000004 /* Resources */,
+				C10000000000000000000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C10000000000000000000002 /* VisionProBenchmark */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000001,
+				A10000000000000000000002,
+				A10000000000000000000003,
+				A10000000000000000000004,
+				A10000000000000000000005,
+				A10000000000000000000006,
+				A10000000000000000000007,
+			);
+			path = VisionProBenchmark;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000003 /* Shared */ = {
+			isa = PBXGroup;
+			children = (A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000004 /* Resources */ = {
+			isa = PBXGroup;
+			children = (A1000000000000000000000C, A1000000000000000000000D, A1000000000000000000000E, A1000000000000000000000F, A10000000000000000000010, A10000000000000000000011, A10000000000000000000012);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000005 /* Products */ = {isa = PBXGroup; children = (D10000000000000000000001); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		H10000000000000000000002 /* VisionProBenchmark */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000000000000000000002;
+			buildPhases = (E10000000000000000000001, E10000000000000000000002, E10000000000000000000003);
+			buildRules = ();
+			dependencies = ();
+			name = VisionProBenchmark;
+			productName = VisionProBenchmark;
+			productReference = D10000000000000000000001;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		H10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; TargetAttributes = {H10000000000000000000002 = {CreatedOnToolsVersion = 27.0; }; }; };
+			buildConfigurationList = F10000000000000000000001;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = C10000000000000000000001;
+			productRefGroup = C10000000000000000000005;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (H10000000000000000000002);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E10000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (B1000000000000000000000C, B1000000000000000000000D, B1000000000000000000000E, B1000000000000000000000F, B10000000000000000000010, B10000000000000000000011, B10000000000000000000012);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006, B10000000000000000000007, B10000000000000000000008, B10000000000000000000009, B1000000000000000000000A, B1000000000000000000000B);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		G10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_OPTIMIZATION_LEVEL = 0; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; ONLY_ACTIVE_ARCH = YES; SDKROOT = xros; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; XROS_DEPLOYMENT_TARGET = 2.0; };
+			name = Debug;
+		};
+		G10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; GCC_C_LANGUAGE_STANDARD = gnu17; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = xros; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; VALIDATE_PRODUCT = YES; XROS_DEPLOYMENT_TARGET = 2.0; };
+			name = Release;
+		};
+		G10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "AVP Native Benchmark";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSWorldSensingUsageDescription = "World tracking keeps the benchmark scene fixed while the headset moves.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.webxrharness.VisionProBenchmark;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Debug;
+		};
+		G10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "AVP Native Benchmark";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSWorldSensingUsageDescription = "World tracking keeps the benchmark scene fixed while the headset moves.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.webxrharness.VisionProBenchmark;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (G10000000000000000000001, G10000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F10000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (G10000000000000000000003, G10000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = H10000000000000000000001;
+}

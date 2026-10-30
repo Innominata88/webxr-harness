@@ -13,6 +13,7 @@ parameter sources only; they are never replayed directly by a native runner.
 | Pixel 8a | Canvas | flat | 0.50 | 1 run, 1 condition | 5 runs, 30 conditions/run |
 | Samsung Galaxy FE | Canvas | material/basecolor | 0.75 | 1 run, 1 condition | 5 runs, 30 conditions/run |
 | Samsung Galaxy FE | Canvas | flat | 0.75 | 1 run, 1 condition | 5 runs, 50 conditions/run |
+| Apple Vision Pro | Immersive VR | material/basecolor | system native | 1 run, 1 condition | 10 runs, 25 conditions/run |
 
 Smoke plans are visual/schema gates, not experimental cohorts. Full plans must
 not be run until the matching smoke plan is visually correct and its output
@@ -36,7 +37,13 @@ passes `tools/validate-native-results.mjs`.
 The generator rejects source rows that mix render scales. Native runners must
 apply the value and report the requested scale and resulting drawable size.
 
-## AR Plans Are Not Generated Yet
+For Apple Vision Pro XR, the source browser scale is retained as
+`source_render_scale=0.25`, while `render_scale=1` means that Compositor
+Services supplies system-native eye textures. The native app records their
+actual dimensions. These are not assumed to match WebXR's scaled projection
+layer.
+
+## Phone AR Plans Are Not Generated Yet
 
 Phone AR material and stress sources exist in dated manifest packs, but AR
 plans require additional fields that the current canvas generator deliberately
