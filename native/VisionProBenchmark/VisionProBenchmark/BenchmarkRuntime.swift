@@ -30,6 +30,17 @@ struct NativeRuntimeEnvironment {
     var layerLayout = "dedicated"
     var foveationEnabled = false
     var meshMeta: GLBMeta?
+    var visibilityDiagnostic: NativeVisibilityDiagnostic?
+}
+
+struct NativeVisibilityDiagnostic {
+    var requestGeneration: Int
+    var modelWorldCenter: SIMD3<Float>
+    var cameraWorldCenter: SIMD3<Float>
+    var modelViewCenter: SIMD3<Float>
+    var modelClipCenter: SIMD4<Float>
+    var modelNDCCenter: SIMD3<Float>?
+    var centerInsideClipVolume: Bool
 }
 
 final class BenchmarkRuntime: @unchecked Sendable {
@@ -50,9 +61,11 @@ final class BenchmarkRuntime: @unchecked Sendable {
     private var renderRequest = NativeRenderRequest()
     private var activeTrial: ActiveTrial?
     private var environment = NativeRuntimeEnvironment()
+    private var diagnosticCaptureRequested = false
 
     var onStatus: ((String) -> Void)?
     var onReadyChanged: ((Bool) -> Void)?
+    var onDiagnosticCapture: ((Data?, String?) -> Void)?
 
     func requestRender(
         instances: Int,
@@ -75,6 +88,26 @@ final class BenchmarkRuntime: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return renderRequest
+    }
+
+    func requestDiagnosticCapture() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard activeTrial == nil, !diagnosticCaptureRequested else { return false }
+        diagnosticCaptureRequested = true
+        return true
+    }
+
+    func consumeDiagnosticCaptureRequest() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard diagnosticCaptureRequested else { return false }
+        diagnosticCaptureRequested = false
+        return true
+    }
+
+    func completeDiagnosticCapture(data: Data?, error: String?) {
+        onDiagnosticCapture?(data, error)
     }
 
     func beginTrial(
@@ -221,6 +254,12 @@ final class BenchmarkRuntime: @unchecked Sendable {
         environment.drawableWidth = width
         environment.drawableHeight = height
         environment.viewCount = viewCount
+        lock.unlock()
+    }
+
+    func updateVisibilityDiagnostic(_ diagnostic: NativeVisibilityDiagnostic) {
+        lock.lock()
+        environment.visibilityDiagnostic = diagnostic
         lock.unlock()
     }
 

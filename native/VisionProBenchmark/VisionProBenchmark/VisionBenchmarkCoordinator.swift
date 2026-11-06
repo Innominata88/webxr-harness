@@ -18,6 +18,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
     @Published var immersiveOpen = false
     @Published private(set) var latestOutputURL: URL?
     @Published private(set) var outputURLs: [URL] = []
+    @Published private(set) var latestCaptureURL: URL?
     @Published var nativeHarnessCommit: String = "" {
         didSet {
             UserDefaults.standard.set(nativeHarnessCommit, forKey: "nativeHarnessCommit")
@@ -35,6 +36,11 @@ final class VisionBenchmarkCoordinator: ObservableObject {
         }
         runtime.onReadyChanged = { [weak self] ready in
             DispatchQueue.main.async { self?.rendererReady = ready }
+        }
+        runtime.onDiagnosticCapture = { [weak self] data, error in
+            DispatchQueue.main.async {
+                self?.finishDiagnosticCapture(data: data, error: error)
+            }
         }
         loadSelectedPlan()
     }
@@ -101,6 +107,22 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             reason: "The operator cancelled the collection."
         )
         status = "Cancelling after the current operation."
+    }
+
+    func captureRenderPreview() {
+        guard rendererReady else {
+            status = "Enter the immersive space before capturing a render preview."
+            return
+        }
+        guard !isRunning else {
+            status = "Render previews are disabled during measured collection."
+            return
+        }
+        guard runtime.requestDiagnosticCapture() else {
+            status = "A render preview is already pending."
+            return
+        }
+        status = "Exporting the first-eye Metal render target..."
     }
 
     private func loadSelectedPlan() {
@@ -304,7 +326,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "abort_reason": measurement.abortReason,
         ]
 
-        record["env"] = [
+        var env = [
             "platform": "visionOS \(ProcessInfo.processInfo.operatingSystemVersionString)",
             "device_model": hardwareModel(),
             "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
@@ -342,6 +364,21 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "xr_y_offset": plan.xrYOffset,
             "hardwareConcurrency": ProcessInfo.processInfo.activeProcessorCount,
         ] as [String: Any]
+        if let diagnostic = environment.visibilityDiagnostic {
+            var visibility = [
+                "request_generation": diagnostic.requestGeneration,
+                "model_world_center": array(diagnostic.modelWorldCenter),
+                "camera_world_center": array(diagnostic.cameraWorldCenter),
+                "model_view_center": array(diagnostic.modelViewCenter),
+                "model_clip_center": array(diagnostic.modelClipCenter),
+                "center_inside_clip_volume": diagnostic.centerInsideClipVolume,
+            ] as [String: Any]
+            if let ndc = diagnostic.modelNDCCenter {
+                visibility["model_ndc_center"] = array(ndc)
+            }
+            env["visibility_diagnostic"] = visibility
+        }
+        record["env"] = env
 
         if let meta = environment.meshMeta {
             record["scene"] = [
@@ -423,6 +460,42 @@ final class VisionBenchmarkCoordinator: ObservableObject {
         return url
     }
 
+    private func finishDiagnosticCapture(data: Data?, error: String?) {
+        if let error {
+            status = "Render preview failed: \(error)"
+            return
+        }
+        guard let data else {
+            status = "Render preview failed without image data."
+            return
+        }
+
+        do {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let timestamp = formatter.string(from: Date())
+            let documents = FileManager.default.urls(
+                for: .documentDirectory,
+                in: .userDomainMask
+            ).first!
+            let directory = documents
+                .appendingPathComponent("AVP Native XR", isDirectory: true)
+                .appendingPathComponent("Diagnostics", isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+            let url = directory.appendingPathComponent(
+                "avp-native-render-preview__ts=\(timestamp).png"
+            )
+            try data.write(to: url, options: .atomic)
+            latestCaptureURL = url
+            status = "First-eye render target exported. Share the PNG below."
+        } catch {
+            status = "Could not save render preview: \(error.localizedDescription)"
+        }
+    }
+
     private func append(record: [String: Any], to url: URL) throws {
         let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
         let handle = try FileHandle(forWritingTo: url)
@@ -439,6 +512,14 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             with: "-",
             options: .regularExpression
         )
+    }
+
+    private func array(_ value: SIMD3<Float>) -> [Float] {
+        [value.x, value.y, value.z]
+    }
+
+    private func array(_ value: SIMD4<Float>) -> [Float] {
+        [value.x, value.y, value.z, value.w]
     }
 
     private func hardwareModel() -> String {

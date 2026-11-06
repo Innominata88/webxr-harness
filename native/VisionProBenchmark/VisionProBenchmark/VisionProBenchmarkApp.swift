@@ -44,5 +44,6 @@ struct VisionProBenchmarkApp: App {
                 coordinator.startRenderer(layerRenderer)
             }
         }
+        .immersionStyle(selection: .constant(.full), in: .full)
     }
 }

@@ -87,10 +87,15 @@ native collection.
    `-dirty` if the installed build contains uncommitted changes.
 5. Visually confirm the colored models are visible, fixed in the room, and
    present in both eyes when using the physical headset.
-6. Choose **Run Selected Plan** and keep the headset worn.
-7. Do not exit immersive mode, record an Instruments trace, or run another app
+6. If system screenshots are unavailable, choose **Export First-Eye Render
+   Target** before collection and export the PNG. This is not a screenshot of
+   the headset view: it captures the app's first-eye color attachment without
+   compositor effects. Treat it only as a render-target diagnostic.
+7. Choose **Run Selected Plan** and keep the headset worn.
+8. Do not exit immersive mode, capture a preview, record an Instruments trace,
+   or run another app
    during baseline collection.
-8. Export the latest JSONL after each run. The app also stores files under
+9. Export the latest JSONL after each run. The app also stores files under
    `Documents/AVP Native XR/<cohort>`.
 
 Validate exported files on the Mac:

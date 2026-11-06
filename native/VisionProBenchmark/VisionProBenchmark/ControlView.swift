@@ -67,6 +67,17 @@ struct ControlView: View {
                     coordinator.cancel()
                 }
                 .disabled(!coordinator.isRunning)
+
+                Button("Export First-Eye Render Target") {
+                    coordinator.captureRenderPreview()
+                }
+                .disabled(!coordinator.rendererReady || coordinator.isRunning)
+            }
+
+            if let capture = coordinator.latestCaptureURL {
+                ShareLink(item: capture) {
+                    Label("Share First-Eye PNG", systemImage: "photo")
+                }
             }
 
             if let output = coordinator.latestOutputURL {
