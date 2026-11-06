@@ -98,6 +98,11 @@ native collection.
 9. Export the latest JSONL after each run. The app also stores files under
    `Documents/AVP Native XR/<cohort>`.
 
+During the five-minute between-run cooldown, the app clears all benchmark
+models and leaves only the uniform immersive background. Models remaining on
+screen indicate that the workload is not idling; cancel that collection rather
+than treating the following run as valid.
+
 Validate exported files on the Mac:
 
 ```sh

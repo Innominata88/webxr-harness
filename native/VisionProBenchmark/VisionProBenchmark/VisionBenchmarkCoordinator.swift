@@ -137,6 +137,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
 
     private func execute(_ plan: NativeXRPlan) async {
         defer {
+            runtime.requestIdle()
             isRunning = false
             runTask = nil
         }
@@ -232,6 +233,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             }
 
             if runIndex < plan.runs.count - 1 {
+                runtime.requestIdle()
                 if !(await betweenRunCooldown(
                     milliseconds: plan.betweenRunsMs,
                     nextRun: runIndex + 2,

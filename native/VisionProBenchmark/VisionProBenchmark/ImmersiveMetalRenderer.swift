@@ -276,8 +276,18 @@ final class ImmersiveMetalRenderer {
     }
 
     private func updateInstancesIfNeeded(_ request: NativeRenderRequest) {
-        guard request.generation != appliedRequestGeneration,
-              let anchorPlacement else { return }
+        guard request.generation != appliedRequestGeneration else { return }
+
+        if request.instances <= 0 {
+            instanceBuffer = nil
+            instanceCount = 0
+            firstInstanceCenter = nil
+            appliedRequestGeneration = request.generation
+            diagnosedRequestGeneration = request.generation
+            return
+        }
+
+        guard let anchorPlacement else { return }
 
         let baseOffsets: [InstanceOffset]
         switch request.layout {

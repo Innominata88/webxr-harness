@@ -84,6 +84,13 @@ final class BenchmarkRuntime: @unchecked Sendable {
         lock.unlock()
     }
 
+    func requestIdle() {
+        lock.lock()
+        renderRequest.generation += 1
+        renderRequest.instances = 0
+        lock.unlock()
+    }
+
     func renderSnapshot() -> NativeRenderRequest {
         lock.lock()
         defer { lock.unlock() }
