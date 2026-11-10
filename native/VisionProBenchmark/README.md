@@ -27,18 +27,27 @@ direct GPU execution time.
 - measured duration: 6 seconds after a 500 ms warmup
 - condition shuffle: seed `12345`
 - full replication: 10 run sets
+- idle presentation: models are cleared during every trial, instance, and
+  between-run cooldown using the browser's opaque-black idle clear
+  (`clear_each_frame`)
 
-The browser used `xrScaleFactor=0.25`. Compositor Services supplies native
-system-sized eye textures and does not expose the same WebXR scale control.
-The native plan therefore reports `render_scale=1`, records the actual per-eye
-drawable dimensions, and preserves `source_webxr_scale_factor=0.25` as source
-metadata. This prevents the results from falsely claiming identical pixel
-workloads.
+The browser used `xrScaleFactor=0.25`. Compositor Services does not expose the
+same WebXR scale control. On visionOS 26, the native layer requests the maximum
+render quality and uses the compositor-provided variable-rasterization maps so
+fine material details are not limited by the platform's lower default drawable
+resolution. The native plan reports `render_scale=1`, records the actual
+per-eye drawable dimensions and rasterization-rate-map count, and preserves
+`source_webxr_scale_factor=0.25` as source metadata. This prevents the results
+from falsely claiming identical pixel workloads.
 
-Native foveation is disabled for a stable explicit configuration. Safari and
-WebXR may choose their own internal projection-layer or foveation behavior,
-which is another reason to interpret this as a comparison of complete runtime
-paths rather than an isolated API-overhead experiment.
+Safari and WebXR may choose their own projection-layer and foveation behavior.
+Interpret the native results as a comparison of complete runtime paths rather
+than an isolated API-overhead experiment.
+
+The asset's indexed-PNG material uses a Core Graphics fallback decoder. Its
+bitmap rows are uploaded in top-left orientation to match MetalKit and the web
+renderers; an additional vertical flip moves the gray chest logo outside the
+UV region used by the logo primitive.
 
 ## Timing Meaning
 
@@ -98,10 +107,10 @@ native collection.
 9. Export the latest JSONL after each run. The app also stores files under
    `Documents/AVP Native XR/<cohort>`.
 
-During the five-minute between-run cooldown, the app clears all benchmark
-models and leaves only the uniform immersive background. Models remaining on
-screen indicate that the workload is not idling; cancel that collection rather
-than treating the following run as valid.
+During every trial, instance, and between-run cooldown, the app clears all
+benchmark models and leaves only the uniform immersive background. Models
+remaining on screen indicate that the workload is not idling; cancel that
+collection rather than treating the following run as valid.
 
 Validate exported files on the Mac:
 

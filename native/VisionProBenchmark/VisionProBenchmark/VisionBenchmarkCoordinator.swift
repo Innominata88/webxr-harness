@@ -203,6 +203,9 @@ final class VisionBenchmarkCoordinator: ObservableObject {
 
                 let startedAt = ISO8601DateFormatter().string(from: Date())
                 let measurement = await performTrial(plan: plan)
+                // Match the browser's clear_each_frame idle presentation:
+                // remove the workload for every trial and instance cooldown.
+                runtime.requestIdle()
                 let record = buildRecord(
                     plan: plan,
                     run: run,
@@ -320,6 +323,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "warmupMs": plan.warmupMs,
             "cooldownMs": plan.cooldownMs,
             "betweenInstancesMs": plan.betweenInstancesMs,
+            "xrIdlePresentMode": "clear_each_frame",
             "minFrames": plan.minFrames,
             "collectPerf": false,
             "perfDetail": false,
@@ -336,6 +340,8 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "runtime_mode": plan.presentationMode,
             "xr_runtime": "CompositorServices",
             "renderer_path": "metal-compositorservices-basecolor",
+            "material_texture_format": "rgba8Unorm_srgb",
+            "texture_decode_fallback_orientation": "top_left",
             "surface_mode": plan.surfaceMode,
             "surfaceMode": plan.surfaceMode,
             "render_scale": plan.renderScale,
@@ -343,17 +349,26 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "render_scale_semantics": "system_compositor_native",
             "drawable_width": environment.drawableWidth,
             "drawable_height": environment.drawableHeight,
+            "drawable_texture_width": environment.drawableTextureWidth,
+            "drawable_texture_height": environment.drawableTextureHeight,
+            "rasterization_screen_width": environment.rasterizationScreenWidth,
+            "rasterization_screen_height": environment.rasterizationScreenHeight,
             "view_count": environment.viewCount,
             "gpu_renderer": environment.gpuRenderer,
             "color_format": environment.colorFormat,
             "depth_format": environment.depthFormat,
             "layer_layout": environment.layerLayout,
             "foveation_enabled": environment.foveationEnabled,
+            "render_quality_target": 1.0,
+            "rasterization_rate_map_count": environment.rasterizationRateMapCount,
+            "rasterization_rate_maps_applied": environment.foveationEnabled
+                && environment.rasterizationRateMapCount > 0,
+            "idle_clear_color": "black",
             "timing_source_primary": "compositorservices_predicted_presentation_time",
             "timing_source_secondary": "processinfo_system_uptime",
             "timing_scope": "application_compositor_cadence_not_gpu_execution",
             "browser": "native",
-            "harness_version": "native-vision-1.0.0",
+            "harness_version": "native-vision-1.2.2",
             "harness_commit": nativeHarnessCommit,
             "source_web_harness_commit": plan.sourceHarnessCommit,
             "source_harness_version": plan.sourceHarnessVersion,

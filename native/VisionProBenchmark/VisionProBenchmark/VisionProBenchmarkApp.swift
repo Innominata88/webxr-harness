@@ -24,7 +24,20 @@ struct BenchmarkLayerConfiguration: CompositorLayerConfiguration {
         if layouts.contains(.dedicated) {
             configuration.layout = .dedicated
         }
+
         configuration.isFoveationEnabled = false
+        if #available(visionOS 26.0, *), capabilities.supportsFoveation {
+            let foveatedLayouts = capabilities.supportedLayouts(
+                options: [.foveationEnabled]
+            )
+            if foveatedLayouts.contains(.dedicated) {
+                configuration.layout = .dedicated
+                configuration.isFoveationEnabled = true
+                configuration.maxRenderQuality = LayerRenderer.RenderQuality(
+                    rawValue: 1.0
+                )
+            }
+        }
         configuration.defaultDepthRange = SIMD2<Float>(100, 0.1)
     }
 }

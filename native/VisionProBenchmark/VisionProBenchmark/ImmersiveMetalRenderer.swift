@@ -38,6 +38,12 @@ private let benchmarkClearColor = MTLClearColor(
     blue: 0.00719441,
     alpha: 1
 )
+private let benchmarkIdleClearColor = MTLClearColor(
+    red: 0,
+    green: 0,
+    blue: 0,
+    alpha: 1
+)
 
 // Supply a finite background depth just inside the 100 m far plane. Exact
 // reverse-Z zero leaves no background surface for late reprojection.
@@ -100,6 +106,11 @@ final class ImmersiveMetalRenderer {
             throw ImmersiveRendererError.missingCommandQueue
         }
         commandQueue = queue
+
+        if #available(visionOS 26.0, *),
+           layerRenderer.configuration.isFoveationEnabled {
+            layerRenderer.renderQuality = LayerRenderer.RenderQuality(rawValue: 1.0)
+        }
 
         let resources = try Self.makeDefaultResources(device: device)
         whiteTexture = resources.texture
@@ -189,10 +200,22 @@ final class ImmersiveMetalRenderer {
 
             if !recordedDrawable, let firstView = drawable.views.first {
                 let viewport = firstView.textureMap.viewport
+                let textureIndex = firstView.textureMap.textureIndex
+                let colorTexture = drawable.colorTextures.indices.contains(textureIndex)
+                    ? drawable.colorTextures[textureIndex]
+                    : nil
+                let rateMap = drawable.rasterizationRateMaps.indices.contains(textureIndex)
+                    ? drawable.rasterizationRateMaps[textureIndex]
+                    : nil
                 runtime.updateDrawable(
                     width: Int(viewport.width),
                     height: Int(viewport.height),
-                    viewCount: drawable.views.count
+                    textureWidth: colorTexture?.width ?? 0,
+                    textureHeight: colorTexture?.height ?? 0,
+                    viewCount: drawable.views.count,
+                    rasterizationRateMapCount: drawable.rasterizationRateMaps.count,
+                    rasterizationScreenWidth: rateMap?.screenSize.width ?? 0,
+                    rasterizationScreenHeight: rateMap?.screenSize.height ?? 0
                 )
             }
 
@@ -333,7 +356,11 @@ final class ImmersiveMetalRenderer {
 
             let descriptor = renderPassDescriptor(
                 color: drawable.colorTextures[map.textureIndex],
-                depth: drawable.depthTextures[map.textureIndex]
+                depth: drawable.depthTextures[map.textureIndex],
+                slice: map.sliceIndex,
+                rasterizationRateMap: drawable.rasterizationRateMaps.indices.contains(
+                    map.textureIndex
+                ) ? drawable.rasterizationRateMaps[map.textureIndex] : nil
             )
             guard let encoder = commandBuffer.makeRenderCommandEncoder(
                 descriptor: descriptor
@@ -399,7 +426,12 @@ final class ImmersiveMetalRenderer {
             else { continue }
             let descriptor = renderPassDescriptor(
                 color: drawable.colorTextures[textureIndex],
-                depth: drawable.depthTextures[textureIndex]
+                depth: drawable.depthTextures[textureIndex],
+                slice: view.textureMap.sliceIndex,
+                rasterizationRateMap: drawable.rasterizationRateMaps.indices.contains(
+                    textureIndex
+                ) ? drawable.rasterizationRateMaps[textureIndex] : nil,
+                clearColor: benchmarkIdleClearColor
             )
             commandBuffer.makeRenderCommandEncoder(descriptor: descriptor)?.endEncoding()
         }
@@ -584,17 +616,23 @@ final class ImmersiveMetalRenderer {
 
     private func renderPassDescriptor(
         color: MTLTexture,
-        depth: MTLTexture
+        depth: MTLTexture,
+        slice: Int = 0,
+        rasterizationRateMap: MTLRasterizationRateMap? = nil,
+        clearColor: MTLClearColor = benchmarkClearColor
     ) -> MTLRenderPassDescriptor {
         let descriptor = MTLRenderPassDescriptor()
         descriptor.colorAttachments[0].texture = color
+        descriptor.colorAttachments[0].slice = slice
         descriptor.colorAttachments[0].loadAction = .clear
         descriptor.colorAttachments[0].storeAction = .store
-        descriptor.colorAttachments[0].clearColor = benchmarkClearColor
+        descriptor.colorAttachments[0].clearColor = clearColor
         descriptor.depthAttachment.texture = depth
+        descriptor.depthAttachment.slice = slice
         descriptor.depthAttachment.loadAction = .clear
         descriptor.depthAttachment.storeAction = .store
         descriptor.depthAttachment.clearDepth = benchmarkBackgroundDepth
+        descriptor.rasterizationRateMap = rasterizationRateMap
         return descriptor
     }
 
@@ -693,9 +731,8 @@ final class ImmersiveMetalRenderer {
                   )
             else { return false }
 
-            // Produce the same top-left orientation requested from MTKTextureLoader.
-            context.translateBy(x: 0, y: CGFloat(height))
-            context.scaleBy(x: 1, y: -1)
+            // Bitmap rows already match Metal's top-left texture orientation.
+            // Flipping here moves the indexed-PNG chest logo to the wrong UV region.
             context.draw(
                 image,
                 in: CGRect(x: 0, y: 0, width: width, height: height)

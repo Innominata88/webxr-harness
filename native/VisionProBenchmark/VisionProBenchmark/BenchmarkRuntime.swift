@@ -25,10 +25,15 @@ struct NativeRuntimeEnvironment {
     var viewCount = 0
     var drawableWidth = 0
     var drawableHeight = 0
+    var drawableTextureWidth = 0
+    var drawableTextureHeight = 0
+    var rasterizationScreenWidth = 0
+    var rasterizationScreenHeight = 0
     var colorFormat = ""
     var depthFormat = ""
     var layerLayout = "dedicated"
     var foveationEnabled = false
+    var rasterizationRateMapCount = 0
     var meshMeta: GLBMeta?
     var visibilityDiagnostic: NativeVisibilityDiagnostic?
 }
@@ -256,11 +261,25 @@ final class BenchmarkRuntime: @unchecked Sendable {
         onStatus?("Immersive Metal renderer ready. Keep the headset on while collecting.")
     }
 
-    func updateDrawable(width: Int, height: Int, viewCount: Int) {
+    func updateDrawable(
+        width: Int,
+        height: Int,
+        textureWidth: Int,
+        textureHeight: Int,
+        viewCount: Int,
+        rasterizationRateMapCount: Int,
+        rasterizationScreenWidth: Int,
+        rasterizationScreenHeight: Int
+    ) {
         lock.lock()
         environment.drawableWidth = width
         environment.drawableHeight = height
+        environment.drawableTextureWidth = textureWidth
+        environment.drawableTextureHeight = textureHeight
         environment.viewCount = viewCount
+        environment.rasterizationRateMapCount = rasterizationRateMapCount
+        environment.rasterizationScreenWidth = rasterizationScreenWidth
+        environment.rasterizationScreenHeight = rasterizationScreenHeight
         lock.unlock()
     }
 
