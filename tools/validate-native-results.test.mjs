@@ -139,6 +139,46 @@ test("accepts a stereo native XR record with source WebXR scale metadata", () =>
   assert.deepEqual(validateNativeRecord(valid), []);
 });
 
+test("accepts the Vision Pro 1.3 session-restart protocol", () => {
+  const valid = record({
+    mode: "xr",
+    source_webxr_scale_factor: 0.25,
+    betweenRunsMs: 300000,
+    betweenRunsPresentationMode: "immersive_session_closed",
+    env: {
+      ...record().env,
+      runtime_mode: "immersive-vr",
+      xr_runtime: "CompositorServices",
+      view_count: 2,
+      source_webxr_scale_factor: 0.25,
+      timing_source_primary: "compositorservices_predicted_presentation_time",
+      harness_version: "native-vision-1.3.0",
+      between_run_xr_session: "closed_and_reopened",
+    },
+  });
+  assert.deepEqual(validateNativeRecord(valid), []);
+});
+
+test("rejects Vision Pro 1.3 output without session-restart metadata", () => {
+  const invalid = record({
+    mode: "xr",
+    source_webxr_scale_factor: 0.25,
+    env: {
+      ...record().env,
+      runtime_mode: "immersive-vr",
+      xr_runtime: "CompositorServices",
+      view_count: 2,
+      source_webxr_scale_factor: 0.25,
+      timing_source_primary: "compositorservices_predicted_presentation_time",
+      harness_version: "native-vision-1.3.0",
+    },
+  });
+  const errors = validateNativeRecord(invalid).join("\n");
+  assert.match(errors, /betweenRunsMs/);
+  assert.match(errors, /betweenRunsPresentationMode/);
+  assert.match(errors, /between_run_xr_session/);
+});
+
 test("rejects monocular or scale-ambiguous native XR output", () => {
   const invalid = record({
     mode: "xr",

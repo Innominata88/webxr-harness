@@ -121,6 +121,19 @@ function validateEnvironment(record, location, errors) {
     if (env.view_count !== 2) {
       errors.push(`${location}.env: immersive headset data requires view_count=2`);
     }
+    if (env.harness_version === "native-vision-1.3.0") {
+      requireNonemptyString(
+        env,
+        "between_run_xr_session",
+        `${location}.env`,
+        errors
+      );
+      if (env.between_run_xr_session !== "closed_and_reopened") {
+        errors.push(
+          `${location}.env: native-vision-1.3.0 requires closed_and_reopened XR sessions`
+        );
+      }
+    }
   }
 }
 
@@ -172,6 +185,15 @@ export function validateNativeRecord(record, location = "record") {
       errors,
       { min: Number.EPSILON }
     );
+    if (record.env?.harness_version === "native-vision-1.3.0") {
+      requireFiniteNumber(record, "betweenRunsMs", location, errors, { min: 0 });
+      requireNonemptyString(record, "betweenRunsPresentationMode", location, errors);
+      if (record.betweenRunsPresentationMode !== "immersive_session_closed") {
+        errors.push(
+          `${location}: native-vision-1.3.0 requires immersive_session_closed between runs`
+        );
+      }
+    }
   }
 
   if (record.schema_version !== "1.1.0") {

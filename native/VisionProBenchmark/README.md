@@ -27,9 +27,11 @@ direct GPU execution time.
 - measured duration: 6 seconds after a 500 ms warmup
 - condition shuffle: seed `12345`
 - full replication: 10 run sets
-- idle presentation: models are cleared during every trial, instance, and
-  between-run cooldown using the browser's opaque-black idle clear
-  (`clear_each_frame`)
+- within-run idle presentation: models are cleared between trials and instance
+  counts using the browser's opaque-black idle clear (`clear_each_frame`)
+- between-run recovery: the immersive session closes for each five-minute
+  cooldown and a fresh session opens for the next run, matching the browser
+  launcher's return to its non-immersive window
 
 The browser used `xrScaleFactor=0.25`. Compositor Services does not expose the
 same WebXR scale control. On visionOS 26, the native layer requests the maximum
@@ -90,7 +92,7 @@ native collection.
 ## Operator Flow
 
 1. Select a plan in the control window.
-2. Choose **Enter Immersive**.
+2. Choose **Enter Immersive (Debug)**.
 3. Confirm the status becomes `Immersive Metal renderer ready`.
 4. Enter the native Git commit shown by `git rev-parse --short HEAD`. Append
    `-dirty` if the installed build contains uncommitted changes.
@@ -100,16 +102,23 @@ native collection.
    Target** before collection and export the PNG. This is not a screenshot of
    the headset view: it captures the app's first-eye color attachment without
    compositor effects. Treat it only as a render-target diagnostic.
-7. Choose **Run Selected Plan** and keep the headset worn.
-8. Do not exit immersive mode, capture a preview, record an Instruments trace,
-   or run another app
-   during baseline collection.
-9. Export the latest JSONL after each run. The app also stores files under
+7. Exit debug immersion and choose **Start Selected Campaign** from the control
+   window. Campaign collection cannot begin while debug immersion is open.
+8. Keep the headset worn during each measured run. The control panel hides
+   while a run is active and the app exits immersion after each run.
+9. Wait for the five-minute cooldown to finish in the control window, then
+   choose **Continue Next Run**. This opens a fresh immersive session and hides
+   the controls before the next measurement begins.
+10. Do not capture a preview, record an Instruments trace, or run another app
+    during baseline collection.
+11. Export the latest JSONL after each run. The app also stores files under
    `Documents/AVP Native XR/<cohort>`.
 
-During every trial, instance, and between-run cooldown, the app clears all
-benchmark models and leaves only the uniform immersive background. Models
-remaining on screen indicate that the workload is not idling; cancel that
+During short trial and instance cooldowns, the app clears all benchmark models
+and leaves only the uniform immersive background. During the five-minute
+between-run cooldown, immersion is closed and the control window is visible.
+Models remaining on screen during a short cooldown, or immersion remaining open
+during a between-run cooldown, indicates a protocol failure; cancel that
 collection rather than treating the following run as valid.
 
 Validate exported files on the Mac:

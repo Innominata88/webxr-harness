@@ -4,6 +4,8 @@ struct ControlView: View {
     @EnvironmentObject private var coordinator: VisionBenchmarkCoordinator
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -35,33 +37,44 @@ struct ControlView: View {
 
             HStack(spacing: 12) {
                 if coordinator.immersiveOpen {
-                    Button("Exit Immersive") {
+                    Button("Exit Debug Immersion") {
                         Task {
                             await dismissImmersiveSpace()
-                            coordinator.immersiveOpen = false
+                            coordinator.immersiveDismissed()
                         }
                     }
                     .disabled(coordinator.isRunning)
                 } else {
-                    Button("Enter Immersive") {
+                    Button("Enter Immersive (Debug)") {
                         Task {
                             let result = await openImmersiveSpace(id: "BenchmarkSpace")
                             coordinator.immersiveOpen = result == .opened
                         }
                     }
+                    .disabled(coordinator.isRunning)
                 }
 
-                Button("Run Selected Plan") {
-                    coordinator.startSelectedPlan()
+                if coordinator.isRunning {
+                    if coordinator.canContinueCampaign {
+                        Button("Continue Next Run") {
+                            guard coordinator.prepareNextCampaignRun() else { return }
+                            openCampaignImmersion()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    Button("Start Selected Campaign") {
+                        guard coordinator.prepareSelectedCampaign() else { return }
+                        openCampaignImmersion()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(
+                        coordinator.immersiveOpen
+                        || coordinator.nativeHarnessCommit.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(
-                    !coordinator.rendererReady
-                    || coordinator.isRunning
-                    || coordinator.nativeHarnessCommit.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    ).isEmpty
-                )
 
                 Button("Cancel", role: .destructive) {
                     coordinator.cancel()
@@ -95,11 +108,33 @@ struct ControlView: View {
             }
 
             Divider()
-            Text("Keep the immersive space open and the headset worn for every measured run. The app saves one JSONL file per run in its Documents/AVP Native XR folder. Do not record an Instruments trace during baseline collection.")
+            Text("Debug immersion keeps this panel visible for visual checks. A measured campaign must start outside immersion; the panel hides during each run, the immersive session closes for every five-minute cooldown, and Continue Next Run opens a fresh session. The app saves one JSONL file per run in its Documents/AVP Native XR folder. Do not record an Instruments trace during baseline collection.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
         .padding(28)
         .frame(minWidth: 650, minHeight: 480)
+        .onAppear {
+            coordinator.installLifecycleActions(
+                dismissImmersive: {
+                    await dismissImmersiveSpace()
+                },
+                openControlWindow: {
+                    openWindow(id: "ControlWindow")
+                }
+            )
+        }
+    }
+
+    private func openCampaignImmersion() {
+        Task {
+            let result = await openImmersiveSpace(id: "BenchmarkSpace")
+            guard result == .opened else {
+                coordinator.campaignImmersiveOpenFailed()
+                return
+            }
+            guard await coordinator.campaignImmersiveOpened() else { return }
+            dismissWindow(id: "ControlWindow")
+        }
     }
 }

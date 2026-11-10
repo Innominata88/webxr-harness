@@ -47,7 +47,7 @@ struct VisionProBenchmarkApp: App {
     @StateObject private var coordinator = VisionBenchmarkCoordinator()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "ControlWindow") {
             ControlView()
                 .environmentObject(coordinator)
         }

@@ -3,6 +3,16 @@ import Combine
 import Darwin
 import Foundation
 
+enum NativeCampaignPhase: Equatable {
+    case idle
+    case openingImmersive
+    case measuring
+    case exitingImmersive
+    case coolingDown
+    case readyForNextRun
+    case complete
+}
+
 @MainActor
 final class VisionBenchmarkCoordinator: ObservableObject {
     let runtime = BenchmarkRuntime()
@@ -16,6 +26,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var rendererReady = false
     @Published var immersiveOpen = false
+    @Published private(set) var campaignPhase: NativeCampaignPhase = .idle
     @Published private(set) var latestOutputURL: URL?
     @Published private(set) var outputURLs: [URL] = []
     @Published private(set) var latestCaptureURL: URL?
@@ -26,6 +37,15 @@ final class VisionBenchmarkCoordinator: ObservableObject {
     }
 
     private var runTask: Task<Void, Never>?
+    private var rendererGeneration = 0
+    // A reopened session must initialize a new renderer; ignore stale ready state.
+    private var requiredRendererGeneration = 0
+    private var dismissImmersiveAction: (@MainActor () async -> Void)?
+    private var openControlWindowAction: (@MainActor () -> Void)?
+
+    var canContinueCampaign: Bool {
+        isRunning && campaignPhase == .readyForNextRun && !immersiveOpen
+    }
 
     init() {
         nativeHarnessCommit = UserDefaults.standard.string(
@@ -35,7 +55,13 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             DispatchQueue.main.async { self?.status = message }
         }
         runtime.onReadyChanged = { [weak self] ready in
-            DispatchQueue.main.async { self?.rendererReady = ready }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if ready {
+                    self.rendererGeneration += 1
+                }
+                self.rendererReady = ready
+            }
         }
         runtime.onDiagnosticCapture = { [weak self] data, error in
             DispatchQueue.main.async {
@@ -74,33 +100,104 @@ final class VisionBenchmarkCoordinator: ObservableObject {
         }
     }
 
-    func startSelectedPlan() {
-        guard !isRunning else { return }
-        guard rendererReady else {
-            status = "Enter the immersive space and wait for Metal renderer ready."
-            return
+    func installLifecycleActions(
+        dismissImmersive: @escaping @MainActor () async -> Void,
+        openControlWindow: @escaping @MainActor () -> Void
+    ) {
+        dismissImmersiveAction = dismissImmersive
+        openControlWindowAction = openControlWindow
+    }
+
+    func prepareSelectedCampaign() -> Bool {
+        guard !isRunning else { return false }
+        guard !immersiveOpen else {
+            status = "Exit debug immersion before starting a measured campaign."
+            return false
         }
         guard let plan else {
             status = "The selected plan could not be loaded."
-            return
+            return false
         }
         guard !nativeHarnessCommit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             status = "Enter the native Git commit (append -dirty for an uncommitted build)."
-            return
+            return false
         }
 
         isRunning = true
+        requiredRendererGeneration = rendererGeneration + 1
+        campaignPhase = .openingImmersive
         progress = 0
         outputURLs = []
         latestOutputURL = nil
-        runTask = Task { [weak self] in
-            guard let self else { return }
-            await self.execute(plan)
+        status = "Opening a fresh immersive session for run 1/\(plan.runs.count)..."
+        return true
+    }
+
+    func prepareNextCampaignRun() -> Bool {
+        guard canContinueCampaign else { return false }
+        requiredRendererGeneration = rendererGeneration + 1
+        campaignPhase = .openingImmersive
+        status = "Opening a fresh immersive session for the next run..."
+        return true
+    }
+
+    func campaignImmersiveOpened() async -> Bool {
+        immersiveOpen = true
+        guard isRunning else {
+            await closeImmersiveAndShowControlWindow()
+            return false
         }
+        status = "Initializing the immersive Metal renderer..."
+        guard await waitForRendererReady() else {
+            failBeforeOrBetweenRuns(
+                "The immersive renderer did not become ready. Exit immersion and try again."
+            )
+            return false
+        }
+        guard isRunning else {
+            await closeImmersiveAndShowControlWindow()
+            return false
+        }
+
+        campaignPhase = .measuring
+        if runTask == nil {
+            guard let plan else {
+                failBeforeOrBetweenRuns("The selected plan is unavailable.")
+                return false
+            }
+            runTask = Task { [weak self] in
+                guard let self else { return }
+                await self.execute(plan)
+            }
+        }
+        return true
+    }
+
+    func campaignImmersiveOpenFailed() {
+        immersiveOpen = false
+        if runTask == nil {
+            isRunning = false
+            campaignPhase = .idle
+            status = "Immersive entry was cancelled. The campaign did not start."
+        } else {
+            campaignPhase = .readyForNextRun
+            status = "Immersive entry was cancelled. Choose Continue Next Run to try again."
+        }
+    }
+
+    func immersiveDismissed() {
+        immersiveOpen = false
+        rendererReady = false
     }
 
     func cancel() {
         guard isRunning else { return }
+        if runTask == nil {
+            isRunning = false
+            campaignPhase = .idle
+            status = "Collection cancelled before the first run."
+            return
+        }
         runTask?.cancel()
         runtime.abortActiveTrial(
             code: "operator_cancelled",
@@ -128,7 +225,7 @@ final class VisionBenchmarkCoordinator: ObservableObject {
     private func loadSelectedPlan() {
         do {
             plan = try NativeXRPlan.bundled(selectedPlan)
-            status = "Plan ready. Enter the immersive space."
+            status = "Plan ready. Use debug immersion to inspect it, or start the campaign from this window."
         } catch {
             plan = nil
             status = error.localizedDescription
@@ -138,7 +235,15 @@ final class VisionBenchmarkCoordinator: ObservableObject {
     private func execute(_ plan: NativeXRPlan) async {
         defer {
             runtime.requestIdle()
+            if immersiveOpen {
+                Task { [weak self] in
+                    await self?.closeImmersiveAndShowControlWindow()
+                }
+            }
             isRunning = false
+            if campaignPhase != .complete {
+                campaignPhase = .idle
+            }
             runTask = nil
         }
 
@@ -237,6 +342,11 @@ final class VisionBenchmarkCoordinator: ObservableObject {
 
             if runIndex < plan.runs.count - 1 {
                 runtime.requestIdle()
+                guard await exitImmersiveSession() else {
+                    status = "Collection stopped because the immersive session did not close."
+                    return
+                }
+                campaignPhase = .coolingDown
                 if !(await betweenRunCooldown(
                     milliseconds: plan.betweenRunsMs,
                     nextRun: runIndex + 2,
@@ -245,10 +355,78 @@ final class VisionBenchmarkCoordinator: ObservableObject {
                     status = "Collection cancelled. Partial JSONL was retained."
                     return
                 }
+                campaignPhase = .readyForNextRun
+                status = "Cooldown complete. Choose Continue Next Run for run \(runIndex + 2)/\(plan.runs.count)."
+                guard await waitForNextImmersiveRun() else {
+                    status = "Collection cancelled while waiting for the next run."
+                    return
+                }
             }
         }
+        guard await exitImmersiveSession() else {
+            status = "All measurements completed, but the immersive session did not close automatically."
+            return
+        }
         progress = 1
+        campaignPhase = .complete
         status = "Selected native plan complete. Export the most recent JSONL file."
+    }
+
+    private func exitImmersiveSession() async -> Bool {
+        guard immersiveOpen else {
+            openControlWindowAction?()
+            return true
+        }
+        guard dismissImmersiveAction != nil else { return false }
+        campaignPhase = .exitingImmersive
+        await closeImmersiveAndShowControlWindow()
+        return !immersiveOpen
+    }
+
+    private func closeImmersiveAndShowControlWindow() async {
+        if immersiveOpen, let dismissImmersiveAction {
+            await dismissImmersiveAction()
+            immersiveDismissed()
+        }
+        openControlWindowAction?()
+    }
+
+    private func waitForNextImmersiveRun() async -> Bool {
+        while campaignPhase != .measuring {
+            if Task.isCancelled { return false }
+            if !(await pause(milliseconds: 100)) { return false }
+        }
+        return rendererReady
+    }
+
+    private func waitForRendererReady() async -> Bool {
+        for _ in 0..<150 {
+            if rendererReady && rendererGeneration >= requiredRendererGeneration {
+                return true
+            }
+            if Task.isCancelled { return false }
+            do {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            } catch {
+                return false
+            }
+        }
+        return rendererReady && rendererGeneration >= requiredRendererGeneration
+    }
+
+    private func failBeforeOrBetweenRuns(_ message: String) {
+        status = message
+        if immersiveOpen {
+            Task { [weak self] in
+                await self?.closeImmersiveAndShowControlWindow()
+            }
+        }
+        if runTask == nil {
+            isRunning = false
+            campaignPhase = .idle
+        } else {
+            campaignPhase = .readyForNextRun
+        }
     }
 
     private func performTrial(plan: NativeXRPlan) async -> NativeTrialMeasurement {
@@ -323,7 +501,9 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "warmupMs": plan.warmupMs,
             "cooldownMs": plan.cooldownMs,
             "betweenInstancesMs": plan.betweenInstancesMs,
+            "betweenRunsMs": plan.betweenRunsMs,
             "xrIdlePresentMode": "clear_each_frame",
+            "betweenRunsPresentationMode": "immersive_session_closed",
             "minFrames": plan.minFrames,
             "collectPerf": false,
             "perfDetail": false,
@@ -364,11 +544,12 @@ final class VisionBenchmarkCoordinator: ObservableObject {
             "rasterization_rate_maps_applied": environment.foveationEnabled
                 && environment.rasterizationRateMapCount > 0,
             "idle_clear_color": "black",
+            "between_run_xr_session": "closed_and_reopened",
             "timing_source_primary": "compositorservices_predicted_presentation_time",
             "timing_source_secondary": "processinfo_system_uptime",
             "timing_scope": "application_compositor_cadence_not_gpu_execution",
             "browser": "native",
-            "harness_version": "native-vision-1.2.2",
+            "harness_version": "native-vision-1.3.0",
             "harness_commit": nativeHarnessCommit,
             "source_web_harness_commit": plan.sourceHarnessCommit,
             "source_harness_version": plan.sourceHarnessVersion,
